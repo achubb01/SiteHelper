@@ -14,8 +14,14 @@ add_executable(test_geometry
 target_link_libraries(test_geometry
     PRIVATE
         geometry
-        m
 )
+
+if(NOT MSVC)
+    target_link_libraries(test_geometry
+        PRIVATE
+            m
+    )
+endif()
 
 add_test(
     NAME geometry_tests

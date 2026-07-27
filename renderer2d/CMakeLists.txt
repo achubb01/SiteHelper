@@ -20,8 +20,14 @@ add_executable(test_renderer2d
 target_link_libraries(test_renderer2d
     PRIVATE
         renderer2d
-        m
 )
+
+if(NOT MSVC)
+    target_link_libraries(test_renderer2d
+        PRIVATE
+            m
+    )
+endif()
 
 add_test(
     NAME renderer2d_tests
