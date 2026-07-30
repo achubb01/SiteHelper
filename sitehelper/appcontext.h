@@ -148,4 +148,8 @@ typedef struct {
     StudType type;
 } StudGenerationContext;
 
+typedef struct {
+    const Timber *selected;
+} WallSelection;
+
 #endif

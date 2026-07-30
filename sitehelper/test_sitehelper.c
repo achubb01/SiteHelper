@@ -256,10 +256,20 @@ static void assert_studs_inside_wall(
         assert(stud->position.y >= 0);
 
         assert(
-            stud->position.x +
-            settings->stud_width
-            <= wall->bottomplate.length
-        );
+        stud->width ==
+        settings->stud_width
+    );
+
+    assert(
+        stud->depth ==
+        settings->stud_depth
+    );
+
+    assert(
+        stud->position.x +
+        stud->width
+        <= wall->bottomplate.length
+    );
 
         assert(
             stud->position.y +
@@ -280,13 +290,15 @@ static void assert_wall_end_studs(
         wall->studs[0].position.x == 0
     );
 
-    assert(
-        wall->studs[
+    const Timber *last =
+        &wall->studs[
             wall->stud_count - 1
-        ].position.x
-        ==
-        wall->bottomplate.length -
-        settings->stud_width
+        ];
+
+    assert(
+        last->position.x +
+        last->width ==
+        wall->bottomplate.length
     );
 }
 
@@ -320,11 +332,71 @@ static void assert_valid_cripples(
     }
 }
 
+static void assert_valid_plates(
+    const Wall *wall,
+    const BuildSettings *settings
+)
+{
+    assert(wall != NULL);
+    assert(settings != NULL);
+
+    const Timber *bottom =
+        &wall->bottomplate;
+
+    const Timber *top =
+        &wall->topplate;
+
+    assert(bottom->type == TIMBER_PLATE);
+    assert(top->type == TIMBER_PLATE);
+
+    assert(bottom->length > 0);
+
+    assert(
+        top->length ==
+        bottom->length
+    );
+
+    assert(
+        bottom->width ==
+        settings->stud_width
+    );
+
+    assert(
+        top->width ==
+        settings->stud_width
+    );
+
+    assert(
+        bottom->depth ==
+        settings->stud_depth
+    );
+
+    assert(
+        top->depth ==
+        settings->stud_depth
+    );
+
+    assert(bottom->position.x == 0);
+    assert(bottom->position.y == 0);
+
+    assert(top->position.x == 0);
+
+    assert(
+        top->position.y ==
+        settings->stud_height
+    );
+}
+
 static void assert_valid_generated_wall(
     const Wall *wall,
     const BuildSettings *settings
 )
 {
+    assert_valid_plates(
+        wall,
+        settings
+    );
+
     assert_valid_vertical_member_spacing(
         wall,
         settings
@@ -527,6 +599,104 @@ static void test_property_single_opening_geometry(void)
     }
 }
 
+static void test_wall_generates_complete_plates(void)
+{
+    Wall wall = {0};
+
+    BuildSettings settings = {
+        .stud_height = 2400,
+        .stud_width = 35,
+        .stud_depth = 90,
+        .stud_spacing = 450,
+        .nog_spacing = 900,
+        .stud_spacing_mode =
+            STUD_SPACING_MAXIMISE
+    };
+
+    assert(
+        wall_set_length(
+            &wall,
+            4200
+        )
+    );
+
+    assert(
+        wall_generate(
+            &wall,
+            &settings
+        )
+    );
+
+    /*
+     * Bottom plate
+     */
+
+    assert(
+        wall.bottomplate.type ==
+        TIMBER_PLATE
+    );
+
+    assert(
+        wall.bottomplate.length ==
+        4200
+    );
+
+    assert(
+        wall.bottomplate.width ==
+        35
+    );
+
+    assert(
+        wall.bottomplate.depth ==
+        90
+    );
+
+    assert(
+        wall.bottomplate.position.x ==
+        0
+    );
+
+    assert(
+        wall.bottomplate.position.y ==
+        0
+    );
+
+    /*
+     * Top plate
+     */
+
+    assert(
+        wall.topplate.type ==
+        TIMBER_PLATE
+    );
+
+    assert(
+        wall.topplate.length ==
+        4200
+    );
+
+    assert(
+        wall.topplate.width ==
+        35
+    );
+
+    assert(
+        wall.topplate.depth ==
+        90
+    );
+
+    assert(
+        wall.topplate.position.x ==
+        0
+    );
+
+    assert(
+        wall.topplate.position.y ==
+        2400
+    );
+
+    wall_destroy(&wall);
+}
 
 static void test_maximise_spacing(void)
 {
@@ -2449,6 +2619,7 @@ static void test_repairs_spacing_after_opening(void)
 
 int main(void)
 {
+    test_wall_generates_complete_plates();
     test_maximise_spacing();
     test_even_spacing();
     test_noggins();

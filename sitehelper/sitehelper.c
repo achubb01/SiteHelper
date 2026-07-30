@@ -27,6 +27,7 @@ static int opening_assembly_end(const Opening *opening, const BuildSettings *set
 static int openings_conflict(const Opening *a, const Opening *b, const BuildSettings *settings);
 static int wall_repair_stud_spacing(Wall *wall, const BuildSettings *settings);
 static int wall_span_is_opening(const Wall *wall, const BuildSettings *settings, const Timber *left, const Timber *right);
+static int wall_generate_plates(Wall *wall, const BuildSettings *settings);
 
 
 int build_add_room(BuildStructure *structure)
@@ -128,6 +129,63 @@ int wall_set_length(Wall *wall, int length)
     return 1;
 }
 
+static int wall_generate_plates(
+    Wall *wall,
+    const BuildSettings *settings
+)
+{
+    if (wall == NULL ||
+        settings == NULL) {
+        return 0;
+    }
+
+    int wall_length =
+        wall->bottomplate.length;
+
+    if (wall_length <= 0 ||
+        settings->stud_width <= 0 ||
+        settings->stud_depth <= 0 ||
+        settings->stud_height <= 0) {
+        return 0;
+    }
+
+    wall->bottomplate = (Timber){
+        .length = wall_length,
+        .depth = settings->stud_depth,
+        .width = settings->stud_width,
+
+        .position = {
+            .x = 0,
+            .y = 0
+        },
+
+        .type = TIMBER_PLATE,
+
+        .details.plate = {
+            .placeholder = 0
+        }
+    };
+
+    wall->topplate = (Timber){
+        .length = wall_length,
+        .depth = settings->stud_depth,
+        .width = settings->stud_width,
+
+        .position = {
+            .x = 0,
+            .y = settings->stud_height
+        },
+
+        .type = TIMBER_PLATE,
+
+        .details.plate = {
+            .placeholder = 0
+        }
+    };
+
+    return 1;
+}
+
 int wall_generate(
     Wall *wall,
     const BuildSettings *settings
@@ -152,6 +210,12 @@ int wall_generate(
     wall_clear_studs(wall);
     wall_clear_noggins(wall);
     wall_clear_members(wall);
+
+    if (!wall_generate_plates(
+            wall,
+            settings)) {
+        return 0;
+    }
 
     if (!wall_generate_studs(
             wall,
