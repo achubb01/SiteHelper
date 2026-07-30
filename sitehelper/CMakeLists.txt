@@ -109,3 +109,24 @@ target_link_libraries(sitehelper
         sitehelper_core
         commandmenu
 )
+
+add_executable(sitehelper_sdl
+    sitehelper_sdl.c
+)
+
+target_link_libraries(sitehelper_sdl
+    PRIVATE
+        sitehelper_core
+        renderer2d_sdl
+)
+
+if(WIN32)
+    add_custom_command(
+        TARGET sitehelper_sdl
+        POST_BUILD
+
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:SDL3::SDL3>
+            $<TARGET_FILE_DIR:sitehelper_sdl>
+    )
+endif()
