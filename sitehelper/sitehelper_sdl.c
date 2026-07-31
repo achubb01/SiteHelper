@@ -7,6 +7,80 @@
 #include "renderer2d.h"
 #include "renderer2d_sdl.h"
 
+static void render_scene(
+    Renderer2D *renderer,
+    const Wall *wall,
+    const WallEditor *editor,
+    const WallRenderStyle *style,
+    Colour background
+)
+{
+    if (
+        renderer == NULL
+        || wall == NULL
+        || editor == NULL
+        || style == NULL
+    ) {
+        return;
+    }
+
+    renderer2d_clear(
+        renderer,
+        background
+    );
+
+    wall_render(
+        renderer,
+        wall,
+        wall_editor_get_selection(editor),
+        style
+    );
+
+    renderer2d_present(
+        renderer
+    );
+}
+
+static void select_at_screen_position(
+    Renderer2D *renderer,
+    WallEditor *editor,
+    const Wall *wall,
+    Vec2 screen_position
+)
+{
+    if (
+        renderer == NULL
+        || editor == NULL
+        || wall == NULL
+    ) {
+        return;
+    }
+
+    Camera2D camera =
+        renderer2d_get_camera(renderer);
+
+    Viewport2D viewport =
+        renderer2d_get_viewport(renderer);
+
+    Vec2 world_position =
+        camera_screen_to_world(
+            &camera,
+            viewport,
+            screen_position
+        );
+
+    Position position = {
+        .x = (int)world_position.x,
+        .y = (int)world_position.y
+    };
+
+    wall_editor_select_at_position(
+        editor,
+        wall,
+        position
+    );
+}
+
 int main(void)
 {
     Renderer2D *renderer = renderer2d_create();
@@ -115,7 +189,6 @@ int main(void)
         Renderer2DEvent event;
 
         while (renderer2d_sdl_poll_event(&event)) {
-
             if (event.quit_requested) {
                 running = 0;
             }
@@ -127,22 +200,28 @@ int main(void)
                     event.viewport_height
                 );
             }
+
+            if (event.primary_mouse_pressed) {
+                Vec2 screen_position = {
+                    .x = event.mouse_x,
+                    .y = event.mouse_y
+                };
+
+                select_at_screen_position(
+                    renderer,
+                    &editor,
+                    &wall,
+                    screen_position
+                );
+            }
         }
 
-        renderer2d_clear(
-            renderer,
-            background
-        );
-
-        wall_render(
+        render_scene(
             renderer,
             &wall,
-            wall_editor_get_selection(&editor),
-            &wall_style
-        );
-
-        renderer2d_present(
-            renderer
+            &editor,
+            &wall_style,
+            background
         );
     }
 
