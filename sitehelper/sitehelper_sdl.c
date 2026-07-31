@@ -1,5 +1,9 @@
 #include <stdlib.h>
 
+#include "sitehelper.h"
+#include "wall_editor.h"
+#include "wall_render.h"
+
 #include "renderer2d.h"
 #include "renderer2d_sdl.h"
 
@@ -30,8 +34,8 @@ int main(void)
     );
 
     Camera2D camera = {
-        .position = {0.0, 0.0},
-        .scale = 1.0
+        .position = {-200.0, -200.0},
+        .scale = 0.12
     };
 
     renderer2d_set_camera(
@@ -46,12 +50,72 @@ int main(void)
         .a = 255
     };
 
+    BuildSettings settings = {
+        .stud_height = 2400,
+        .stud_depth = 90,
+        .stud_width = 35,
+
+        .stud_spacing = 600,
+        .nog_spacing = 1200,
+
+        .opening_width_allowance = 0,
+        .opening_height_allowance = 0,
+
+        .stud_spacing_mode = STUD_SPACING_MAXIMISE
+    };
+
+    Wall wall = {0};
+
+    if (!wall_set_length(
+            &wall,
+            4200)) {
+
+        renderer2d_sdl_destroy_backend(&backend);
+        renderer2d_destroy(renderer);
+
+        return 1;
+    }
+
+    if (!wall_generate(
+            &wall,
+            &settings)) {
+
+        renderer2d_sdl_destroy_backend(&backend);
+        renderer2d_destroy(renderer);
+
+        return 1;
+    }
+
+    WallEditor editor;
+
+    wall_editor_init(
+        &editor
+    );
+
+    WallRenderStyle wall_style = {
+        .timber_colour = {
+            .r = 200,
+            .g = 160,
+            .b = 100,
+            .a = 255
+        },
+
+        .selected_colour = {
+            .r = 255,
+            .g = 220,
+            .b = 40,
+            .a = 255
+        }
+    };
+
     int running = 1;
 
     while (running) {
+
         Renderer2DEvent event;
 
         while (renderer2d_sdl_poll_event(&event)) {
+
             if (event.quit_requested) {
                 running = 0;
             }
@@ -70,14 +134,25 @@ int main(void)
             background
         );
 
-        renderer2d_present(renderer);
+        wall_render(
+            renderer,
+            &wall,
+            wall_editor_get_selection(&editor),
+            &wall_style
+        );
+
+        renderer2d_present(
+            renderer
+        );
     }
 
     renderer2d_sdl_destroy_backend(
         &backend
     );
 
-    renderer2d_destroy(renderer);
+    renderer2d_destroy(
+        renderer
+    );
 
     return 0;
 }
