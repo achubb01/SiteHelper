@@ -293,6 +293,28 @@ static void sitehelper_app_process_events(
             );
         }
 
+        if (event.pan_dragged) {
+            Camera2D camera =
+                renderer2d_get_camera(
+                    app->renderer
+                );
+
+            Vec2 camera_delta = {
+                .x =
+                    -event.mouse_delta_x
+                    / camera.scale,
+
+                .y =
+                    event.mouse_delta_y
+                    / camera.scale
+            };
+
+            renderer2d_move_camera(
+                app->renderer,
+                camera_delta
+            );
+        }
+
         if (event.mouse_wheel) {
             Vec2 screen_position = {
                 .x = event.mouse_x,

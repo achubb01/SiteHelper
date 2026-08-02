@@ -276,6 +276,21 @@ int renderer2d_sdl_poll_event(
                 break;
         }
     }
+    else if (
+        sdl_event.type == SDL_EVENT_MOUSE_MOTION
+        &&
+        (
+            sdl_event.motion.state
+            &
+            SDL_BUTTON_MMASK
+        )
+    ) {
+        event->pan_dragged = 1;
+
+        event->mouse_delta_x = (double)sdl_event.motion.xrel;
+
+        event->mouse_delta_y = (double)sdl_event.motion.yrel;
+    }
     else if (sdl_event.type == SDL_EVENT_MOUSE_WHEEL) {
         event->mouse_wheel = 1;
 
