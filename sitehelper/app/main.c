@@ -1,8 +1,9 @@
-#include "./appcontext.h"
-#include "./appmenu.h"
-#include "../commandmenu/commandmenu.h"
+#include "appcontext.h"
+#include "appstate.h"
+#include "appmenu.h"
 
-int main(void) {
+int main(void)
+{
     AppContext context = {0};
 
     command_run(app_menu_root(), &context);

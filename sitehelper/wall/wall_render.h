@@ -1,8 +1,9 @@
 #ifndef WALL_RENDER_H
 #define WALL_RENDER_H
 
-#include "appcontext.h"
-#include "../renderer2d/renderer2d.h"
+#include "renderer2d.h"
+#include "wall.h"
+#include "wall_selection.h"
 
 typedef struct {
     Colour timber_colour;

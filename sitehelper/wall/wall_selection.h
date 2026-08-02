@@ -3,7 +3,11 @@
 
 #include <stdbool.h>
 
-#include "appcontext.h"
+#include "sitehelper_model.h"
+
+typedef struct {
+    const Timber *selected;
+} WallSelection;
 
 void wall_selection_init(
     WallSelection *selection

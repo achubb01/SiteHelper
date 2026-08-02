@@ -4,9 +4,10 @@
 #include <stdbool.h>
 
 #include "actions.h"
-#include "appcontext.h"
+#include "sitehelper_model.h"
 #include "wall.h"
 #include "appstate.h"
+#include "appcontext.h"
 
 //Setting Menu
 void setBuildSettings(void *context)

@@ -1,5 +1,5 @@
-#ifndef APPCONTEXT_H
-#define APPCONTEXT_H
+#ifndef SITEHELPER_MODEL_H
+#define SITEHELPER_MODEL_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -34,10 +34,7 @@ typedef struct {
     int y;
 }Position;
 
-typedef int (*PositionCallback)(
-    int position,
-    void *context
-);
+
 
 typedef struct {
     OpeningType type;
@@ -129,27 +126,5 @@ typedef struct {
     StudSpacingMode stud_spacing_mode;
 } BuildSettings;
 
-typedef struct {
-    BuildSettings settings;
-    BuildStructure structure;
-
-    size_t current_room;
-    size_t current_wall;
-
-    bool room_selected;
-    bool wall_selected;
-} AppContext;
-
-typedef struct {
-    Wall *wall;
-    const BuildSettings *settings;
-    int y;
-    int length;
-    StudType type;
-} StudGenerationContext;
-
-typedef struct {
-    const Timber *selected;
-} WallSelection;
 
 #endif

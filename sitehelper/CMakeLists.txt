@@ -1,7 +1,14 @@
 add_library(sitehelper_core
     app/appstate.c
 
-    wall/wall.c
+    wall/wall_generation.c
+    wall/wall_lifecycle.c
+    wall/build_structure.c
+    wall/wall_position_generation.c
+    wall/wall_noggins.c
+    wall/wall_studs.c
+    wall/wall_members.c
+    wall/wall_openings.c
     wall/wall_render.c
     wall/wall_query.c
     wall/wall_selection.c
@@ -16,6 +23,7 @@ target_include_directories(sitehelper_core
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/app
         ${CMAKE_CURRENT_SOURCE_DIR}/grid
+        ${CMAKE_CURRENT_SOURCE_DIR}/model
         ${CMAKE_CURRENT_SOURCE_DIR}/ui
         ${CMAKE_CURRENT_SOURCE_DIR}/wall
 )

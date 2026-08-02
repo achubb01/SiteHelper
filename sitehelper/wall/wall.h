@@ -1,7 +1,7 @@
 #ifndef SITEHELPER_H
 #define SITEHELPER_H
 
-#include "appcontext.h"
+#include "../model/sitehelper_model.h"
 
 int build_add_room(BuildStructure *structure);
 int room_add_wall(Room *room);
