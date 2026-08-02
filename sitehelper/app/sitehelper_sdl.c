@@ -4,6 +4,7 @@
 #include "wall_editor.h"
 #include "wall_render.h"
 #include "grid_render.h"
+#include "grid_snap.h"
 
 #include "renderer2d.h"
 #include "renderer2d_sdl.h"
@@ -18,6 +19,11 @@ typedef struct
 
     WallRenderStyle wall_style;
     GridRenderStyle grid_style;
+
+    Vec2 snapped_cursor_position;
+    int snapped_cursor_visible;
+
+    double snap_spacing;
 
     Colour background;
 
@@ -40,6 +46,14 @@ static void sitehelper_app_destroy(
     SiteHelperApp *app
 );
 
+static void sitehelper_app_update_snap_cursor(
+    SiteHelperApp *app,
+    Vec2 screen_position
+);
+
+static void sitehelper_app_render_snap_cursor(
+    const SiteHelperApp *app
+);
 
 static int sitehelper_app_init(
     SiteHelperApp *app
@@ -116,6 +130,9 @@ static int sitehelper_app_init(
 
         .minimum_screen_spacing = 16.0
     };
+
+    app->snap_spacing = 100.0;
+    app->snapped_cursor_visible = 0;
 
     BuildSettings settings = {
         .stud_height = 2400,
@@ -200,6 +217,10 @@ static void sitehelper_app_render(
             &app->editor
         ),
         &app->wall_style
+    );
+
+    sitehelper_app_render_snap_cursor(
+        app
     );
 
     renderer2d_present(
@@ -372,6 +393,16 @@ static void sitehelper_app_process_events(
                 screen_position
             );
         }
+
+        if (event.mouse_moved) {
+            sitehelper_app_update_snap_cursor(
+                app,
+                (Vec2){
+                    .x = event.mouse_x,
+                    .y = event.mouse_y
+                }
+            );
+        }
     }
 }
 
@@ -396,6 +427,96 @@ static void sitehelper_app_destroy(
     );
 
     *app = (SiteHelperApp){0};
+}
+
+static void sitehelper_app_update_snap_cursor(
+    SiteHelperApp *app,
+    Vec2 screen_position
+)
+{
+    if (
+        app == NULL
+        || app->renderer == NULL
+    ) {
+        return;
+    }
+
+    Camera2D camera =
+        renderer2d_get_camera(
+            app->renderer
+        );
+
+    Viewport2D viewport =
+        renderer2d_get_viewport(
+            app->renderer
+        );
+
+    Vec2 world_position =
+        camera_screen_to_world(
+            &camera,
+            viewport,
+            screen_position
+        );
+
+    app->snapped_cursor_position =
+        grid_snap_position(
+            world_position,
+            app->snap_spacing
+        );
+
+    app->snapped_cursor_visible = 1;
+}
+
+static void sitehelper_app_render_snap_cursor(
+    const SiteHelperApp *app
+)
+{
+    if (
+        app == NULL
+        || app->renderer == NULL
+        || !app->snapped_cursor_visible
+    ) {
+        return;
+    }
+
+    const double marker_radius =
+        40.0;
+
+    Colour marker_colour = {
+        .r = 80,
+        .g = 200,
+        .b = 255,
+        .a = 255
+    };
+
+    Vec2 position =
+        app->snapped_cursor_position;
+
+    renderer2d_draw_line(
+        app->renderer,
+        (Vec2){
+            .x = position.x - marker_radius,
+            .y = position.y
+        },
+        (Vec2){
+            .x = position.x + marker_radius,
+            .y = position.y
+        },
+        marker_colour
+    );
+
+    renderer2d_draw_line(
+        app->renderer,
+        (Vec2){
+            .x = position.x,
+            .y = position.y - marker_radius
+        },
+        (Vec2){
+            .x = position.x,
+            .y = position.y + marker_radius
+        },
+        marker_colour
+    );
 }
 
 int main(void)

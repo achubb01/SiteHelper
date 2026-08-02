@@ -28,6 +28,8 @@ typedef struct Renderer2DEvent {
     double mouse_x;
     double mouse_y;
     double wheel_y;
+
+    int mouse_moved
 } Renderer2DEvent;
 
 void renderer2d_draw_line(
