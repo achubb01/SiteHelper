@@ -1,5 +1,7 @@
 #include <stdlib.h>
 
+#include "snap.h"
+
 #include "wall/wall.h"
 #include "wall_editor.h"
 #include "wall_render.h"
@@ -20,7 +22,7 @@ typedef struct
     WallRenderStyle wall_style;
     GridRenderStyle grid_style;
 
-    Vec2 snapped_cursor_position;
+    SnapResult snap_result;
     int snapped_cursor_visible;
 
     double snap_spacing;
@@ -129,6 +131,11 @@ static int sitehelper_app_init(
         },
 
         .minimum_screen_spacing = 16.0
+    };
+
+    app->snap_result = (SnapResult){
+        .position = {0.0, 0.0},
+        .type = SNAP_NONE
     };
 
     app->snap_spacing = 100.0;
@@ -458,13 +465,14 @@ static void sitehelper_app_update_snap_cursor(
             screen_position
         );
 
-    app->snapped_cursor_position =
-        grid_snap_position(
+    app->snap_result =
+        editor_snap_to_grid(
             world_position,
             app->snap_spacing
         );
 
-    app->snapped_cursor_visible = 1;
+    app->snapped_cursor_visible =
+        app->snap_result.type != SNAP_NONE;
 }
 
 static void sitehelper_app_render_snap_cursor(
@@ -490,7 +498,7 @@ static void sitehelper_app_render_snap_cursor(
     };
 
     Vec2 position =
-        app->snapped_cursor_position;
+        app->snap_result.position;
 
     renderer2d_draw_line(
         app->renderer,

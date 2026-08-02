@@ -1,6 +1,8 @@
 add_library(sitehelper_core
     app/appstate.c
 
+    editor/snap.c
+
     wall/wall_generation.c
     wall/wall_lifecycle.c
     wall/build_structure.c
@@ -22,6 +24,7 @@ target_include_directories(sitehelper_core
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/app
+        ${CMAKE_CURRENT_SOURCE_DIR}/editor
         ${CMAKE_CURRENT_SOURCE_DIR}/grid
         ${CMAKE_CURRENT_SOURCE_DIR}/model
         ${CMAKE_CURRENT_SOURCE_DIR}/ui
@@ -145,6 +148,20 @@ target_link_libraries(test_grid_snap
 add_test(
     NAME grid_snap_tests
     COMMAND test_grid_snap
+)
+
+add_executable(test_snap
+    editor/tests/test_snap.c
+)
+
+target_link_libraries(test_snap
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME snap_tests
+    COMMAND test_snap
 )
 
 
