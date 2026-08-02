@@ -7,37 +7,167 @@
 #include "renderer2d.h"
 #include "renderer2d_sdl.h"
 
-static void render_scene(
-    Renderer2D *renderer,
-    const Wall *wall,
-    const WallEditor *editor,
-    const WallRenderStyle *style,
-    Colour background
+typedef struct
+{
+    Renderer2D *renderer;
+    RendererBackend backend;
+
+    Wall wall;
+    WallEditor editor;
+    WallRenderStyle wall_style;
+
+    Colour background;
+
+    int running;
+} SiteHelperApp;
+
+static int sitehelper_app_init(
+    SiteHelperApp *app
+);
+
+static void sitehelper_app_process_events(
+    SiteHelperApp *app
+);
+
+static void sitehelper_app_render(
+    const SiteHelperApp *app
+);
+
+static void sitehelper_app_destroy(
+    SiteHelperApp *app
+);
+
+static int sitehelper_app_init(
+    SiteHelperApp *app
+)
+{
+    if (app == NULL) {
+        return 0;
+    }
+
+    *app = (SiteHelperApp){0};
+
+    app->renderer = renderer2d_create();
+
+    if (app->renderer == NULL) {
+        return 0;
+    }
+
+    app->backend =
+        renderer2d_sdl_create_backend(
+            "SiteHelper",
+            800,
+            600
+        );
+
+    renderer2d_set_backend(
+        app->renderer,
+        app->backend
+    );
+
+    renderer2d_set_viewport(
+        app->renderer,
+        800.0,
+        600.0
+    );
+
+    Camera2D camera = {
+        .position = {-200.0, -200.0},
+        .scale = 0.12
+    };
+
+    renderer2d_set_camera(
+        app->renderer,
+        camera
+    );
+
+    app->background = (Colour){
+        .r = 30,
+        .g = 30,
+        .b = 30,
+        .a = 255
+    };
+
+    BuildSettings settings = {
+        .stud_height = 2400,
+        .stud_depth = 90,
+        .stud_width = 35,
+
+        .stud_spacing = 600,
+        .nog_spacing = 1200,
+
+        .opening_width_allowance = 0,
+        .opening_height_allowance = 0,
+
+        .stud_spacing_mode = STUD_SPACING_MAXIMISE
+    };
+
+    if (!wall_set_length(
+            &app->wall,
+            4200)) {
+
+        sitehelper_app_destroy(app);
+        return 0;
+    }
+
+    if (!wall_generate(
+            &app->wall,
+            &settings)) {
+
+        sitehelper_app_destroy(app);
+        return 0;
+    }
+
+    wall_editor_init(
+        &app->editor
+    );
+
+    app->wall_style = (WallRenderStyle){
+        .timber_colour = {
+            .r = 200,
+            .g = 160,
+            .b = 100,
+            .a = 255
+        },
+
+        .selected_colour = {
+            .r = 255,
+            .g = 220,
+            .b = 40,
+            .a = 255
+        }
+    };
+
+    app->running = 1;
+
+    return 1;
+}
+
+static void sitehelper_app_render(
+    const SiteHelperApp *app
 )
 {
     if (
-        renderer == NULL
-        || wall == NULL
-        || editor == NULL
-        || style == NULL
+        app == NULL
+        || app->renderer == NULL
     ) {
         return;
     }
 
     renderer2d_clear(
-        renderer,
-        background
+        app->renderer,
+        app->background
     );
 
     wall_render(
-        renderer,
-        wall,
-        wall_editor_get_selection(editor),
-        style
+        app->renderer,
+        &app->wall,
+        wall_editor_get_selection(&app->editor),
+        &app->wall_style
     );
 
     renderer2d_present(
-        renderer
+        app->renderer
     );
 }
 
@@ -81,157 +211,149 @@ static void select_at_screen_position(
     );
 }
 
-int main(void)
+static void sitehelper_app_process_events(
+    SiteHelperApp *app
+)
 {
-    Renderer2D *renderer = renderer2d_create();
-
-    if (renderer == NULL) {
-        return 1;
+    if (
+        app == NULL
+        || app->renderer == NULL
+    ) {
+        return;
     }
 
-    RendererBackend backend =
-        renderer2d_sdl_create_backend(
-            "SiteHelper",
-            800,
-            600
-        );
+    Renderer2DEvent event;
 
-    renderer2d_set_backend(
-        renderer,
-        backend
-    );
+    const double pan_amount = 100.0;
 
-    renderer2d_set_viewport(
-        renderer,
-        800.0,
-        600.0
-    );
-
-    Camera2D camera = {
-        .position = {-200.0, -200.0},
-        .scale = 0.12
-    };
-
-    renderer2d_set_camera(
-        renderer,
-        camera
-    );
-
-    Colour background = {
-        .r = 30,
-        .g = 30,
-        .b = 30,
-        .a = 255
-    };
-
-    BuildSettings settings = {
-        .stud_height = 2400,
-        .stud_depth = 90,
-        .stud_width = 35,
-
-        .stud_spacing = 600,
-        .nog_spacing = 1200,
-
-        .opening_width_allowance = 0,
-        .opening_height_allowance = 0,
-
-        .stud_spacing_mode = STUD_SPACING_MAXIMISE
-    };
-
-    Wall wall = {0};
-
-    if (!wall_set_length(
-            &wall,
-            4200)) {
-
-        renderer2d_sdl_destroy_backend(&backend);
-        renderer2d_destroy(renderer);
-
-        return 1;
-    }
-
-    if (!wall_generate(
-            &wall,
-            &settings)) {
-
-        renderer2d_sdl_destroy_backend(&backend);
-        renderer2d_destroy(renderer);
-
-        return 1;
-    }
-
-    WallEditor editor;
-
-    wall_editor_init(
-        &editor
-    );
-
-    WallRenderStyle wall_style = {
-        .timber_colour = {
-            .r = 200,
-            .g = 160,
-            .b = 100,
-            .a = 255
-        },
-
-        .selected_colour = {
-            .r = 255,
-            .g = 220,
-            .b = 40,
-            .a = 255
-        }
-    };
-
-    int running = 1;
-
-    while (running) {
-
-        Renderer2DEvent event;
-
-        while (renderer2d_sdl_poll_event(&event)) {
-            if (event.quit_requested) {
-                running = 0;
-            }
-
-            if (event.viewport_resized) {
-                renderer2d_set_viewport(
-                    renderer,
-                    event.viewport_width,
-                    event.viewport_height
-                );
-            }
-
-            if (event.primary_mouse_pressed) {
-                Vec2 screen_position = {
-                    .x = event.mouse_x,
-                    .y = event.mouse_y
-                };
-
-                select_at_screen_position(
-                    renderer,
-                    &editor,
-                    &wall,
-                    screen_position
-                );
-            }
+    while (renderer2d_sdl_poll_event(&event)) {
+        if (event.quit_requested) {
+            app->running = 0;
         }
 
-        render_scene(
-            renderer,
-            &wall,
-            &editor,
-            &wall_style,
-            background
-        );
+        if (event.viewport_resized) {
+            renderer2d_set_viewport(
+                app->renderer,
+                event.viewport_width,
+                event.viewport_height
+            );
+        }
+
+        if (event.primary_mouse_pressed) {
+            Vec2 screen_position = {
+                .x = event.mouse_x,
+                .y = event.mouse_y
+            };
+
+            select_at_screen_position(
+                app->renderer,
+                &app->editor,
+                &app->wall,
+                screen_position
+            );
+        }
+
+        if (event.move_left) {
+            renderer2d_move_camera(
+                app->renderer,
+                (Vec2){
+                    .x = -pan_amount,
+                    .y = 0.0
+                }
+            );
+        }
+
+        if (event.move_right) {
+            renderer2d_move_camera(
+                app->renderer,
+                (Vec2){
+                    .x = pan_amount,
+                    .y = 0.0
+                }
+            );
+        }
+
+        if (event.move_up) {
+            renderer2d_move_camera(
+                app->renderer,
+                (Vec2){
+                    .x = 0.0,
+                    .y = pan_amount
+                }
+            );
+        }
+
+        if (event.move_down) {
+            renderer2d_move_camera(
+                app->renderer,
+                (Vec2){
+                    .x = 0.0,
+                    .y = -pan_amount
+                }
+            );
+        }
+
+        if (event.mouse_wheel) {
+            Vec2 screen_position = {
+                .x = event.mouse_x,
+                .y = event.mouse_y
+            };
+
+            double zoom_factor;
+
+            if (event.wheel_y > 0.0) {
+                zoom_factor = 1.1;
+            }
+            else {
+                zoom_factor = 1.0 / 1.1;
+            }
+
+            renderer2d_zoom_at_screen_point(
+                app->renderer,
+                zoom_factor,
+                screen_position
+            );
+        }
     }
+}
+
+static void sitehelper_app_destroy(
+    SiteHelperApp *app
+)
+{
+    if (app == NULL) {
+        return;
+    }
+
+    wall_destroy(
+        &app->wall
+    );
 
     renderer2d_sdl_destroy_backend(
-        &backend
+        &app->backend
     );
 
     renderer2d_destroy(
-        renderer
+        app->renderer
     );
+
+    *app = (SiteHelperApp){0};
+}
+
+int main(void)
+{
+    SiteHelperApp app;
+
+    if (!sitehelper_app_init(&app)) {
+        return 1;
+    }
+
+    while (app.running) {
+        sitehelper_app_process_events(&app);
+        sitehelper_app_render(&app);
+    }
+
+    sitehelper_app_destroy(&app);
 
     return 0;
 }

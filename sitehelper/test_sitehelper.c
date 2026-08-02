@@ -4,81 +4,81 @@
 
 #include "sitehelper.h"
 
-void wall_destroy(Wall *wall)
-{
-    if (wall == NULL) {
-        return;
-    }
+// void wall_destroy(Wall *wall)
+// {
+//     if (wall == NULL) {
+//         return;
+//     }
 
-    free(wall->studs);
-    free(wall->nogs);
-    free(wall->openings);
+//     free(wall->studs);
+//     free(wall->nogs);
+//     free(wall->openings);
 
-    free(wall->members);
+//     free(wall->members);
 
-    wall->members = NULL;
-    wall->member_count = 0;
-    wall->member_capacity = 0;
+//     wall->members = NULL;
+//     wall->member_count = 0;
+//     wall->member_capacity = 0;
 
-    wall->openings = NULL;
-    wall->opening_count = 0;
-    wall->opening_capacity = 0;
+//     wall->openings = NULL;
+//     wall->opening_count = 0;
+//     wall->opening_capacity = 0;
 
-    wall->studs = NULL;
-    wall->nogs = NULL;
+//     wall->studs = NULL;
+//     wall->nogs = NULL;
 
-    wall->stud_count = 0;
-    wall->stud_capacity = 0;
+//     wall->stud_count = 0;
+//     wall->stud_capacity = 0;
 
-    wall->nog_count = 0;
-    wall->nog_capacity = 0;
-}
+//     wall->nog_count = 0;
+//     wall->nog_capacity = 0;
+// }
 
-void room_destroy(Room *room)
-{
-    if (room == NULL) {
-        return;
-    }
+// void room_destroy(Room *room)
+// {
+//     if (room == NULL) {
+//         return;
+//     }
 
-    for (size_t i = 0;
-         i < room->wall_count;
-         i++) {
+//     for (size_t i = 0;
+//          i < room->wall_count;
+//          i++) {
 
-        wall_destroy(
-            &room->walls[i]
-        );
-    }
+//         wall_destroy(
+//             &room->walls[i]
+//         );
+//     }
 
-    free(room->walls);
+//     free(room->walls);
 
-    room->walls = NULL;
-    room->wall_count = 0;
-    room->wall_capacity = 0;
-}
+//     room->walls = NULL;
+//     room->wall_count = 0;
+//     room->wall_capacity = 0;
+// }
 
-void build_destroy(
-    BuildStructure *structure
-)
-{
-    if (structure == NULL) {
-        return;
-    }
+// void build_destroy(
+//     BuildStructure *structure
+// )
+// {
+//     if (structure == NULL) {
+//         return;
+//     }
 
-    for (size_t i = 0;
-         i < structure->room_count;
-         i++) {
+//     for (size_t i = 0;
+//          i < structure->room_count;
+//          i++) {
 
-        room_destroy(
-            &structure->rooms[i]
-        );
-    }
+//         room_destroy(
+//             &structure->rooms[i]
+//         );
+//     }
 
-    free(structure->rooms);
+//     free(structure->rooms);
 
-    structure->rooms = NULL;
-    structure->room_count = 0;
-    structure->room_capacity = 0;
-}
+//     structure->rooms = NULL;
+//     structure->room_count = 0;
+//     structure->room_capacity = 0;
+// }
 
 static int bay_is_opening(
     const Wall *wall,
@@ -2617,6 +2617,63 @@ static void test_repairs_spacing_after_opening(void)
     wall_destroy(&wall);
 }
 
+static void test_wall_destroy_resets_generated_wall(void)
+{
+    BuildSettings settings = {
+        .stud_height = 2400,
+        .stud_depth = 90,
+        .stud_width = 35,
+        .stud_spacing = 600,
+        .nog_spacing = 1200,
+        .stud_spacing_mode = STUD_SPACING_MAXIMISE
+    };
+
+    Wall wall = {0};
+
+    assert(wall_set_length(
+        &wall,
+        4200
+    ));
+
+    assert(wall_generate(
+        &wall,
+        &settings
+    ));
+
+    wall_destroy(
+        &wall
+    );
+
+    assert(wall.studs == NULL);
+    assert(wall.stud_count == 0);
+    assert(wall.stud_capacity == 0);
+
+    assert(wall.nogs == NULL);
+    assert(wall.nog_count == 0);
+    assert(wall.nog_capacity == 0);
+
+    assert(wall.members == NULL);
+    assert(wall.member_count == 0);
+    assert(wall.member_capacity == 0);
+
+    assert(wall.openings == NULL);
+    assert(wall.opening_count == 0);
+    assert(wall.opening_capacity == 0);
+}
+
+static void test_wall_destroy_accepts_null(void)
+{
+    wall_destroy(NULL);
+}
+
+static void test_wall_destroy_can_be_called_twice(void)
+{
+    Wall wall = {0};
+
+    wall_destroy(&wall);
+    wall_destroy(&wall);
+}
+
 int main(void)
 {
     test_wall_generates_complete_plates();
@@ -2648,6 +2705,10 @@ int main(void)
     test_property_single_opening_geometry();
     test_repairs_spacing_after_opening();
     
+    test_wall_destroy_resets_generated_wall();
+    test_wall_destroy_accepts_null();
+    test_wall_destroy_can_be_called_twice();
+
     printf("All sitehelper tests passed.\n");
 
     return 0;

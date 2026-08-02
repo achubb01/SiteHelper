@@ -187,28 +187,31 @@ void renderer2d_sdl_destroy_backend(
     RendererBackend *backend
 )
 {
-    if (backend == NULL || backend->context == NULL) {
+    if (
+        backend == NULL
+        || backend->context == NULL
+    ) {
         return;
     }
 
-    SDLBackendState *state = backend->context;
+    SDLBackendState *state =
+        calloc(1, sizeof *state);
 
     if (state->renderer != NULL) {
-        SDL_DestroyRenderer(state->renderer);
+        SDL_DestroyRenderer(
+            state->renderer
+        );
     }
 
     if (state->window != NULL) {
-        SDL_DestroyWindow(state->window);
+        SDL_DestroyWindow(
+            state->window
+        );
     }
 
     free(state);
 
-    backend->context = NULL;
-    backend->clear = NULL;
-    backend->draw_rect = NULL;
-    backend->fill_rect = NULL;
-    backend->draw_line = NULL;
-    backend->present = NULL;
+    *backend = (RendererBackend){0};
 
     SDL_Quit();
 }

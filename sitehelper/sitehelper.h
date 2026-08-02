@@ -16,4 +16,6 @@ int opening_frame_height(const Opening *opening, const BuildSettings *setting);
 int wall_add_opening(Wall *wall, const BuildSettings *settings, OpeningType type, int frame_position, int frame_bottom, int width, int height);
 int wall_opening_fits(const Wall *wall, const Opening *opening, const BuildSettings *settings);
 
+void wall_destroy(Wall *wall);
+
 #endif
