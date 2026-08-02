@@ -1,9 +1,9 @@
 #include <stdlib.h>
-#include <math.h>
 
 #include "sitehelper.h"
 #include "wall_editor.h"
 #include "wall_render.h"
+#include "grid_render.h"
 
 #include "renderer2d.h"
 #include "renderer2d_sdl.h"
@@ -15,7 +15,9 @@ typedef struct
 
     Wall wall;
     WallEditor editor;
+
     WallRenderStyle wall_style;
+    GridRenderStyle grid_style;
 
     Colour background;
 
@@ -37,15 +39,6 @@ static void sitehelper_app_render(
 static void sitehelper_app_destroy(
     SiteHelperApp *app
 );
-
-static void sitehelper_app_render_grid(
-    const SiteHelperApp *app
-);
-
-static double choose_grid_spacing(
-    double camera_scale
-);
-
 
 
 static int sitehelper_app_init(
@@ -97,6 +90,31 @@ static int sitehelper_app_init(
         .g = 30,
         .b = 30,
         .a = 255
+    };
+
+    app->grid_style = (GridRenderStyle){
+        .minor_colour = {
+            .r = 55,
+            .g = 55,
+            .b = 55,
+            .a = 255
+        },
+
+        .major_colour = {
+            .r = 75,
+            .g = 75,
+            .b = 75,
+            .a = 255
+        },
+
+        .axis_colour = {
+            .r = 105,
+            .g = 105,
+            .b = 105,
+            .a = 255
+        },
+
+        .minimum_screen_spacing = 16.0
     };
 
     BuildSettings settings = {
@@ -170,14 +188,17 @@ static void sitehelper_app_render(
         app->background
     );
 
-    sitehelper_app_render_grid(
-        app
+    grid_render(
+        app->renderer,
+        &app->grid_style
     );
 
     wall_render(
         app->renderer,
         &app->wall,
-        wall_editor_get_selection(&app->editor),
+        wall_editor_get_selection(
+            &app->editor
+        ),
         &app->wall_style
     );
 
@@ -375,191 +396,6 @@ static void sitehelper_app_destroy(
     );
 
     *app = (SiteHelperApp){0};
-}
-
-static void sitehelper_app_render_grid(
-    const SiteHelperApp *app
-)
-{
-    if (
-        app == NULL
-        || app->renderer == NULL
-    ) {
-        return;
-    }   
-
-    Camera2D camera =
-        renderer2d_get_camera(
-            app->renderer
-        );
-
-    Viewport2D viewport =
-        renderer2d_get_viewport(
-            app->renderer
-        );
-
-    Vec2 world_top_left =
-        camera_screen_to_world(
-            &camera,
-            viewport,
-            (Vec2){0.0, 0.0}
-        );
-
-    Vec2 world_bottom_right =
-        camera_screen_to_world(
-            &camera,
-            viewport,
-            (Vec2){
-                viewport.width,
-                viewport.height
-            }
-        );
-
-    double grid_spacing =
-        choose_grid_spacing(
-            camera.scale
-        );
-    double major_grid_spacing =
-        grid_spacing * 10.0;
-
-    double world_left = world_top_left.x;
-    double world_right = world_bottom_right.x;
-
-    double world_bottom = world_bottom_right.y;
-    double world_top = world_top_left.y;
-
-    double first_x =
-        floor(world_left / grid_spacing)
-        * grid_spacing;
-
-    double first_y =
-        floor(world_bottom / grid_spacing)
-        * grid_spacing;
-
-    Colour minor_grid_colour = {
-        .r = 55,
-        .g = 55,
-        .b = 55,
-        .a = 255
-    };
-
-    Colour major_grid_colour = {
-        .r = 75,
-        .g = 75,
-        .b = 75,
-        .a = 255
-    };
-
-    Colour axis_colour = {
-        .r = 105,
-        .g = 105,
-        .b = 105,
-        .a = 255
-    };
-
-    for (
-        double x = first_x;
-        x <= world_right;
-        x += grid_spacing
-    ) {
-        long long world_x =
-            (long long)x;
-
-        long long major_spacing =
-            (long long)major_grid_spacing;
-
-        Colour line_colour;
-
-        if (world_x == 0) {
-            line_colour = axis_colour;
-        }
-        else if (
-            world_x % major_spacing == 0
-        ) {
-            line_colour = major_grid_colour;
-        }
-        else {
-            line_colour = minor_grid_colour;
-        }
-
-        renderer2d_draw_line(
-            app->renderer,
-            (Vec2){
-                .x = x,
-                .y = world_bottom
-            },
-            (Vec2){
-                .x = x,
-                .y = world_top
-            },
-            line_colour
-        );
-    }
-
-    for (
-        double y = first_y;
-        y <= world_top;
-        y += grid_spacing
-    ) {
-        long long world_y =
-            (long long)y;
-
-        long long major_spacing =
-            (long long)major_grid_spacing;
-
-        Colour line_colour;
-
-        if (world_y == 0) {
-            line_colour = axis_colour;
-        }
-        else if (
-            world_y % major_spacing == 0
-        ) {
-            line_colour = major_grid_colour;
-        }
-        else {
-            line_colour = minor_grid_colour;
-        }
-
-        renderer2d_draw_line(
-            app->renderer,
-            (Vec2){
-                .x = world_left,
-                .y = y
-            },
-            (Vec2){
-                .x = world_right,
-                .y = y
-            },
-            line_colour
-        );
-    }
-}
-
-static double choose_grid_spacing(
-    double camera_scale
-)
-{
-    const double minimum_pixel_spacing = 16.0;
-
-    double spacing = 100.0;
-
-    while (
-        spacing * camera_scale
-        < minimum_pixel_spacing
-    ) {
-        if (spacing == 100.0) {
-            spacing = 500.0;
-        }
-        else if (spacing == 500.0) {
-            spacing = 1000.0;
-        }
-        else {
-            spacing *= 5.0;
-        }
-    }
-
-    return spacing;
 }
 
 int main(void)

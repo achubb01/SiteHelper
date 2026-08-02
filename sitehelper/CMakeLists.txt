@@ -5,6 +5,7 @@ add_library(sitehelper_core
     wall_query.c
     wall_selection.c
     wall_editor.c
+    grid_render.c
 )
 
 target_include_directories(sitehelper_core
@@ -17,6 +18,12 @@ target_link_libraries(sitehelper_core
         renderer2d
 )
 
+if(NOT MSVC)
+    target_link_libraries(sitehelper_core
+        PUBLIC
+            m
+    )
+endif()
 
 add_executable(test_sitehelper
     test_sitehelper.c
@@ -119,13 +126,6 @@ target_link_libraries(sitehelper_sdl
         sitehelper_core
         renderer2d_sdl
 )
-
-if(NOT MSVC)
-    target_link_libraries(sitehelper_sdl
-        PRIVATE
-            m
-    )
-endif()
 
 if(WIN32)
     add_custom_command(
