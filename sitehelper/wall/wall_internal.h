@@ -63,11 +63,6 @@ void wall_clear_members(
     Wall *wall
 );
 
-int wall_add_member(
-    Wall *wall,
-    Timber member
-);
-
 int wall_add_header(
     Wall *wall,
     const BuildSettings *settings,

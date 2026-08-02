@@ -951,21 +951,3 @@ static int wall_span_is_opening(
 
     return 0;
 }
-
-int wall_add_stud_at_position(
-    int position,
-    void *context
-)
-{
-    StudGenerationContext *generation =
-        context;
-
-    return wall_add_custom_stud(
-        generation->wall,
-        generation->settings,
-        position,
-        generation->y,
-        generation->length,
-        generation->type
-    );
-}

@@ -3,6 +3,11 @@
 #include "wall.h"
 #include "wall_internal.h"
 
+static int wall_add_member(
+    Wall *wall,
+    Timber member
+);
+
 void wall_clear_members(Wall *wall)
 {
     if (wall == NULL) {
@@ -12,7 +17,7 @@ void wall_clear_members(Wall *wall)
     wall->member_count = 0;
 }
 
-int wall_add_member(
+static int wall_add_member(
     Wall *wall,
     Timber member
 )

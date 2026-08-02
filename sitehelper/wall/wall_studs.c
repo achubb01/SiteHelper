@@ -127,3 +127,22 @@ int wall_compare_stud_position(
         stud_a->position.x -
         stud_b->position.x;
 }
+
+
+int wall_add_stud_at_position(
+    int position,
+    void *context
+)
+{
+    StudGenerationContext *generation =
+        context;
+
+    return wall_add_custom_stud(
+        generation->wall,
+        generation->settings,
+        position,
+        generation->y,
+        generation->length,
+        generation->type
+    );
+}
