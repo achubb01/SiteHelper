@@ -383,6 +383,7 @@ static void sitehelper_app_render_grid(
     }
 
     const double grid_spacing = 100.0;
+    const int major_grid_spacing = 1000;    
 
     Camera2D camera =
         renderer2d_get_camera(
@@ -425,10 +426,24 @@ static void sitehelper_app_render_grid(
         floor(world_bottom / grid_spacing)
         * grid_spacing;
 
-    Colour grid_colour = {
+    Colour minor_grid_colour = {
         .r = 55,
         .g = 55,
         .b = 55,
+        .a = 255
+    };
+
+    Colour major_grid_colour = {
+        .r = 75,
+        .g = 75,
+        .b = 75,
+        .a = 255
+    };
+
+    Colour axis_colour = {
+        .r = 105,
+        .g = 105,
+        .b = 105,
         .a = 255
     };
 
@@ -437,6 +452,22 @@ static void sitehelper_app_render_grid(
         x <= world_right;
         x += grid_spacing
     ) {
+        int world_x = (int)x;
+
+        Colour line_colour;
+
+        if (world_x == 0) {
+            line_colour = axis_colour;
+        }
+        else if (
+            world_x % major_grid_spacing == 0
+        ) {
+            line_colour = major_grid_colour;
+        }
+        else {
+            line_colour = minor_grid_colour;
+        }
+
         renderer2d_draw_line(
             app->renderer,
             (Vec2){
@@ -447,7 +478,7 @@ static void sitehelper_app_render_grid(
                 .x = x,
                 .y = world_top
             },
-            grid_colour
+            line_colour
         );
     }
 
@@ -456,6 +487,22 @@ static void sitehelper_app_render_grid(
         y <= world_top;
         y += grid_spacing
     ) {
+        int world_y = (int)y;
+
+        Colour line_colour;
+
+        if (world_y == 0) {
+            line_colour = axis_colour;
+        }
+        else if (
+            world_y % major_grid_spacing == 0
+        ) {
+            line_colour = major_grid_colour;
+        }
+        else {
+            line_colour = minor_grid_colour;
+        }
+
         renderer2d_draw_line(
             app->renderer,
             (Vec2){
@@ -466,7 +513,7 @@ static void sitehelper_app_render_grid(
                 .x = world_right,
                 .y = y
             },
-            grid_colour
+            line_colour
         );
     }
 }
