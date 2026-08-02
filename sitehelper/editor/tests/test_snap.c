@@ -345,12 +345,12 @@ static void test_disabled_endpoint_snap_uses_grid(void)
     );
 }
 
-static void test_nearer_endpoint_beats_grid_candidate(void)
+static void test_endpoint_within_tolerance_beats_closer_grid_point(void)
 {
     Timber stud = {
         .length = 2400,
         .position = {
-            .x = 630,
+            .x = 635,
             .y = 0
         },
         .type = TIMBER_STUD
@@ -366,25 +366,32 @@ static void test_nearer_endpoint_beats_grid_candidate(void)
         .grid_spacing = 100.0,
 
         .endpoint_enabled = 1,
-        .object_snap_tolerance = 40.0
+        .object_snap_tolerance = 50.0
     };
 
     SnapResult result =
         editor_snap(
             (Vec2){
-                .x = 625.0,
-                .y = 2395.0
+                .x = 605.0,
+                .y = 2400.0
             },
             &wall,
             &settings
         );
 
+    /*
+     * Grid point (600, 2400) is only 5 units away.
+     * Endpoint (635, 2400) is 30 units away.
+     *
+     * Endpoint still wins because it is within
+     * the object-snap tolerance.
+     */
     assert(result.type == SNAP_ENDPOINT);
 
     assert_vec2_equal(
         result.position,
         (Vec2){
-            .x = 630.0,
+            .x = 635.0,
             .y = 2400.0
         }
     );
@@ -402,7 +409,7 @@ int main(void)
     test_endpoint_outside_tolerance_falls_back_to_grid();
     test_snap_to_horizontal_timber_endpoint();
     test_disabled_endpoint_snap_uses_grid();
-    test_nearer_endpoint_beats_grid_candidate();
+    test_endpoint_within_tolerance_beats_closer_grid_point();
 
     printf(
         "All editor snap tests passed.\n"

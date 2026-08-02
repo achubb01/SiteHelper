@@ -33,134 +33,115 @@ SnapResult editor_snap(
     const SnapSettings *settings
 )
 {
-    SnapResult best_result = {
+    SnapResult fallback = {
         .position = world_position,
         .type = SNAP_NONE
     };
 
     if (settings == NULL) {
-        return best_result;
+        return fallback;
     }
 
-    double best_distance_squared = 0.0;
-    int candidate_found = 0;
-
-    /*
-     * Grid snapping is always a candidate when enabled.
-     */
     if (
         settings->grid_enabled
         && settings->grid_spacing > 0.0
     ) {
-        Vec2 grid_position =
-            grid_snap_position(
+        fallback = (SnapResult){
+            .position = grid_snap_position(
                 world_position,
                 settings->grid_spacing
-            );
-
-        best_result = (SnapResult){
-            .position = grid_position,
+            ),
             .type = SNAP_GRID
         };
-
-        best_distance_squared =
-            distance_squared(
-                world_position,
-                grid_position
-            );
-
-        candidate_found = 1;
     }
 
-    /*
-     * Object snapping requires a wall and a valid tolerance.
-     */
     if (
-        settings->endpoint_enabled
-        && settings->object_snap_tolerance > 0.0
-        && wall != NULL
+        !settings->endpoint_enabled
+        || settings->object_snap_tolerance <= 0.0
+        || wall == NULL
     ) {
-        double tolerance_squared =
-            settings->object_snap_tolerance
-            * settings->object_snap_tolerance;
-
-        /*
-         * If there was no grid candidate, initialise the comparison
-         * distance beyond the allowed endpoint tolerance.
-         */
-        if (!candidate_found) {
-            best_distance_squared =
-                tolerance_squared + 1.0;
-        }
-
-        for (
-            size_t i = 0;
-            i < wall->stud_count;
-            i++
-        ) {
-            consider_timber_endpoints(
-                world_position,
-                &wall->studs[i],
-                tolerance_squared,
-                &best_result,
-                &best_distance_squared
-            );
-        }
-
-        for (
-            size_t i = 0;
-            i < wall->nog_count;
-            i++
-        ) {
-            consider_timber_endpoints(
-                world_position,
-                &wall->nogs[i],
-                tolerance_squared,
-                &best_result,
-                &best_distance_squared
-            );
-        }
-
-        for (
-            size_t i = 0;
-            i < wall->member_count;
-            i++
-        ) {
-            consider_timber_endpoints(
-                world_position,
-                &wall->members[i],
-                tolerance_squared,
-                &best_result,
-                &best_distance_squared
-            );
-        }
-
-        /*
-         * Plates are stored directly rather than in an array.
-         * A positive length indicates that the plate is initialized.
-         */
-        if (wall->bottomplate.length > 0) {
-            consider_timber_endpoints(
-                world_position,
-                &wall->bottomplate,
-                tolerance_squared,
-                &best_result,
-                &best_distance_squared
-            );
-        }
-
-        if (wall->topplate.length > 0) {
-            consider_timber_endpoints(
-                world_position,
-                &wall->topplate,
-                tolerance_squared,
-                &best_result,
-                &best_distance_squared
-            );
-        }
+        return fallback;
     }
 
-    return best_result;
+    SnapResult endpoint_result = {
+        .position = world_position,
+        .type = SNAP_NONE
+    };
+
+    double tolerance_squared =
+        settings->object_snap_tolerance
+        * settings->object_snap_tolerance;
+
+    double closest_endpoint_distance_squared =
+        tolerance_squared;
+
+    for (
+        size_t i = 0;
+        i < wall->stud_count;
+        i++
+    ) {
+        consider_timber_endpoints(
+            world_position,
+            &wall->studs[i],
+            tolerance_squared,
+            &endpoint_result,
+            &closest_endpoint_distance_squared
+        );
+    }
+
+    for (
+        size_t i = 0;
+        i < wall->nog_count;
+        i++
+    ) {
+        consider_timber_endpoints(
+            world_position,
+            &wall->nogs[i],
+            tolerance_squared,
+            &endpoint_result,
+            &closest_endpoint_distance_squared
+        );
+    }
+
+    for (
+        size_t i = 0;
+        i < wall->member_count;
+        i++
+    ) {
+        consider_timber_endpoints(
+            world_position,
+            &wall->members[i],
+            tolerance_squared,
+            &endpoint_result,
+            &closest_endpoint_distance_squared
+        );
+    }
+
+    if (wall->bottomplate.length > 0) {
+        consider_timber_endpoints(
+            world_position,
+            &wall->bottomplate,
+            tolerance_squared,
+            &endpoint_result,
+            &closest_endpoint_distance_squared
+        );
+    }
+
+    if (wall->topplate.length > 0) {
+        consider_timber_endpoints(
+            world_position,
+            &wall->topplate,
+            tolerance_squared,
+            &endpoint_result,
+            &closest_endpoint_distance_squared
+        );
+    }
+
+    if (endpoint_result.type == SNAP_ENDPOINT) {
+        return endpoint_result;
+    }
+
+    return fallback;
 }
 
 static double distance_squared(
