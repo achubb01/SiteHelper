@@ -120,6 +120,13 @@ target_link_libraries(sitehelper_sdl
         renderer2d_sdl
 )
 
+if(NOT MSVC)
+    target_link_libraries(sitehelper_sdl
+        PRIVATE
+            m
+    )
+endif()
+
 if(WIN32)
     add_custom_command(
         TARGET sitehelper_sdl

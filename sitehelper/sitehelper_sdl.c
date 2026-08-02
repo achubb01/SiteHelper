@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <math.h>
 
 #include "sitehelper.h"
 #include "wall_editor.h"
@@ -35,6 +36,10 @@ static void sitehelper_app_render(
 
 static void sitehelper_app_destroy(
     SiteHelperApp *app
+);
+
+static void sitehelper_app_render_grid(
+    const SiteHelperApp *app
 );
 
 static int sitehelper_app_init(
@@ -157,6 +162,10 @@ static void sitehelper_app_render(
     renderer2d_clear(
         app->renderer,
         app->background
+    );
+
+    sitehelper_app_render_grid(
+        app
     );
 
     wall_render(
@@ -360,6 +369,106 @@ static void sitehelper_app_destroy(
     );
 
     *app = (SiteHelperApp){0};
+}
+
+static void sitehelper_app_render_grid(
+    const SiteHelperApp *app
+)
+{
+    if (
+        app == NULL
+        || app->renderer == NULL
+    ) {
+        return;
+    }
+
+    const double grid_spacing = 100.0;
+
+    Camera2D camera =
+        renderer2d_get_camera(
+            app->renderer
+        );
+
+    Viewport2D viewport =
+        renderer2d_get_viewport(
+            app->renderer
+        );
+
+    Vec2 world_top_left =
+        camera_screen_to_world(
+            &camera,
+            viewport,
+            (Vec2){0.0, 0.0}
+        );
+
+    Vec2 world_bottom_right =
+        camera_screen_to_world(
+            &camera,
+            viewport,
+            (Vec2){
+                viewport.width,
+                viewport.height
+            }
+        );
+
+    double world_left = world_top_left.x;
+    double world_right = world_bottom_right.x;
+
+    double world_bottom = world_bottom_right.y;
+    double world_top = world_top_left.y;
+
+    double first_x =
+        floor(world_left / grid_spacing)
+        * grid_spacing;
+
+    double first_y =
+        floor(world_bottom / grid_spacing)
+        * grid_spacing;
+
+    Colour grid_colour = {
+        .r = 55,
+        .g = 55,
+        .b = 55,
+        .a = 255
+    };
+
+    for (
+        double x = first_x;
+        x <= world_right;
+        x += grid_spacing
+    ) {
+        renderer2d_draw_line(
+            app->renderer,
+            (Vec2){
+                .x = x,
+                .y = world_bottom
+            },
+            (Vec2){
+                .x = x,
+                .y = world_top
+            },
+            grid_colour
+        );
+    }
+
+    for (
+        double y = first_y;
+        y <= world_top;
+        y += grid_spacing
+    ) {
+        renderer2d_draw_line(
+            app->renderer,
+            (Vec2){
+                .x = world_left,
+                .y = y
+            },
+            (Vec2){
+                .x = world_right,
+                .y = y
+            },
+            grid_colour
+        );
+    }
 }
 
 int main(void)
