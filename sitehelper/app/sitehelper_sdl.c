@@ -146,10 +146,6 @@ static int sitehelper_app_init(
         .type = SNAP_NONE
     };
 
-    app->snap_settings = (SnapSettings){
-        .grid_enabled = 1,
-        .grid_spacing = 100.0
-    };
     app->snapped_cursor_visible = 0;
 
     BuildSettings settings = {
