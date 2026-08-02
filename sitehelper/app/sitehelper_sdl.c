@@ -25,7 +25,7 @@ typedef struct
     SnapResult snap_result;
     int snapped_cursor_visible;
 
-    double snap_spacing;
+    SnapSettings snap_settings;
 
     Colour background;
 
@@ -133,12 +133,23 @@ static int sitehelper_app_init(
         .minimum_screen_spacing = 16.0
     };
 
+    app->snap_settings = (SnapSettings){
+        .grid_enabled = 1,
+        .grid_spacing = 100.0,
+
+        .endpoint_enabled = 1,
+        .object_snap_tolerance = 80.0
+    };
+
     app->snap_result = (SnapResult){
         .position = {0.0, 0.0},
         .type = SNAP_NONE
     };
 
-    app->snap_spacing = 100.0;
+    app->snap_settings = (SnapSettings){
+        .grid_enabled = 1,
+        .grid_spacing = 100.0
+    };
     app->snapped_cursor_visible = 0;
 
     BuildSettings settings = {
@@ -466,9 +477,10 @@ static void sitehelper_app_update_snap_cursor(
         );
 
     app->snap_result =
-        editor_snap_to_grid(
+        editor_snap(
             world_position,
-            app->snap_spacing
+            &app->wall,
+            &app->snap_settings
         );
 
     app->snapped_cursor_visible =
@@ -490,12 +502,30 @@ static void sitehelper_app_render_snap_cursor(
     const double marker_radius =
         40.0;
 
-    Colour marker_colour = {
-        .r = 80,
-        .g = 200,
-        .b = 255,
-        .a = 255
-    };
+    Colour marker_colour;
+
+    switch (app->snap_result.type) {
+        case SNAP_ENDPOINT:
+            marker_colour = (Colour){
+                .r = 255,
+                .g = 180,
+                .b = 60,
+                .a = 255
+            };
+            break;
+
+        case SNAP_GRID:
+            marker_colour = (Colour){
+                .r = 80,
+                .g = 200,
+                .b = 255,
+                .a = 255
+            };
+            break;
+
+        default:
+            return;
+    }
 
     Vec2 position =
         app->snap_result.position;

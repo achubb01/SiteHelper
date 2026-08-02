@@ -2,6 +2,7 @@
 #define SNAP_H
 
 #include "geometry.h"
+#include "wall.h"
 
 typedef enum
 {
@@ -14,13 +15,23 @@ typedef enum
 
 typedef struct
 {
+    int grid_enabled;
+    double grid_spacing;
+
+    int endpoint_enabled;
+    double object_snap_tolerance;
+} SnapSettings;
+
+typedef struct
+{
     Vec2 position;
     SnapType type;
 } SnapResult;
 
-SnapResult editor_snap_to_grid(
+SnapResult editor_snap(
     Vec2 world_position,
-    double spacing
+    const Wall *wall,
+    const SnapSettings *settings
 );
 
 #endif
