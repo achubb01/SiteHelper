@@ -3,11 +3,6 @@
 
 #include "grid_render.h"
 
-static double choose_grid_spacing(
-    double camera_scale,
-    double minimum_screen_spacing
-);
-
 void grid_render(
     Renderer2D *renderer,
     const GridRenderStyle *style
@@ -51,7 +46,7 @@ void grid_render(
         );
 
     double grid_spacing =
-        choose_grid_spacing(
+        grid_choose_spacing(
             camera.scale,
             style->minimum_screen_spacing
         );
@@ -151,7 +146,7 @@ void grid_render(
     }
 }
 
-static double choose_grid_spacing(
+double grid_choose_spacing(
     double camera_scale,
     double minimum_screen_spacing
 )
