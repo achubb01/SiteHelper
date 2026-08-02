@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "sitehelper.h"
+#include "wall.h"
 
 // void wall_destroy(Wall *wall)
 // {

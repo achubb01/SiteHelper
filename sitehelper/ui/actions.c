@@ -5,7 +5,7 @@
 
 #include "actions.h"
 #include "appcontext.h"
-#include "sitehelper.h"
+#include "wall.h"
 #include "appstate.h"
 
 //Setting Menu

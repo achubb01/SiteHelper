@@ -1,6 +1,6 @@
 #include <stdlib.h>
 
-#include "./sitehelper.h"
+#include "./wall.h"
 
 static int wall_generate_studs(Wall *wall, const BuildSettings *settings);
 static int wall_generate_noggins(Wall *wall, const BuildSettings *settings);

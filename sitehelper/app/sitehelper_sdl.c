@@ -1,6 +1,6 @@
 #include <stdlib.h>
 
-#include "sitehelper.h"
+#include "wall/wall.h"
 #include "wall_editor.h"
 #include "wall_render.h"
 #include "grid_render.h"

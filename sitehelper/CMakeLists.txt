@@ -1,7 +1,7 @@
 add_library(sitehelper_core
-    sitehelper.c
     app/appstate.c
 
+    wall/wall.c
     wall/wall_render.c
     wall/wall_query.c
     wall/wall_selection.c
