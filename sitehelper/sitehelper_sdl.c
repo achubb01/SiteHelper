@@ -42,6 +42,12 @@ static void sitehelper_app_render_grid(
     const SiteHelperApp *app
 );
 
+static double choose_grid_spacing(
+    double camera_scale
+);
+
+
+
 static int sitehelper_app_init(
     SiteHelperApp *app
 )
@@ -380,10 +386,7 @@ static void sitehelper_app_render_grid(
         || app->renderer == NULL
     ) {
         return;
-    }
-
-    const double grid_spacing = 100.0;
-    const int major_grid_spacing = 1000;    
+    }   
 
     Camera2D camera =
         renderer2d_get_camera(
@@ -411,6 +414,13 @@ static void sitehelper_app_render_grid(
                 viewport.height
             }
         );
+
+    double grid_spacing =
+        choose_grid_spacing(
+            camera.scale
+        );
+    double major_grid_spacing =
+        grid_spacing * 10.0;
 
     double world_left = world_top_left.x;
     double world_right = world_bottom_right.x;
@@ -452,7 +462,11 @@ static void sitehelper_app_render_grid(
         x <= world_right;
         x += grid_spacing
     ) {
-        int world_x = (int)x;
+        long long world_x =
+            (long long)x;
+
+        long long major_spacing =
+            (long long)major_grid_spacing;
 
         Colour line_colour;
 
@@ -460,7 +474,7 @@ static void sitehelper_app_render_grid(
             line_colour = axis_colour;
         }
         else if (
-            world_x % major_grid_spacing == 0
+            world_x % major_spacing == 0
         ) {
             line_colour = major_grid_colour;
         }
@@ -487,7 +501,11 @@ static void sitehelper_app_render_grid(
         y <= world_top;
         y += grid_spacing
     ) {
-        int world_y = (int)y;
+        long long world_y =
+            (long long)y;
+
+        long long major_spacing =
+            (long long)major_grid_spacing;
 
         Colour line_colour;
 
@@ -495,7 +513,7 @@ static void sitehelper_app_render_grid(
             line_colour = axis_colour;
         }
         else if (
-            world_y % major_grid_spacing == 0
+            world_y % major_spacing == 0
         ) {
             line_colour = major_grid_colour;
         }
@@ -516,6 +534,32 @@ static void sitehelper_app_render_grid(
             line_colour
         );
     }
+}
+
+static double choose_grid_spacing(
+    double camera_scale
+)
+{
+    const double minimum_pixel_spacing = 16.0;
+
+    double spacing = 100.0;
+
+    while (
+        spacing * camera_scale
+        < minimum_pixel_spacing
+    ) {
+        if (spacing == 100.0) {
+            spacing = 500.0;
+        }
+        else if (spacing == 500.0) {
+            spacing = 1000.0;
+        }
+        else {
+            spacing *= 5.0;
+        }
+    }
+
+    return spacing;
 }
 
 int main(void)
