@@ -15,6 +15,7 @@ add_library(sitehelper_core
     wall/wall_query.c
     wall/wall_selection.c
     wall/wall_editor.c
+    wall/wall_snap.c
 
     grid/grid_render.c
     grid/grid_snap.c
@@ -162,6 +163,20 @@ target_link_libraries(test_snap
 add_test(
     NAME snap_tests
     COMMAND test_snap
+)
+
+add_executable(test_wall_snap
+    wall/tests/test_wall_snap.c
+)
+
+target_link_libraries(test_wall_snap
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME wall_snap_tests
+    COMMAND test_wall_snap
 )
 
 

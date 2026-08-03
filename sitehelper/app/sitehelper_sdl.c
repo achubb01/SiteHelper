@@ -2,11 +2,10 @@
 
 #include "snap.h"
 
-#include "wall/wall.h"
 #include "wall_editor.h"
 #include "wall_render.h"
+#include "wall_snap.h"
 #include "grid_render.h"
-#include "grid_snap.h"
 
 #include "renderer2d.h"
 #include "renderer2d_sdl.h"
@@ -55,24 +54,6 @@ static void sitehelper_app_update_snap_cursor(
 
 static void sitehelper_app_render_snap_cursor(
     const SiteHelperApp *app
-);
-
-static void sitehelper_app_render_endpoints(
-    const SiteHelperApp *app
-);
-
-static Vec2 timber_end_position(
-    const Timber *timber
-);
-
-static void sitehelper_app_render_endpoints(
-    const SiteHelperApp *app
-);
-
-static void render_timber_endpoints(
-    Renderer2D *renderer,
-    const Timber *timber,
-    Colour colour
 );
 
 static int sitehelper_app_init(
@@ -156,6 +137,8 @@ static int sitehelper_app_init(
         .grid_spacing = 100.0,
 
         .endpoint_enabled = 1,
+        .intersection_enabled = 1,
+
         .object_snap_tolerance = 80.0
     };
 
@@ -250,8 +233,6 @@ static void sitehelper_app_render(
         ),
         &app->wall_style
     );
-
-    sitehelper_app_render_endpoints(app);
 
     sitehelper_app_render_snap_cursor(
         app
@@ -492,10 +473,26 @@ static void sitehelper_app_update_snap_cursor(
             screen_position
         );
 
+    enum {
+        MAX_SNAP_CANDIDATES = 256
+    };
+
+    SnapCandidate candidates[
+        MAX_SNAP_CANDIDATES
+    ];
+
+    size_t candidate_count =
+        wall_collect_snap_candidates(
+            &app->wall,
+            candidates,
+            MAX_SNAP_CANDIDATES
+        );
+
     app->snap_result =
         editor_snap(
             world_position,
-            &app->wall,
+            candidates,
+            candidate_count,
             &app->snap_settings
         );
 
@@ -539,6 +536,15 @@ static void sitehelper_app_render_snap_cursor(
             };
             break;
 
+        case SNAP_INTERSECTION:
+            marker_colour = (Colour){
+                .r = 80,
+                .g = 255,
+                .b = 120,
+                .a = 255
+            };
+            break;
+
         default:
             return;
     }
@@ -571,170 +577,6 @@ static void sitehelper_app_render_snap_cursor(
         },
         marker_colour
     );
-}
-
-static void render_endpoint_marker(
-    Renderer2D *renderer,
-    Vec2 position,
-    Colour colour
-)
-{
-    if (renderer == NULL) {
-        return;
-    }
-
-    const double radius = 20.0;
-
-    renderer2d_draw_line(
-        renderer,
-        (Vec2){
-            .x = position.x - radius,
-            .y = position.y
-        },
-        (Vec2){
-            .x = position.x + radius,
-            .y = position.y
-        },
-        colour
-    );
-
-    renderer2d_draw_line(
-        renderer,
-        (Vec2){
-            .x = position.x,
-            .y = position.y - radius
-        },
-        (Vec2){
-            .x = position.x,
-            .y = position.y + radius
-        },
-        colour
-    );
-}
-
-static Vec2 timber_start_position(
-    const Timber *timber
-)
-{
-    return (Vec2){
-        .x = (double)timber->position.x,
-        .y = (double)timber->position.y
-    };
-}
-
-static Vec2 timber_end_position(
-    const Timber *timber
-)
-{
-    Vec2 end =
-        timber_start_position(timber);
-
-    if (timber->type == TIMBER_STUD) {
-        end.y += timber->length;
-    }
-    else {
-        end.x += timber->length;
-    }
-
-    return end;
-}
-
-static void render_timber_endpoints(
-    Renderer2D *renderer,
-    const Timber *timber,
-    Colour colour
-)
-{
-    if (
-        renderer == NULL
-        || timber == NULL
-        || timber->length <= 0
-    ) {
-        return;
-    }
-
-    render_endpoint_marker(
-        renderer,
-        timber_start_position(timber),
-        colour
-    );
-
-    render_endpoint_marker(
-        renderer,
-        timber_end_position(timber),
-        colour
-    );
-}
-
-static void sitehelper_app_render_endpoints(
-    const SiteHelperApp *app
-)
-{
-    if (
-        app == NULL
-        || app->renderer == NULL
-    ) {
-        return;
-    }
-
-    Colour endpoint_colour = {
-        .r = 220,
-        .g = 80,
-        .b = 220,
-        .a = 255
-    };
-
-    for (
-        size_t i = 0;
-        i < app->wall.stud_count;
-        i++
-    ) {
-        render_timber_endpoints(
-            app->renderer,
-            &app->wall.studs[i],
-            endpoint_colour
-        );
-    }
-
-    for (
-        size_t i = 0;
-        i < app->wall.nog_count;
-        i++
-    ) {
-        render_timber_endpoints(
-            app->renderer,
-            &app->wall.nogs[i],
-            endpoint_colour
-        );
-    }
-
-    for (
-        size_t i = 0;
-        i < app->wall.member_count;
-        i++
-    ) {
-        render_timber_endpoints(
-            app->renderer,
-            &app->wall.members[i],
-            endpoint_colour
-        );
-    }
-
-    if (app->wall.bottomplate.length > 0) {
-        render_timber_endpoints(
-            app->renderer,
-            &app->wall.bottomplate,
-            endpoint_colour
-        );
-    }
-
-    if (app->wall.topplate.length > 0) {
-        render_timber_endpoints(
-            app->renderer,
-            &app->wall.topplate,
-            endpoint_colour
-        );
-    }
 }
 
 int main(void)
