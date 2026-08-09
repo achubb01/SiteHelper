@@ -4,6 +4,7 @@
 #include "editor_tool.h"
 #include "opening_tool.h"
 #include "opening_placement.h"
+#include "opening_command.h"
 
 #include "wall_editor.h"
 #include "wall_render.h"
@@ -34,6 +35,8 @@ typedef struct
     int snapped_cursor_visible;
 
     SnapSettings snap_settings;
+
+    BuildSettings build_settings;
 
     Colour background;
 
@@ -259,7 +262,7 @@ static int sitehelper_app_init(
         EDITOR_TOOL_SELECT
     );
     
-    BuildSettings settings = {
+    app->build_settings = (BuildSettings){
         .stud_height = 2400,
         .stud_depth = 90,
         .stud_width = 35,
@@ -270,7 +273,8 @@ static int sitehelper_app_init(
         .opening_width_allowance = 0,
         .opening_height_allowance = 0,
 
-        .stud_spacing_mode = STUD_SPACING_MAXIMISE
+        .stud_spacing_mode =
+            STUD_SPACING_MAXIMISE
     };
 
     if (!wall_set_length(
@@ -283,7 +287,7 @@ static int sitehelper_app_init(
 
     if (!wall_generate(
             &app->wall,
-            &settings)) {
+            &app->build_settings)) {
 
         sitehelper_app_destroy(app);
         return 0;
@@ -351,23 +355,29 @@ static void sitehelper_app_render(
     if (
         app->active_tool
             == EDITOR_TOOL_OPENING
+        && app->opening_placement.valid
     ) {
-        if (
-            app->active_tool
-                == EDITOR_TOOL_OPENING
-            && app->opening_placement.valid
-        ) {
-            renderer2d_draw_rect(
-                app->renderer,
-                app->opening_placement.preview,
-                (Colour){
-                    .r = 100,
-                    .g = 180,
-                    .b = 255,
-                    .a = 255
-                }
-            );
-        }
+        Rect2 preview_rect = {
+            .position = {
+                .x = app->opening_placement.left,
+                .y = app->opening_placement.bottom
+            },
+            .width =
+                (double)app->opening_placement.width,
+            .height =
+                (double)app->opening_placement.height
+        };
+
+        renderer2d_draw_rect(
+            app->renderer,
+            preview_rect,
+            (Colour){
+                .r = 100,
+                .g = 180,
+                .b = 255,
+                .a = 255
+            }
+        );
     }
 
     sitehelper_app_render_snap_cursor(
@@ -626,10 +636,32 @@ static void sitehelper_app_process_events(
                         break;
 
                     case EDITOR_TOOL_OPENING:
-                        /*
-                        * Opening placement comes next.
-                        */
+                    {
+                        if (!app->opening_placement.valid) {
+                            break;
+                        }
+
+                        OpeningCommand command;
+
+                        if (!opening_command_create(
+                                &app->opening_placement,
+                                &app->opening_tool,
+                                &command)) {
+                            break;
+                        }
+
+                        if (!opening_command_execute(
+                                &app->wall,
+                                &app->build_settings,
+                                &command)) {
+                            break;
+                        }
+
+                        app->opening_placement =
+                            (OpeningPlacement){0};
+
                         break;
+                    }
 
                     case EDITOR_TOOL_WALL:
                         /*

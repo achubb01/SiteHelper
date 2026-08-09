@@ -54,20 +54,11 @@ static void test_opening_can_span_multiple_bays(void)
 
     assert(placement.valid == 1);
 
-    assert(
-        placement.preview.position.x
-        == 300.0
-    );
+    assert(placement.left == 300.0);
+    assert(placement.bottom == 900.0);
 
-    assert(
-        placement.preview.width
-        == 1200.0
-    );
-
-    assert(
-        placement.preview.position.y
-        == 900.0
-    );
+    assert(placement.width == 1200);
+    assert(placement.height == 1200);
 
     assert(
         placement.start_bay_index == 0
@@ -186,15 +177,10 @@ static void test_internal_studs_do_not_make_placement_invalid(void)
      * but that is fine. Framing logic can
      * remove/replace internal studs later.
      */
-    assert(
-        placement.preview.position.x
-        == 400.0
-    );
-
-    assert(
-        placement.preview.width
-        == 900.0
-    );
+    assert(placement.left == 400.0);
+    assert(placement.bottom == 900.0);
+    assert(placement.width == 900);
+    assert(placement.height == 1200);
 }
 
 static void test_opening_before_wall_start_is_invalid(void)

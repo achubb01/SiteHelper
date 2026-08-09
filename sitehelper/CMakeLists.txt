@@ -4,6 +4,7 @@ add_library(sitehelper_core
     editor/snap.c
     editor/opening_tool.c
     editor/opening_placement.c
+    editor/opening_command.c
 
     wall/wall_generation.c
     wall/wall_lifecycle.c
@@ -255,6 +256,20 @@ target_link_libraries(test_opening_placement
 add_test(
     NAME opening_placement_tests
     COMMAND test_opening_placement
+)
+
+add_executable(test_opening_command
+    editor/tests/test_opening_command.c
+)
+
+target_link_libraries(test_opening_command
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME opening_command_tests
+    COMMAND test_opening_command
 )
 
 add_executable(sitehelper

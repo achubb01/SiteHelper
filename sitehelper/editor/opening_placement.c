@@ -6,7 +6,10 @@ static OpeningPlacement invalid_placement(void)
         .valid = 0,
         .start_bay_index = 0,
         .end_bay_index = 0,
-        .preview = {0}
+        .left = 0.0,
+        .bottom = 0.0,
+        .width = 0,
+        .height = 0
     };
 }
 
@@ -115,17 +118,10 @@ OpeningPlacement opening_find_placement(
         .end_bay_index =
             end_bay_index,
 
-        .preview = {
-            .position = {
-                .x = opening_left,
-                .y = (double)tool->bottom
-            },
+        .left = opening_left,
+        .bottom = (double)tool->bottom,
 
-            .width =
-                (double)tool->width,
-
-            .height =
-                (double)tool->height
-        }
+        .width = tool->width,
+        .height = tool->height
     };
 }
