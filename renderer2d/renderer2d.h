@@ -130,4 +130,13 @@ void renderer2d_present(
     Renderer2D *renderer
 );
 
+
+//GUI
+
+void renderer2d_fill_screen_rect(
+    Renderer2D *renderer,
+    Rect2 rect,
+    Colour colour
+);
+
 #endif

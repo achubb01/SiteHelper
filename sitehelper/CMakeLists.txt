@@ -17,6 +17,9 @@ add_library(sitehelper_core
     wall/wall_editor.c
     wall/wall_snap.c
 
+    gui/gui_layout.c
+    gui/gui_render.c
+
     grid/grid_render.c
     grid/grid_snap.c
 )
@@ -25,10 +28,11 @@ target_include_directories(sitehelper_core
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/app
+        ${CMAKE_CURRENT_SOURCE_DIR}/cli
         ${CMAKE_CURRENT_SOURCE_DIR}/editor
         ${CMAKE_CURRENT_SOURCE_DIR}/grid
+        ${CMAKE_CURRENT_SOURCE_DIR}/gui
         ${CMAKE_CURRENT_SOURCE_DIR}/model
-        ${CMAKE_CURRENT_SOURCE_DIR}/ui
         ${CMAKE_CURRENT_SOURCE_DIR}/wall
 )
 
@@ -179,11 +183,24 @@ add_test(
     COMMAND test_wall_snap
 )
 
+add_executable(test_gui_layout
+    gui/tests/test_gui_layout.c
+)
+
+target_link_libraries(test_gui_layout
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME gui_layout_tests
+    COMMAND test_gui_layout
+)
 
 add_executable(sitehelper
     app/main.c
-    ui/actions.c
-    ui/appmenu.c
+    cli/actions.c
+    cli/appmenu.c
 )
 
 target_link_libraries(sitehelper

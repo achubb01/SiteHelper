@@ -6,6 +6,8 @@
 #include "wall_render.h"
 #include "wall_snap.h"
 #include "grid_render.h"
+#include "gui_layout.h"
+#include "gui_render.h"
 
 #include "renderer2d.h"
 #include "renderer2d_sdl.h"
@@ -27,6 +29,9 @@ typedef struct
     SnapSettings snap_settings;
 
     Colour background;
+
+    GuiLayout gui_layout;
+    GuiRenderStyle gui_style;
 
     int running;
 } SiteHelperApp;
@@ -149,6 +154,28 @@ static int sitehelper_app_init(
 
     app->snapped_cursor_visible = 0;
 
+    app->gui_layout =
+        gui_layout_create(
+            800.0,
+            600.0
+        );
+
+    app->gui_style = (GuiRenderStyle){
+        .toolbar_colour = {
+            .r = 42,
+            .g = 42,
+            .b = 42,
+            .a = 255
+        },
+
+        .properties_colour = {
+            .r = 48,
+            .g = 48,
+            .b = 48,
+            .a = 255
+        }
+    };
+
     BuildSettings settings = {
         .stud_height = 2400,
         .stud_depth = 90,
@@ -236,6 +263,12 @@ static void sitehelper_app_render(
 
     sitehelper_app_render_snap_cursor(
         app
+    );
+
+    gui_render(
+        app->renderer,
+        &app->gui_layout,
+        &app->gui_style
     );
 
     renderer2d_present(
@@ -417,6 +450,20 @@ static void sitehelper_app_process_events(
                     .y = event.mouse_y
                 }
             );
+        }
+
+        if (event.viewport_resized) {
+            renderer2d_set_viewport(
+                app->renderer,
+                event.viewport_width,
+                event.viewport_height
+            );
+
+            app->gui_layout =
+                gui_layout_create(
+                    event.viewport_width,
+                    event.viewport_height
+                );
         }
     }
 }

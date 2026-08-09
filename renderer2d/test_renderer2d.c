@@ -512,6 +512,96 @@ static void test_renderer2d_zoom_at_screen_point_keeps_world_point_fixed(void)
     renderer2d_destroy(renderer);
 }
 
+//GUI
+
+static void test_fill_screen_rect_does_not_apply_camera(void)
+{
+    Renderer2D *renderer =
+        renderer2d_create();
+
+    assert(renderer != NULL);
+
+    FakeBackendState state = {0};
+
+    RendererBackend backend = {
+        .context = &state,
+        .fill_rect = fake_fill_rect
+    };
+
+    renderer2d_set_backend(
+        renderer,
+        backend
+    );
+
+    Camera2D camera = {
+        .position = {
+            .x = 500.0,
+            .y = -300.0
+        },
+        .scale = 4.0
+    };
+
+    renderer2d_set_camera(
+        renderer,
+        camera
+    );
+
+    renderer2d_set_viewport(
+        renderer,
+        1200.0,
+        800.0
+    );
+
+    Rect2 screen_rect = {
+        .position = {
+            .x = 0.0,
+            .y = 0.0
+        },
+        .width = 64.0,
+        .height = 800.0
+    };
+
+    renderer2d_fill_screen_rect(
+        renderer,
+        screen_rect,
+        (Colour){
+            .r = 40,
+            .g = 40,
+            .b = 40,
+            .a = 255
+        }
+    );
+
+    assert(state.fill_rect_called);
+
+    assert(nearly_equal(
+        state.last_rect.position.x,
+        0.0
+    ));
+
+    assert(nearly_equal(
+        state.last_rect.position.y,
+        0.0
+    ));
+
+    assert(nearly_equal(
+        state.last_rect.width,
+        64.0
+    ));
+
+    assert(nearly_equal(
+        state.last_rect.height,
+        800.0
+    ));
+
+    assert(state.last_colour.r == 40);
+    assert(state.last_colour.g == 40);
+    assert(state.last_colour.b == 40);
+    assert(state.last_colour.a == 255);
+
+    renderer2d_destroy(renderer);
+}
+
 int main(void)
 {
     test_renderer2d_create();
@@ -526,6 +616,9 @@ int main(void)
     test_renderer2d_zoom_camera();
     test_renderer2d_zoom_camera_rejects_invalid_factor();
     test_renderer2d_zoom_at_screen_point_keeps_world_point_fixed();
+
+    //GUI
+    test_fill_screen_rect_does_not_apply_camera();
 
     printf("renderer2d tests passed\n");
 

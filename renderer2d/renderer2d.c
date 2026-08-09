@@ -243,3 +243,26 @@ void renderer2d_present(
         renderer->backend.context
     );
 }
+
+
+//GUI
+
+void renderer2d_fill_screen_rect(
+    Renderer2D *renderer,
+    Rect2 rect,
+    Colour colour
+)
+{
+    if (
+        renderer == NULL
+        || renderer->backend.fill_rect == NULL
+    ) {
+        return;
+    }
+
+    renderer->backend.fill_rect(
+        renderer->backend.context,
+        rect,
+        colour
+    );
+}
