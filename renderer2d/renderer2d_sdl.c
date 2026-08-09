@@ -210,7 +210,7 @@ RendererBackend renderer2d_sdl_create_backend(
             title,
             width,
             height,
-            0,
+            SDL_WINDOW_RESIZABLE,
             &state->window,
             &state->renderer
         )) {

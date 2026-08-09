@@ -163,16 +163,16 @@ static int sitehelper_app_init(
 
     app->gui_style = (GuiRenderStyle){
         .toolbar_colour = {
-            .r = 42,
-            .g = 42,
-            .b = 42,
+            .r = 70,
+            .g = 40,
+            .b = 40,
             .a = 255
         },
 
         .properties_colour = {
-            .r = 48,
-            .g = 48,
-            .b = 48,
+            .r = 40,
+            .g = 55,
+            .b = 75,
             .a = 255
         }
     };
