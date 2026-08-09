@@ -244,7 +244,7 @@ void renderer2d_sdl_destroy_backend(
     }
 
     SDLBackendState *state =
-        calloc(1, sizeof *state);
+        backend->context;
 
     if (state->renderer != NULL) {
         SDL_DestroyRenderer(

@@ -154,6 +154,13 @@ static int sitehelper_app_init(
             600.0
         );
 
+    renderer2d_set_viewport(
+        app->renderer,
+        app->gui_layout.viewport.position,
+        app->gui_layout.viewport.width,
+        app->gui_layout.viewport.height
+    );
+
     app->gui_style = (GuiRenderStyle){
         .toolbar_colour = {
             .r = 42,
