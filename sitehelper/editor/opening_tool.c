@@ -13,7 +13,7 @@ void opening_tool_init(
     *tool = (OpeningTool){
         .active = 0,
         .type = OPENING_WINDOW,
-        .width = 400,
+        .width = 1200,
         .height = 1200,
         .bottom = 900,
         .preview_position = {0.0, 0.0},

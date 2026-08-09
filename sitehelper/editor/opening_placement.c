@@ -4,9 +4,48 @@ static OpeningPlacement invalid_placement(void)
 {
     return (OpeningPlacement){
         .valid = 0,
-        .bay_index = 0,
+        .start_bay_index = 0,
+        .end_bay_index = 0,
         .preview = {0}
     };
+}
+
+static int find_bay_index(
+    const Wall *wall,
+    double x,
+    size_t *bay_index
+)
+{
+    if (
+        wall == NULL
+        || bay_index == NULL
+        || wall->studs == NULL
+        || wall->stud_count < 2
+    ) {
+        return 0;
+    }
+
+    for (
+        size_t i = 0;
+        i + 1 < wall->stud_count;
+        i++
+    ) {
+        double left =
+            (double)wall->studs[i].position.x;
+
+        double right =
+            (double)wall->studs[i + 1].position.x;
+
+        if (
+            x >= left
+            && x <= right
+        ) {
+            *bay_index = i;
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 OpeningPlacement opening_find_placement(
@@ -26,51 +65,67 @@ OpeningPlacement opening_find_placement(
         return invalid_placement();
     }
 
-    for (
-        size_t i = 0;
-        i + 1 < wall->stud_count;
-        i++
+    double opening_left =
+        position.x;
+
+    double opening_right =
+        opening_left
+        + (double)tool->width;
+
+    double wall_left =
+        (double)wall->studs[0].position.x;
+
+    double wall_right =
+        (double)wall->studs[
+            wall->stud_count - 1
+        ].position.x;
+
+    if (
+        opening_left < wall_left
+        || opening_right > wall_right
     ) {
-        const Timber *left =
-            &wall->studs[i];
-
-        const Timber *right =
-            &wall->studs[i + 1];
-
-        double bay_left =
-            (double)left->position.x
-            + (double)left->width;
-
-        double bay_right =
-            (double)right->position.x;
-
-        if (
-            position.x < bay_left
-            || position.x > bay_right
-        ) {
-            continue;
-        }
-
-        double bay_width =
-            bay_right - bay_left;
-
-        if ((double)tool->width > bay_width) {
-            return invalid_placement();
-        }
-
-        return (OpeningPlacement){
-            .valid = 1,
-            .bay_index = i,
-            .preview = {
-                .position = {
-                    .x = bay_left,
-                    .y = (double)tool->bottom
-                },
-                .width = (double)tool->width,
-                .height = (double)tool->height
-            }
-        };
+        return invalid_placement();
     }
 
-    return invalid_placement();
+    size_t start_bay_index;
+    size_t end_bay_index;
+
+    if (
+        !find_bay_index(
+            wall,
+            opening_left,
+            &start_bay_index
+        )
+        ||
+        !find_bay_index(
+            wall,
+            opening_right,
+            &end_bay_index
+        )
+    ) {
+        return invalid_placement();
+    }
+
+    return (OpeningPlacement){
+        .valid = 1,
+
+        .start_bay_index =
+            start_bay_index,
+
+        .end_bay_index =
+            end_bay_index,
+
+        .preview = {
+            .position = {
+                .x = opening_left,
+                .y = (double)tool->bottom
+            },
+
+            .width =
+                (double)tool->width,
+
+            .height =
+                (double)tool->height
+        }
+    };
 }

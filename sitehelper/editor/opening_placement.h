@@ -11,7 +11,8 @@ typedef struct
 {
     int valid;
 
-    size_t bay_index;
+    size_t start_bay_index;
+    size_t end_bay_index;
 
     Rect2 preview;
 } OpeningPlacement;
