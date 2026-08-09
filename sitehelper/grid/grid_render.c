@@ -32,7 +32,7 @@ void grid_render(
         camera_screen_to_world(
             &camera,
             viewport,
-            (Vec2){0.0, 0.0}
+            viewport.position
         );
 
     Vec2 world_bottom_right =
@@ -40,8 +40,13 @@ void grid_render(
             &camera,
             viewport,
             (Vec2){
-                viewport.width,
-                viewport.height
+                .x =
+                    viewport.position.x
+                    + viewport.width,
+
+                .y =
+                    viewport.position.y
+                    + viewport.height
             }
         );
 
