@@ -16,6 +16,10 @@
 #include "renderer2d.h"
 #include "renderer2d_sdl.h"
 
+enum {
+    GUI_TOOLBAR_BUTTON_COUNT = 3
+};
+
 typedef struct
 {
     Renderer2D *renderer;
@@ -36,10 +40,6 @@ typedef struct
 
     GuiLayout gui_layout;
     GuiRenderStyle gui_style;
-
-    enum {
-        GUI_TOOLBAR_BUTTON_COUNT = 3
-    };
 
     GuiButton toolbar_buttons[
         GUI_TOOLBAR_BUTTON_COUNT
