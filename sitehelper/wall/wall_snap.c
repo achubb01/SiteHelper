@@ -451,3 +451,4 @@ static int candidate_exists(
 
     return 0;
 }
+

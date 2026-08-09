@@ -12,6 +12,10 @@ static int snap_type_enabled(
     const SnapSettings *settings
 );
 
+static int snap_priority(
+    SnapType type
+);
+
 SnapResult editor_snap(
     Vec2 world_position,
     const SnapCandidate *candidates,
@@ -88,6 +92,15 @@ SnapResult editor_snap(
             continue;
         }
 
+        if (
+            candidate_distance_squared
+                == best_distance_squared
+            && snap_priority(candidate->type)
+                <= snap_priority(object_result.type)
+        ) {
+            continue;
+        }
+
         object_result = (SnapResult){
             .position = candidate->position,
             .type = candidate->type
@@ -130,6 +143,25 @@ static int snap_type_enabled(
 
         case SNAP_INTERSECTION:
             return settings->intersection_enabled;
+
+        default:
+            return 0;
+    }
+}
+
+static int snap_priority(
+    SnapType type
+)
+{
+    switch (type) {
+        case SNAP_INTERSECTION:
+            return 3;
+
+        case SNAP_ENDPOINT:
+            return 2;
+
+        case SNAP_GRID:
+            return 1;
 
         default:
             return 0;

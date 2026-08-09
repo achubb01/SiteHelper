@@ -380,6 +380,37 @@ static void test_endpoint_within_tolerance_beats_closer_grid_point(void)
     );
 }
 
+
+static void test_intersection_beats_endpoint_at_same_position(void)
+{
+    SnapCandidate candidates[] = {
+        {
+            .position = {600.0, 2400.0},
+            .type = SNAP_ENDPOINT
+        },
+        {
+            .position = {600.0, 2400.0},
+            .type = SNAP_INTERSECTION
+        }
+    };
+
+    SnapSettings settings = {
+        .endpoint_enabled = 1,
+        .intersection_enabled = 1,
+        .object_snap_tolerance = 30.0
+    };
+
+    SnapResult result =
+        editor_snap(
+            (Vec2){610.0, 2390.0},
+            candidates,
+            2,
+            &settings
+        );
+
+    assert(result.type == SNAP_INTERSECTION);
+}
+
 int main(void)
 {
     test_snap_to_grid_returns_grid_result();
@@ -393,6 +424,8 @@ int main(void)
     test_selects_nearest_endpoint_candidate();
     test_disabled_endpoint_candidate_uses_grid();
     test_endpoint_within_tolerance_beats_closer_grid_point();
+    test_intersection_beats_endpoint_at_same_position();
+
 
     printf(
         "All editor snap tests passed.\n"

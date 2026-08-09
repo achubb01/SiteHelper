@@ -358,16 +358,67 @@ static void test_collects_noggin_to_stud_intersection(void)
     );
 }
 
-static void test_intersection_beats_endpoint_at_same_position(void)
+static void test_plate_free_end_is_endpoint_not_intersection(void)
+{
+    Timber topplate = {
+        .length = 4200,
+        .width = 35,
+
+        .position = {
+            .x = 0,
+            .y = 2400
+        },
+
+        .type = TIMBER_PLATE
+    };
+
+    Wall wall = {
+        .topplate = topplate
+    };
+
+    SnapCandidate candidates[16];
+
+    size_t count =
+        wall_collect_snap_candidates(
+            &wall,
+            candidates,
+            16
+        );
+
+    Vec2 plate_end = {
+        .x = 4200.0,
+        .y = 2400.0
+    };
+
+    assert(
+        contains_candidate(
+            candidates,
+            count,
+            SNAP_ENDPOINT,
+            plate_end
+        )
+    );
+
+    assert(
+        !contains_candidate(
+            candidates,
+            count,
+            SNAP_INTERSECTION,
+            plate_end
+        )
+    );
+}
+
+static void test_intersection_priority_does_not_depend_on_candidate_order(void)
 {
     SnapCandidate candidates[] = {
         {
             .position = {600.0, 2400.0},
-            .type = SNAP_ENDPOINT
+            .type = SNAP_INTERSECTION
         },
         {
             .position = {600.0, 2400.0},
-            .type = SNAP_INTERSECTION
+            .type = SNAP_ENDPOINT
         }
     };
 
@@ -385,7 +436,10 @@ static void test_intersection_beats_endpoint_at_same_position(void)
             &settings
         );
 
-    assert(result.type == SNAP_INTERSECTION);
+    assert(
+        result.type
+        == SNAP_INTERSECTION
+    );
 }
 
 int main(void)
@@ -397,7 +451,8 @@ int main(void)
     test_collects_stud_to_top_plate_intersection();
     test_does_not_duplicate_intersection_candidates();
     test_collects_noggin_to_stud_intersection();
-    test_intersection_beats_endpoint_at_same_position();
+    test_plate_free_end_is_endpoint_not_intersection();
+    test_intersection_priority_does_not_depend_on_candidate_order();
 
     printf("All wall snap tests passed.\n");
 
