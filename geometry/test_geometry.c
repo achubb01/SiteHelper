@@ -265,6 +265,54 @@ static void test_world_origin_maps_to_bottom_left(void)
     assert(nearly_equal(result.y, 600.0));
 }
 
+static void test_world_to_screen_respects_viewport_origin(void)
+{
+    Camera2D camera = {
+        .position = {0.0, 0.0},
+        .scale = 1.0
+    };
+
+    Viewport2D viewport = {
+        .position = {64.0, 20.0},
+        .width = 876.0,
+        .height = 600.0
+    };
+
+    Vec2 screen =
+        camera_world_to_screen(
+            &camera,
+            viewport,
+            (Vec2){100.0, 100.0}
+        );
+
+    assert(nearly_equal(screen.x, 164.0));
+    assert(nearly_equal(screen.y, 520.0));
+}
+
+static void test_screen_to_world_respects_viewport_origin(void)
+{
+    Camera2D camera = {
+        .position = {0.0, 0.0},
+        .scale = 1.0
+    };
+
+    Viewport2D viewport = {
+        .position = {64.0, 20.0},
+        .width = 876.0,
+        .height = 600.0
+    };
+
+    Vec2 world =
+        camera_screen_to_world(
+            &camera,
+            viewport,
+            (Vec2){164.0, 520.0}
+        );
+
+    assert(nearly_equal(world.x, 100.0));
+    assert(nearly_equal(world.y, 100.0));
+}
+
 int main(void)
 {
     test_world_to_screen_with_translation_and_scale();
@@ -279,6 +327,8 @@ int main(void)
     test_rect2_world_to_screen();
     test_world_to_screen_flips_y_axis();
     test_world_origin_maps_to_bottom_left();
+    test_world_to_screen_respects_viewport_origin();
+    test_screen_to_world_respects_viewport_origin();
 
     printf("geometry tests passed\n");
 

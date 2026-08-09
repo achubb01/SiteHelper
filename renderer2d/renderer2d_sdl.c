@@ -8,6 +8,52 @@ typedef struct SDLBackendState {
     SDL_Renderer *renderer;
 } SDLBackendState;
 
+static void sdl_set_clip_rect(
+    void *context,
+    Rect2 rect
+)
+{
+    SDLBackendState *state = context;
+
+    if (
+        state == NULL
+        || state->renderer == NULL
+    ) {
+        return;
+    }
+
+    SDL_Rect clip_rect = {
+        .x = (int)rect.position.x,
+        .y = (int)rect.position.y,
+        .w = (int)rect.width,
+        .h = (int)rect.height
+    };
+
+    SDL_SetRenderClipRect(
+        state->renderer,
+        &clip_rect
+    );
+}
+
+static void sdl_clear_clip_rect(
+    void *context
+)
+{
+    SDLBackendState *state = context;
+
+    if (
+        state == NULL
+        || state->renderer == NULL
+    ) {
+        return;
+    }
+
+    SDL_SetRenderClipRect(
+        state->renderer,
+        NULL
+    );
+}
+
 static void sdl_draw_rect(
     void *context,
     Rect2 rect,
@@ -178,7 +224,10 @@ RendererBackend renderer2d_sdl_create_backend(
     backend.draw_rect = sdl_draw_rect;
     backend.fill_rect = sdl_fill_rect;
     backend.draw_line = sdl_draw_line;
+    backend.set_clip_rect = sdl_set_clip_rect;
+    backend.clear_clip_rect = sdl_clear_clip_rect;
     backend.present = sdl_present;
+
 
     return backend;
 }

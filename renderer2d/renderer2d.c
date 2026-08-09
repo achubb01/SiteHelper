@@ -18,10 +18,12 @@ void renderer2d_set_camera(
 
 void renderer2d_set_viewport(
     Renderer2D *renderer,
+    Vec2 position,
     double width,
     double height
 )
 {
+    renderer->viewport.position = position;
     renderer->viewport.width = width;
     renderer->viewport.height = height;
 }
@@ -128,6 +130,7 @@ Renderer2D *renderer2d_create(void) {
     };
 
     renderer->viewport = (Viewport2D) {
+        .position = {0.0, 0.0},
         .width = 0.0,
         .height = 0.0
     };
@@ -264,5 +267,44 @@ void renderer2d_fill_screen_rect(
         renderer->backend.context,
         rect,
         colour
+    );
+}
+
+void renderer2d_begin_viewport_clip(
+    Renderer2D *renderer
+)
+{
+    if (
+        renderer == NULL
+        || renderer->backend.set_clip_rect == NULL
+    ) {
+        return;
+    }
+
+    Rect2 rect = {
+        .position = renderer->viewport.position,
+        .width = renderer->viewport.width,
+        .height = renderer->viewport.height
+    };
+
+    renderer->backend.set_clip_rect(
+        renderer->backend.context,
+        rect
+    );
+}
+
+void renderer2d_end_viewport_clip(
+    Renderer2D *renderer
+)
+{
+    if (
+        renderer == NULL
+        || renderer->backend.clear_clip_rect == NULL
+    ) {
+        return;
+    }
+
+    renderer->backend.clear_clip_rect(
+        renderer->backend.context
     );
 }

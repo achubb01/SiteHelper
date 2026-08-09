@@ -21,6 +21,7 @@ int main(void)
 
     renderer2d_set_viewport(
         renderer,
+        (Vec2){0.0, 0.0},
         800.0,
         600.0
     );
@@ -75,6 +76,7 @@ int main(void)
             if (event.viewport_resized) {
                 renderer2d_set_viewport(
                     renderer,
+                    (Vec2){0.0, 0.0},
                     event.viewport_width,
                     event.viewport_height
                 );

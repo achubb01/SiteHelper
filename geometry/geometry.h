@@ -12,6 +12,8 @@ typedef struct Camera2D {
 } Camera2D;
 
 typedef struct Viewport2D {
+    Vec2 position;
+
     double width;
     double height;
 } Viewport2D;

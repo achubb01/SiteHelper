@@ -51,6 +51,7 @@ static void test_wall_render_draws_bottom_and_top_plate_and_studs(void)
 
     renderer2d_set_viewport(
         renderer,
+        (Vec2){0.0, 0.0},
         800.0,
         600.0
     );

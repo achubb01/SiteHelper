@@ -9,10 +9,15 @@ typedef struct FakeBackendState {
     int draw_rect_called;
     int fill_rect_called;
 
+    int set_clip_rect_called;
+    int clear_clip_rect_called;
+
     Vec2 last_line_start;
     Vec2 last_line_end;
 
     Rect2 last_rect;
+    Rect2 last_clip_rect;
+
     Colour last_colour;
 } FakeBackendState;
 
@@ -55,6 +60,26 @@ static void fake_draw_line(
     state->last_line_start = start;
     state->last_line_end = end;
     state->last_colour = colour;
+}
+
+static void fake_set_clip_rect(
+    void *context,
+    Rect2 rect
+)
+{
+    FakeBackendState *state = context;
+
+    state->set_clip_rect_called = 1;
+    state->last_clip_rect = rect;
+}
+
+static void fake_clear_clip_rect(
+    void *context
+)
+{
+    FakeBackendState *state = context;
+
+    state->clear_clip_rect_called = 1;
 }
 
 static int nearly_equal(double a, double b)
@@ -109,6 +134,7 @@ static void test_renderer2d_set_viewport(void)
 
     renderer2d_set_viewport(
         renderer,
+        (Vec2){0.0, 0.0},
         800.0,
         600.0
     );
@@ -139,6 +165,7 @@ static void test_renderer2d_draw_rect_transforms_to_screen_space(void)
 
     renderer2d_set_viewport(
         renderer,
+        (Vec2){0.0, 0.0},
         800.0,
         600.0
     );
@@ -201,6 +228,7 @@ static void test_renderer2d_fill_rect_transforms_to_screen_space(void)
 
     renderer2d_set_viewport(
         renderer,
+        (Vec2){0.0, 0.0},
         800.0,
         600.0
     );
@@ -263,6 +291,7 @@ static void test_renderer2d_draw_line_transforms_to_screen_space(void)
 
     renderer2d_set_viewport(
         renderer,
+        (Vec2){0.0, 0.0},
         800.0,
         600.0
     );
@@ -324,6 +353,7 @@ static void test_renderer2d_move_camera_changes_screen_position(void)
 
     renderer2d_set_viewport(
         renderer,
+        (Vec2){0.0, 0.0},
         800.0,
         600.0
     );
@@ -465,6 +495,7 @@ static void test_renderer2d_zoom_at_screen_point_keeps_world_point_fixed(void)
 
     renderer2d_set_viewport(
         renderer,
+        (Vec2){0.0, 0.0},
         800.0,
         600.0
     );
@@ -548,6 +579,7 @@ static void test_fill_screen_rect_does_not_apply_camera(void)
 
     renderer2d_set_viewport(
         renderer,
+        (Vec2){0.0, 0.0},
         1200.0,
         800.0
     );
@@ -602,6 +634,68 @@ static void test_fill_screen_rect_does_not_apply_camera(void)
     renderer2d_destroy(renderer);
 }
 
+static void test_viewport_clip_uses_renderer_viewport(void)
+{
+    Renderer2D *renderer =
+        renderer2d_create();
+
+    assert(renderer != NULL);
+
+    FakeBackendState state = {0};
+
+    RendererBackend backend = {
+        .context = &state,
+        .set_clip_rect = fake_set_clip_rect,
+        .clear_clip_rect = fake_clear_clip_rect
+    };
+
+    renderer2d_set_backend(
+        renderer,
+        backend
+    );
+
+    renderer2d_set_viewport(
+        renderer,
+        (Vec2){64.0, 20.0},
+        876.0,
+        600.0
+    );
+
+    renderer2d_begin_viewport_clip(
+        renderer
+    );
+
+    assert(state.set_clip_rect_called);
+
+    assert(nearly_equal(
+        state.last_clip_rect.position.x,
+        64.0
+    ));
+
+    assert(nearly_equal(
+        state.last_clip_rect.position.y,
+        20.0
+    ));
+
+    assert(nearly_equal(
+        state.last_clip_rect.width,
+        876.0
+    ));
+
+    assert(nearly_equal(
+        state.last_clip_rect.height,
+        600.0
+    ));
+
+    renderer2d_end_viewport_clip(
+        renderer
+    );
+
+    assert(state.clear_clip_rect_called);
+
+    renderer2d_destroy(renderer);
+}
+
 int main(void)
 {
     test_renderer2d_create();
@@ -619,6 +713,7 @@ int main(void)
 
     //GUI
     test_fill_screen_rect_does_not_apply_camera();
+    test_viewport_clip_uses_renderer_viewport();
 
     printf("renderer2d tests passed\n");
 

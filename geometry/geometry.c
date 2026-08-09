@@ -1,13 +1,32 @@
 #include <stdio.h>
 #include "geometry.h"
 
-Vec2 camera_world_to_screen(const Camera2D *camera, Viewport2D viewport, Vec2 world) {
-    Vec2 world_to_screen = {
-        .x = (world.x - camera->position.x) * camera->scale,
-        .y = viewport.height - (world.y - camera->position.y) * camera->scale
-    };
+Vec2 camera_world_to_screen(
+    const Camera2D *camera,
+    Viewport2D viewport,
+    Vec2 world
+)
+{
+    if (camera == NULL) {
+        return (Vec2){0.0, 0.0};
+    }
 
-    return world_to_screen;
+    return (Vec2){
+        .x =
+            viewport.position.x
+            + (
+                world.x
+                - camera->position.x
+            ) * camera->scale,
+
+        .y =
+            viewport.position.y
+            + viewport.height
+            - (
+                world.y
+                - camera->position.y
+            ) * camera->scale
+    };
 }
 
 Vec2 camera_screen_to_world(
@@ -16,16 +35,31 @@ Vec2 camera_screen_to_world(
     Vec2 screen
 )
 {
-    Vec2 screen_to_world = {
-        .x = (screen.x / camera->scale)
-           + camera->position.x,
+    if (
+        camera == NULL
+        || camera->scale <= 0.0
+    ) {
+        return (Vec2){0.0, 0.0};
+    }
 
-        .y = ((viewport.height - screen.y)
-             / camera->scale)
-           + camera->position.y
+    return (Vec2){
+        .x =
+            camera->position.x
+            + (
+                screen.x
+                - viewport.position.x
+            ) / camera->scale,
+
+        .y =
+            camera->position.y
+            + (
+                viewport.height
+                - (
+                    screen.y
+                    - viewport.position.y
+                )
+            ) / camera->scale
     };
-
-    return screen_to_world;
 }
 
 Vec2 rect2_top_right(Rect2 rect) {

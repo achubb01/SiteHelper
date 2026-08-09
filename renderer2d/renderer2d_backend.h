@@ -38,6 +38,15 @@ typedef void (*BackendPresentFn)(
     void *context
 );
 
+typedef void (*BackendSetClipRectFn)(
+    void *context,
+    Rect2 rect
+);
+
+typedef void (*BackendClearClipRectFn)(
+    void *context
+);
+
 typedef struct RendererBackend {
     void *context;
 
@@ -45,6 +54,10 @@ typedef struct RendererBackend {
     BackendDrawRectFn draw_rect;
     BackendFillRectFn fill_rect;
     BackendDrawLineFn draw_line;
+
+    BackendSetClipRectFn set_clip_rect;
+    BackendClearClipRectFn clear_clip_rect;
+
     BackendPresentFn present;
 } RendererBackend;
 

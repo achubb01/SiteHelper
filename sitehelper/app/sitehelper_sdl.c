@@ -89,12 +89,6 @@ static int sitehelper_app_init(
         app->backend
     );
 
-    renderer2d_set_viewport(
-        app->renderer,
-        800.0,
-        600.0
-    );
-
     Camera2D camera = {
         .position = {-200.0, -200.0},
         .scale = 0.12
@@ -247,6 +241,10 @@ static void sitehelper_app_render(
         app->background
     );
 
+    renderer2d_begin_viewport_clip(
+        app->renderer
+    );
+
     grid_render(
         app->renderer,
         &app->grid_style
@@ -263,6 +261,10 @@ static void sitehelper_app_render(
 
     sitehelper_app_render_snap_cursor(
         app
+    );
+
+    renderer2d_end_viewport_clip(
+        app->renderer
     );
 
     gui_render(
@@ -334,14 +336,6 @@ static void sitehelper_app_process_events(
     while (renderer2d_sdl_poll_event(&event)) {
         if (event.quit_requested) {
             app->running = 0;
-        }
-
-        if (event.viewport_resized) {
-            renderer2d_set_viewport(
-                app->renderer,
-                event.viewport_width,
-                event.viewport_height
-            );
         }
 
         if (event.primary_mouse_pressed) {
@@ -453,17 +447,18 @@ static void sitehelper_app_process_events(
         }
 
         if (event.viewport_resized) {
-            renderer2d_set_viewport(
-                app->renderer,
-                event.viewport_width,
-                event.viewport_height
-            );
-
             app->gui_layout =
                 gui_layout_create(
                     event.viewport_width,
                     event.viewport_height
                 );
+
+            renderer2d_set_viewport(
+                app->renderer,
+                app->gui_layout.viewport.position,
+                app->gui_layout.viewport.width,
+                app->gui_layout.viewport.height
+            );
         }
     }
 }

@@ -65,6 +65,7 @@ void renderer2d_set_camera(
 
 void renderer2d_set_viewport(
     Renderer2D *renderer,
+    Vec2 position,
     double width,
     double height
 );
@@ -137,6 +138,14 @@ void renderer2d_fill_screen_rect(
     Renderer2D *renderer,
     Rect2 rect,
     Colour colour
+);
+
+void renderer2d_begin_viewport_clip(
+    Renderer2D *renderer
+);
+
+void renderer2d_end_viewport_clip(
+    Renderer2D *renderer
 );
 
 #endif
