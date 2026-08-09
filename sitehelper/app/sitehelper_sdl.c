@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
 #include "snap.h"
+#include "editor_tool.h"
 
 #include "wall_editor.h"
 #include "wall_render.h"
@@ -15,10 +16,6 @@
 
 #include "renderer2d.h"
 #include "renderer2d_sdl.h"
-
-enum {
-    GUI_TOOLBAR_BUTTON_COUNT = 3
-};
 
 typedef struct
 {
@@ -42,10 +39,12 @@ typedef struct
     GuiRenderStyle gui_style;
 
     GuiButton toolbar_buttons[
-        GUI_TOOLBAR_BUTTON_COUNT
+        EDITOR_TOOL_COUNT
     ];
 
     GuiToolbar toolbar;
+
+    EditorTool active_tool;
 
     int running;
 } SiteHelperApp;
@@ -78,6 +77,13 @@ static void sitehelper_app_render_snap_cursor(
 static void sitehelper_app_layout_gui(
     SiteHelperApp *app
 );
+
+static void sitehelper_app_set_active_tool(
+    SiteHelperApp *app,
+    EditorTool tool
+);
+
+
 
 static int sitehelper_app_init(
     SiteHelperApp *app
@@ -233,6 +239,11 @@ static int sitehelper_app_init(
 
     sitehelper_app_layout_gui(
         app
+    );
+
+    sitehelper_app_set_active_tool(
+        app,
+        EDITOR_TOOL_SELECT
     );
     
     BuildSettings settings = {
@@ -534,19 +545,42 @@ static void sitehelper_app_process_events(
                     screen_position
                 );
 
-            if (clicked_button < 0) {
-                if (
-                    rect2_contains_point(
-                        app->gui_layout.viewport,
-                        screen_position
-                    )
-                ) {
-                    select_at_screen_position(
-                        app->renderer,
-                        &app->editor,
-                        &app->wall,
-                        screen_position
-                    );
+            if (clicked_button >= 0) {
+                sitehelper_app_set_active_tool(
+                    app,
+                    (EditorTool)clicked_button
+                );
+            }
+            else if (
+                rect2_contains_point(
+                    app->gui_layout.viewport,
+                    screen_position
+                )
+            ) {
+                switch (app->active_tool) {
+                    case EDITOR_TOOL_SELECT:
+                        select_at_screen_position(
+                            app->renderer,
+                            &app->editor,
+                            &app->wall,
+                            screen_position
+                        );
+                        break;
+
+                    case EDITOR_TOOL_OPENING:
+                        /*
+                        * Opening placement comes next.
+                        */
+                        break;
+
+                    case EDITOR_TOOL_WALL:
+                        /*
+                        * Wall tool comes later.
+                        */
+                        break;
+
+                    default:
+                        break;
                 }
             }
         }
@@ -570,6 +604,11 @@ static void sitehelper_app_process_events(
 
             gui_toolbar_layout(
                 &app->toolbar
+            );
+
+            sitehelper_app_set_active_tool(
+                app,
+                app->active_tool
             );
         }
     }
@@ -744,9 +783,36 @@ static void sitehelper_app_layout_gui(
     gui_toolbar_init(
         &app->toolbar,
         app->toolbar_buttons,
-        GUI_TOOLBAR_BUTTON_COUNT,
+        EDITOR_TOOL_COUNT,
         app->gui_layout.toolbar
     );
+}
+
+static void sitehelper_app_set_active_tool(
+    SiteHelperApp *app,
+    EditorTool tool
+)
+{
+    if (
+        app == NULL
+        || tool < 0
+        || tool >= EDITOR_TOOL_COUNT
+    ) {
+        return;
+    }
+
+    app->active_tool = tool;
+
+    for (
+        size_t i = 0;
+        i < app->toolbar.button_count;
+        i++
+    ) {
+        gui_button_set_active(
+            &app->toolbar.buttons[i],
+            i == (size_t)tool
+        );
+    }
 }
 
 int main(void)
