@@ -57,13 +57,19 @@ int opening_command_execute(
         return 0;
     }
 
-    return wall_add_opening(
+    if (!wall_add_opening(
+            wall,
+            settings,
+            command->opening.type,
+            command->opening.frame_position,
+            command->opening.frame_bottom,
+            command->opening.width,
+            command->opening.height)) {
+        return 0;
+    }
+
+    return wall_generate(
         wall,
-        settings,
-        command->opening.type,
-        command->opening.frame_position,
-        command->opening.frame_bottom,
-        command->opening.width,
-        command->opening.height
+        settings
     );
 }

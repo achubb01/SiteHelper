@@ -210,6 +210,32 @@ static void test_execute_adds_opening_to_wall(void)
         == 1200
     );
 
+    int found_king = 0;
+    int found_trimmer = 0;
+
+    for (
+        size_t i = 0;
+        i < wall.stud_count;
+        i++
+    ) {
+        if (
+            wall.studs[i].details.stud.type
+            == STUD_KING
+        ) {
+            found_king = 1;
+        }
+
+        if (
+            wall.studs[i].details.stud.type
+            == STUD_TRIMMER
+        ) {
+            found_trimmer = 1;
+        }
+    }
+
+    assert(found_king);
+    assert(found_trimmer);
+
     wall_destroy(&wall);
 }
 
