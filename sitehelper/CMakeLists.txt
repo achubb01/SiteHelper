@@ -19,6 +19,8 @@ add_library(sitehelper_core
 
     gui/gui_layout.c
     gui/gui_render.c
+    gui/gui_button.c
+    gui/gui_toolbar.c
 
     grid/grid_render.c
     grid/grid_snap.c
@@ -195,6 +197,34 @@ target_link_libraries(test_gui_layout
 add_test(
     NAME gui_layout_tests
     COMMAND test_gui_layout
+)
+
+add_executable(test_gui_button
+    gui/tests/test_gui_button.c
+)
+
+target_link_libraries(test_gui_button
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME gui_button_tests
+    COMMAND test_gui_button
+)
+
+add_executable(test_gui_toolbar
+    gui/tests/test_gui_toolbar.c
+)
+
+target_link_libraries(test_gui_toolbar
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME gui_toolbar_tests
+    COMMAND test_gui_toolbar
 )
 
 add_executable(sitehelper

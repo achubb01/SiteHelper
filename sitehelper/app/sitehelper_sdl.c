@@ -5,9 +5,13 @@
 #include "wall_editor.h"
 #include "wall_render.h"
 #include "wall_snap.h"
+
 #include "grid_render.h"
+
 #include "gui_layout.h"
 #include "gui_render.h"
+#include "gui_button.h"
+#include "gui_toolbar.h"
 
 #include "renderer2d.h"
 #include "renderer2d_sdl.h"
@@ -32,6 +36,16 @@ typedef struct
 
     GuiLayout gui_layout;
     GuiRenderStyle gui_style;
+
+    enum {
+        GUI_TOOLBAR_BUTTON_COUNT = 3
+    };
+
+    GuiButton toolbar_buttons[
+        GUI_TOOLBAR_BUTTON_COUNT
+    ];
+
+    GuiToolbar toolbar;
 
     int running;
 } SiteHelperApp;
@@ -59,6 +73,10 @@ static void sitehelper_app_update_snap_cursor(
 
 static void sitehelper_app_render_snap_cursor(
     const SiteHelperApp *app
+);
+
+static void sitehelper_app_layout_gui(
+    SiteHelperApp *app
 );
 
 static int sitehelper_app_init(
@@ -163,20 +181,60 @@ static int sitehelper_app_init(
 
     app->gui_style = (GuiRenderStyle){
         .toolbar_colour = {
-            .r = 70,
-            .g = 40,
-            .b = 40,
+            .r = 42,
+            .g = 42,
+            .b = 42,
             .a = 255
         },
 
         .properties_colour = {
-            .r = 40,
+            .r = 48,
+            .g = 48,
+            .b = 48,
+            .a = 255
+        },
+        
+        .button_idle_colour = {
+            .r = 55,
             .g = 55,
-            .b = 75,
+            .b = 55,
+            .a = 255
+        },
+
+        .button_hover_colour = {
+            .r = 70,
+            .g = 70,
+            .b = 70,
+            .a = 255
+        },
+
+        .button_pressed_colour = {
+            .r = 45,
+            .g = 45,
+            .b = 45,
+            .a = 255
+        },
+
+        .button_active_colour = {
+            .r = 80,
+            .g = 110,
+            .b = 150,
+            .a = 255
+        },
+
+        .button_disabled_colour = {
+            .r = 35,
+            .g = 35,
+            .b = 35,
             .a = 255
         }
+    
     };
 
+    sitehelper_app_layout_gui(
+        app
+    );
+    
     BuildSettings settings = {
         .stud_height = 2400,
         .stud_depth = 90,
@@ -279,6 +337,18 @@ static void sitehelper_app_render(
         &app->gui_layout,
         &app->gui_style
     );
+
+    for (
+        size_t i = 0;
+        i < app->toolbar.button_count;
+        i++
+    ) {
+        gui_render_button(
+            app->renderer,
+            &app->toolbar.buttons[i],
+            &app->gui_style
+        );
+    }
 
     renderer2d_present(
         app->renderer
@@ -466,6 +536,13 @@ static void sitehelper_app_process_events(
                 app->gui_layout.viewport.width,
                 app->gui_layout.viewport.height
             );
+
+            app->toolbar.bounds =
+                app->gui_layout.toolbar;
+
+            gui_toolbar_layout(
+                &app->toolbar
+            );
         }
     }
 }
@@ -625,6 +702,22 @@ static void sitehelper_app_render_snap_cursor(
             .y = position.y + marker_radius
         },
         marker_colour
+    );
+}
+
+static void sitehelper_app_layout_gui(
+    SiteHelperApp *app
+)
+{
+    if (app == NULL) {
+        return;
+    }
+
+    gui_toolbar_init(
+        &app->toolbar,
+        app->toolbar_buttons,
+        GUI_TOOLBAR_BUTTON_COUNT,
+        app->gui_layout.toolbar
     );
 }
 
