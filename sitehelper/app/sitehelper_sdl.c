@@ -3,6 +3,7 @@
 #include "snap.h"
 #include "editor_tool.h"
 #include "opening_tool.h"
+#include "opening_placement.h"
 
 #include "wall_editor.h"
 #include "wall_render.h"
@@ -48,6 +49,8 @@ typedef struct
     EditorTool active_tool;
 
     OpeningTool opening_tool;
+
+    OpeningPlacement opening_placement;
 
     int running;
 } SiteHelperApp;
@@ -248,6 +251,9 @@ static int sitehelper_app_init(
         &app->opening_tool
     );
 
+    app->opening_placement =
+        (OpeningPlacement){0};
+
     sitehelper_app_set_active_tool(
         app,
         EDITOR_TOOL_SELECT
@@ -346,15 +352,14 @@ static void sitehelper_app_render(
         app->active_tool
             == EDITOR_TOOL_OPENING
     ) {
-        Rect2 preview_rect;
-
-        if (opening_tool_preview_rect(
-                &app->opening_tool,
-                &preview_rect)) {
-
-            gui_render_world_preview_rect(
+        if (
+            app->active_tool
+                == EDITOR_TOOL_OPENING
+            && app->opening_placement.valid
+        ) {
+            renderer2d_draw_rect(
                 app->renderer,
-                preview_rect,
+                app->opening_placement.preview,
                 (Colour){
                     .r = 100,
                     .g = 180,
@@ -572,6 +577,17 @@ static void sitehelper_app_process_events(
                     &app->opening_tool,
                     app->snap_result.position
                 );
+
+                app->opening_placement =
+                    opening_find_placement(
+                        &app->wall,
+                        app->snap_result.position,
+                        &app->opening_tool
+                    );
+            }
+            else {
+                app->opening_placement =
+                    (OpeningPlacement){0};
             }
         }
 
