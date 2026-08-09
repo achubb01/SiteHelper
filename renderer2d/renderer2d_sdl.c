@@ -367,6 +367,19 @@ int renderer2d_sdl_poll_event(
         event->mouse_x = (double)sdl_event.button.x;
         event->mouse_y = (double)sdl_event.button.y;
     }
+    else if (
+        sdl_event.type == SDL_EVENT_MOUSE_BUTTON_UP
+        &&
+        sdl_event.button.button == SDL_BUTTON_LEFT
+    ) {
+        event->primary_mouse_released = 1;
+
+        event->mouse_x =
+            (double)sdl_event.button.x;
+
+        event->mouse_y =
+            (double)sdl_event.button.y;
+    }
 
     return 1;
 }

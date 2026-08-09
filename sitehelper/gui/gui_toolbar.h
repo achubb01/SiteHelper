@@ -38,4 +38,19 @@ const GuiButton *gui_toolbar_button_const(
     size_t index
 );
 
+void gui_toolbar_mouse_move(
+    GuiToolbar *toolbar,
+    Vec2 mouse_position
+);
+
+void gui_toolbar_mouse_press(
+    GuiToolbar *toolbar,
+    Vec2 mouse_position
+);
+
+int gui_toolbar_mouse_release(
+    GuiToolbar *toolbar,
+    Vec2 mouse_position
+);
+
 #endif

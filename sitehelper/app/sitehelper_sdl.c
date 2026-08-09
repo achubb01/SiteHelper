@@ -338,17 +338,11 @@ static void sitehelper_app_render(
         &app->gui_style
     );
 
-    for (
-        size_t i = 0;
-        i < app->toolbar.button_count;
-        i++
-    ) {
-        gui_render_button(
-            app->renderer,
-            &app->toolbar.buttons[i],
-            &app->gui_style
-        );
-    }
+    gui_render_toolbar(
+        app->renderer,
+        &app->toolbar,
+        &app->gui_style
+    );
 
     renderer2d_present(
         app->renderer
@@ -421,10 +415,8 @@ static void sitehelper_app_process_events(
                 .y = event.mouse_y
             };
 
-            select_at_screen_position(
-                app->renderer,
-                &app->editor,
-                &app->wall,
+            gui_toolbar_mouse_press(
+                &app->toolbar,
                 screen_position
             );
         }
@@ -514,13 +506,49 @@ static void sitehelper_app_process_events(
         }
 
         if (event.mouse_moved) {
+            Vec2 screen_position = {
+                .x = event.mouse_x,
+                .y = event.mouse_y
+            };
+
+            gui_toolbar_mouse_move(
+                &app->toolbar,
+                screen_position
+            );
+
             sitehelper_app_update_snap_cursor(
                 app,
-                (Vec2){
-                    .x = event.mouse_x,
-                    .y = event.mouse_y
-                }
+                screen_position
             );
+        }
+
+        if (event.primary_mouse_released) {
+            Vec2 screen_position = {
+                .x = event.mouse_x,
+                .y = event.mouse_y
+            };
+
+            int clicked_button =
+                gui_toolbar_mouse_release(
+                    &app->toolbar,
+                    screen_position
+                );
+
+            if (clicked_button < 0) {
+                if (
+                    rect2_contains_point(
+                        app->gui_layout.viewport,
+                        screen_position
+                    )
+                ) {
+                    select_at_screen_position(
+                        app->renderer,
+                        &app->editor,
+                        &app->wall,
+                        screen_position
+                    );
+                }
+            }
         }
 
         if (event.viewport_resized) {

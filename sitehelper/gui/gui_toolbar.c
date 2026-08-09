@@ -1,4 +1,5 @@
 #include "gui_toolbar.h"
+#include "gui_toolbar.h"
 
 void gui_toolbar_init(
     GuiToolbar *toolbar,
@@ -95,4 +96,79 @@ const GuiButton *gui_toolbar_button_const(
     }
 
     return &toolbar->buttons[index];
+}
+
+void gui_toolbar_mouse_move(
+    GuiToolbar *toolbar,
+    Vec2 mouse_position
+)
+{
+    if (
+        toolbar == NULL
+        || toolbar->buttons == NULL
+    ) {
+        return;
+    }
+
+    for (
+        size_t i = 0;
+        i < toolbar->button_count;
+        i++
+    ) {
+        gui_button_update_hover(
+            &toolbar->buttons[i],
+            mouse_position
+        );
+    }
+}
+
+void gui_toolbar_mouse_press(
+    GuiToolbar *toolbar,
+    Vec2 mouse_position
+)
+{
+    if (
+        toolbar == NULL
+        || toolbar->buttons == NULL
+    ) {
+        return;
+    }
+
+    for (
+        size_t i = 0;
+        i < toolbar->button_count;
+        i++
+    ) {
+        gui_button_press(
+            &toolbar->buttons[i],
+            mouse_position
+        );
+    }
+}
+
+int gui_toolbar_mouse_release(
+    GuiToolbar *toolbar,
+    Vec2 mouse_position
+)
+{
+    if (
+        toolbar == NULL
+        || toolbar->buttons == NULL
+    ) {
+        return -1;
+    }
+
+    for (
+        size_t i = 0;
+        i < toolbar->button_count;
+        i++
+    ) {
+        if (gui_button_release(
+                &toolbar->buttons[i],
+                mouse_position)) {
+            return (int)i;
+        }
+    }
+
+    return -1;
 }

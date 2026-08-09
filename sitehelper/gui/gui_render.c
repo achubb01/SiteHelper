@@ -79,3 +79,30 @@ void gui_render_button(
         colour
     );
 }
+
+void gui_render_toolbar(
+    Renderer2D *renderer,
+    const GuiToolbar *toolbar,
+    const GuiRenderStyle *style
+)
+{
+    if (
+        renderer == NULL
+        || toolbar == NULL
+        || style == NULL
+    ) {
+        return;
+    }
+
+    for (
+        size_t i = 0;
+        i < toolbar->button_count;
+        i++
+    ) {
+        gui_render_button(
+            renderer,
+            &toolbar->buttons[i],
+            style
+        );
+    }
+}

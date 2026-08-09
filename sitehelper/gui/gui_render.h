@@ -3,6 +3,7 @@
 
 #include "gui_layout.h"
 #include "gui_button.h"
+#include "gui_toolbar.h"
 #include "renderer2d.h"
 
 typedef struct
@@ -26,6 +27,12 @@ void gui_render(
 void gui_render_button(
     Renderer2D *renderer,
     const GuiButton *button,
+    const GuiRenderStyle *style
+);
+
+void gui_render_toolbar(
+    Renderer2D *renderer,
+    const GuiToolbar *toolbar,
     const GuiRenderStyle *style
 );
 
