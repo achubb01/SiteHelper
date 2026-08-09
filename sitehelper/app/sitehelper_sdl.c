@@ -244,6 +244,10 @@ static int sitehelper_app_init(
         app
     );
 
+    opening_tool_init(
+        &app->opening_tool
+    );
+
     sitehelper_app_set_active_tool(
         app,
         EDITOR_TOOL_SELECT
