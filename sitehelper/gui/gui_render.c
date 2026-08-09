@@ -106,3 +106,20 @@ void gui_render_toolbar(
         );
     }
 }
+
+void gui_render_world_preview_rect(
+    Renderer2D *renderer,
+    Rect2 rect,
+    Colour colour
+)
+{
+    if (renderer == NULL) {
+        return;
+    }
+
+    renderer2d_draw_rect(
+        renderer,
+        rect,
+        colour
+    );
+}

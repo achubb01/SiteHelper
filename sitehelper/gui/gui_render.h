@@ -36,4 +36,10 @@ void gui_render_toolbar(
     const GuiRenderStyle *style
 );
 
+void gui_render_world_preview_rect(
+    Renderer2D *renderer,
+    Rect2 rect,
+    Colour colour
+);
+
 #endif

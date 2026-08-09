@@ -2,6 +2,7 @@
 
 #include "snap.h"
 #include "editor_tool.h"
+#include "opening_tool.h"
 
 #include "wall_editor.h"
 #include "wall_render.h"
@@ -45,6 +46,8 @@ typedef struct
     GuiToolbar toolbar;
 
     EditorTool active_tool;
+
+    OpeningTool opening_tool;
 
     int running;
 } SiteHelperApp;
@@ -335,6 +338,29 @@ static void sitehelper_app_render(
         &app->wall_style
     );
 
+    if (
+        app->active_tool
+            == EDITOR_TOOL_OPENING
+    ) {
+        Rect2 preview_rect;
+
+        if (opening_tool_preview_rect(
+                &app->opening_tool,
+                &preview_rect)) {
+
+            gui_render_world_preview_rect(
+                app->renderer,
+                preview_rect,
+                (Colour){
+                    .r = 100,
+                    .g = 180,
+                    .b = 255,
+                    .a = 255
+                }
+            );
+        }
+    }
+
     sitehelper_app_render_snap_cursor(
         app
     );
@@ -531,6 +557,18 @@ static void sitehelper_app_process_events(
                 app,
                 screen_position
             );
+
+            if (
+                app->active_tool
+                    == EDITOR_TOOL_OPENING
+                && app->snap_result.type
+                    != SNAP_NONE
+            ) {
+                opening_tool_update_preview(
+                    &app->opening_tool,
+                    app->snap_result.position
+                );
+            }
         }
 
         if (event.primary_mouse_released) {
@@ -811,6 +849,17 @@ static void sitehelper_app_set_active_tool(
         gui_button_set_active(
             &app->toolbar.buttons[i],
             i == (size_t)tool
+        );
+    }
+
+    if (tool == EDITOR_TOOL_OPENING) {
+        opening_tool_activate(
+            &app->opening_tool
+        );
+    }
+    else {
+        opening_tool_cancel(
+            &app->opening_tool
         );
     }
 }

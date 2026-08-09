@@ -2,6 +2,7 @@ add_library(sitehelper_core
     app/appstate.c
 
     editor/snap.c
+    editor/opening_tool.c
 
     wall/wall_generation.c
     wall/wall_lifecycle.c
@@ -225,6 +226,20 @@ target_link_libraries(test_gui_toolbar
 add_test(
     NAME gui_toolbar_tests
     COMMAND test_gui_toolbar
+)
+
+add_executable(test_opening_tool
+    editor/tests/test_opening_tool.c
+)
+
+target_link_libraries(test_opening_tool
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME opening_tool_tests
+    COMMAND test_opening_tool
 )
 
 add_executable(sitehelper
