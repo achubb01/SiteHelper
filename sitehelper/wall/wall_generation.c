@@ -25,7 +25,7 @@ int wall_set_length(Wall *wall, int length)
         return 0;
     }
 
-    wall->bottomplate.length = length;
+    wall->definition.length = length;
 
     return 1;
 }
@@ -41,7 +41,7 @@ static int wall_generate_plates(
     }
 
     int wall_length =
-        wall->bottomplate.length;
+        wall->definition.length;
 
     if (wall_length <= 0 ||
         settings->stud_width <= 0 ||
@@ -50,7 +50,7 @@ static int wall_generate_plates(
         return 0;
     }
 
-    wall->bottomplate = (Timber){
+    wall->framing.bottomplate = (Timber){
         .length = wall_length,
         .depth = settings->stud_depth,
         .width = settings->stud_width,
@@ -67,7 +67,7 @@ static int wall_generate_plates(
         }
     };
 
-    wall->topplate = (Timber){
+    wall->framing.topplate = (Timber){
         .length = wall_length,
         .depth = settings->stud_depth,
         .width = settings->stud_width,
@@ -96,7 +96,7 @@ int wall_generate(
         return 0;
     }
 
-    if (wall->bottomplate.length <= 0) {
+    if (wall->definition.length <= 0) {
         return 0;
     }
 
@@ -156,7 +156,7 @@ static int wall_generate_studs(
     }
 
     int end =
-        wall->bottomplate.length -
+        wall->definition.length -
         settings->stud_width;
 
     if (end < 0) {

@@ -24,7 +24,7 @@ int wall_generate_noggins(
         return 0;
     }
 
-    if (wall->stud_count < 2) {
+    if (wall->framing.stud_count < 2) {
         return 0;
     }
 
@@ -43,14 +43,14 @@ int wall_generate_noggins(
             / gaps;
 
         for (size_t bay = 0;
-            bay + 1 < wall->stud_count;
+            bay + 1 < wall->framing.stud_count;
             bay++) {
 
             Timber *left =
-                &wall->studs[bay];
+                &wall->framing.studs[bay];
 
             Timber *right =
-                &wall->studs[bay + 1];
+                &wall->framing.studs[bay + 1];
 
             int clear_width =
                 right->position.x
@@ -103,15 +103,15 @@ static int noggin_intersects_opening(
         return 0;
     }
 
-    if (bay + 1 >= wall->stud_count) {
+    if (bay + 1 >= wall->framing.stud_count) {
         return 0;
     }
 
     const Timber *left_stud =
-        &wall->studs[bay];
+        &wall->framing.studs[bay];
 
     const Timber *right_stud =
-        &wall->studs[bay + 1];
+        &wall->framing.studs[bay + 1];
 
     int noggin_start =
         left_stud->position.x
@@ -121,11 +121,11 @@ static int noggin_intersects_opening(
         right_stud->position.x;
 
     for (size_t i = 0;
-         i < wall->opening_count;
+         i < wall->definition.opening_count;
          i++) {
 
         const Opening *opening =
-            &wall->openings[i];
+            &wall->definition.openings[i];
 
         int opening_left =
             opening->frame_position;
@@ -171,7 +171,7 @@ void wall_clear_noggins(Wall *wall)
         return;
     }
 
-    wall->nog_count = 0;
+    wall->framing.nog_count = 0;
 }
 
 int wall_add_noggin(
@@ -185,15 +185,15 @@ int wall_add_noggin(
         return 0;
     }
 
-    if (bay + 1 >= wall->stud_count) {
+    if (bay + 1 >= wall->framing.stud_count) {
         return 0;
     }
 
     Timber *left =
-        &wall->studs[bay];
+        &wall->framing.studs[bay];
 
     Timber *right =
-        &wall->studs[bay + 1];
+        &wall->framing.studs[bay + 1];
 
     int length =
         right->position.x
@@ -204,15 +204,15 @@ int wall_add_noggin(
         return 0;
     }
 
-    if (wall->nog_count == wall->nog_capacity) {
+    if (wall->framing.nog_count == wall->framing.nog_capacity) {
 
         size_t new_capacity =
-            wall->nog_capacity == 0
+            wall->framing.nog_capacity == 0
                 ? 1
-                : wall->nog_capacity * 2;
+                : wall->framing.nog_capacity * 2;
 
         Timber *new_nogs = realloc(
-            wall->nogs,
+            wall->framing.nogs,
             new_capacity * sizeof *new_nogs
         );
 
@@ -220,8 +220,8 @@ int wall_add_noggin(
             return 0;
         }
 
-        wall->nogs = new_nogs;
-        wall->nog_capacity = new_capacity;
+        wall->framing.nogs = new_nogs;
+        wall->framing.nog_capacity = new_capacity;
     }
 
     Timber noggin = {
@@ -242,8 +242,8 @@ int wall_add_noggin(
         }
     };
 
-    wall->nogs[wall->nog_count] = noggin;
-    wall->nog_count++;
+    wall->framing.nogs[wall->framing.nog_count] = noggin;
+    wall->framing.nog_count++;
 
     return 1;
 }

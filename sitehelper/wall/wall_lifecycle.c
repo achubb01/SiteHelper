@@ -2,20 +2,36 @@
 
 #include "wall.h"
 
-void wall_destroy(
-    Wall *wall
-)
+void wall_destroy(Wall *wall)
 {
     if (wall == NULL) {
         return;
     }
 
-    free(wall->studs);
-    free(wall->nogs);
-    free(wall->members);
-    free(wall->openings);
+    wall_framing_destroy(
+        &wall->framing
+    );
+
+    free(
+        wall->definition.openings
+    );
 
     *wall = (Wall){0};
+}
+
+void wall_framing_destroy(
+    WallFraming *framing
+)
+{
+    if (framing == NULL) {
+        return;
+    }
+
+    free(framing->studs);
+    free(framing->nogs);
+    free(framing->members);
+
+    *framing = (WallFraming){0};
 }
 
 void room_destroy(

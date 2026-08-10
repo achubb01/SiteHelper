@@ -181,7 +181,7 @@ static void test_execute_adds_opening_to_wall(void)
     );
 
     size_t opening_count_before =
-        wall.opening_count;
+        wall.definition.opening_count;
 
     assert(
         opening_command_execute(
@@ -192,20 +192,20 @@ static void test_execute_adds_opening_to_wall(void)
     );
 
     assert(
-        wall.opening_count
+        wall.definition.opening_count
         == opening_count_before + 1
     );
 
     assert(
-        wall.openings[
-            wall.opening_count - 1
+        wall.definition.openings[
+            wall.definition.opening_count - 1
         ].frame_position
         == 1200
     );
 
     assert(
-        wall.openings[
-            wall.opening_count - 1
+        wall.definition.openings[
+            wall.definition.opening_count - 1
         ].width
         == 1200
     );
@@ -215,18 +215,18 @@ static void test_execute_adds_opening_to_wall(void)
 
     for (
         size_t i = 0;
-        i < wall.stud_count;
+        i < wall.framing.stud_count;
         i++
     ) {
         if (
-            wall.studs[i].details.stud.type
+            wall.framing.studs[i].details.stud.type
             == STUD_KING
         ) {
             found_king = 1;
         }
 
         if (
-            wall.studs[i].details.stud.type
+            wall.framing.studs[i].details.stud.type
             == STUD_TRIMMER
         ) {
             found_trimmer = 1;

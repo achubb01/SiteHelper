@@ -30,8 +30,8 @@ static void test_wall_editor_selects_timber_at_position(void)
     };
 
     Wall wall = {
-        .studs = &stud,
-        .stud_count = 1
+        .framing.studs = &stud,
+        .framing.stud_count = 1
     };
 
     WallEditor editor;
@@ -68,8 +68,8 @@ static void test_wall_editor_clicking_empty_space_clears_selection(void)
     };
 
     Wall wall = {
-        .studs = &stud,
-        .stud_count = 1
+        .framing.studs = &stud,
+        .framing.stud_count = 1
     };
 
     WallEditor editor;
@@ -112,8 +112,8 @@ static void test_wall_editor_clear_selection_clears_selection(void)
     };
 
     Wall wall = {
-        .studs = &stud,
-        .stud_count = 1
+        .framing.studs = &stud,
+        .framing.stud_count = 1
     };
 
     WallEditor editor;
@@ -174,8 +174,8 @@ static void test_wall_editor_selecting_null_wall_preserves_selection(void)
     };
 
     Wall wall = {
-        .studs = &stud,
-        .stud_count = 1
+        .framing.studs = &stud,
+        .framing.stud_count = 1
     };
 
     WallEditor editor;

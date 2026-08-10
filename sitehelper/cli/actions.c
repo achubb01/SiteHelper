@@ -203,8 +203,8 @@ void generateWall(void *context)
 
     printf(
         "Wall generated: %zu studs, %zu noggins\n",
-        wall->stud_count,
-        wall->nog_count
+        wall->framing.stud_count,
+        wall->framing.nog_count
     );
 }
 
@@ -474,20 +474,20 @@ void describeBuild(void *context)
 
             printf(
                 "    Length: %d mm\n",
-                wall->bottomplate.length
+                wall->definition.length
             );
 
             printf(
                 "    Studs: %zu\n",
-                wall->stud_count
+                wall->framing.stud_count
             );
 
             for (size_t stud_index = 0;
-                stud_index < wall->stud_count;
+                stud_index < wall->framing.stud_count;
                 stud_index++) {
 
                 Timber *stud =
-                    &wall->studs[stud_index];
+                    &wall->framing.studs[stud_index];
 
                 printf(
                     "      Stud %zu: "
@@ -501,13 +501,13 @@ void describeBuild(void *context)
 
             printf(
                 "    Noggins: %zu\n",
-                wall->nog_count
+                wall->framing.nog_count
             );
 
-            if (wall->nog_count > 0) {
+            if (wall->framing.nog_count > 0) {
 
                 int current_height =
-                    wall->nogs[0].position.y;
+                    wall->framing.nogs[0].position.y;
 
                 printf(
                     "      Noggin row at %d mm\n",
@@ -515,11 +515,11 @@ void describeBuild(void *context)
                 );
 
                 for (size_t nog_index = 0;
-                    nog_index < wall->nog_count;
+                    nog_index < wall->framing.nog_count;
                     nog_index++) {
 
                     Timber *noggin =
-                        &wall->nogs[nog_index];
+                        &wall->framing.nogs[nog_index];
 
                     int height =
                         noggin->position.y;

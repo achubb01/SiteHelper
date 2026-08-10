@@ -22,22 +22,22 @@ static int find_bay_index(
     if (
         wall == NULL
         || bay_index == NULL
-        || wall->studs == NULL
-        || wall->stud_count < 2
+        || wall->framing.studs == NULL
+        || wall->framing.stud_count < 2
     ) {
         return 0;
     }
 
     for (
         size_t i = 0;
-        i + 1 < wall->stud_count;
+        i + 1 < wall->framing.stud_count;
         i++
     ) {
         double left =
-            (double)wall->studs[i].position.x;
+            (double)wall->framing.studs[i].position.x;
 
         double right =
-            (double)wall->studs[i + 1].position.x;
+            (double)wall->framing.studs[i + 1].position.x;
 
         if (
             x >= left
@@ -60,8 +60,8 @@ OpeningPlacement opening_find_placement(
     if (
         wall == NULL
         || tool == NULL
-        || wall->studs == NULL
-        || wall->stud_count < 2
+        || wall->framing.studs == NULL
+        || wall->framing.stud_count < 2
         || tool->width <= 0
         || tool->height <= 0
     ) {
@@ -76,11 +76,11 @@ OpeningPlacement opening_find_placement(
         + (double)tool->width;
 
     double wall_left =
-        (double)wall->studs[0].position.x;
+        (double)wall->framing.studs[0].position.x;
 
     double wall_right =
-        (double)wall->studs[
-            wall->stud_count - 1
+        (double)wall->framing.studs[
+            wall->framing.stud_count - 1
         ].position.x;
 
     if (

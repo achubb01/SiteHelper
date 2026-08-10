@@ -23,8 +23,8 @@ static void test_finds_stud_at_world_position(void)
     };
 
     Wall wall = {
-        .studs = studs,
-        .stud_count = 1
+        .framing.studs = studs,
+        .framing.stud_count = 1
     };
 
     Position position = {
@@ -45,7 +45,7 @@ static void test_finds_stud_at_world_position(void)
 static void test_finds_bottom_plate(void)
 {
     Wall wall = {
-        .bottomplate = {
+        .framing.bottomplate = {
             .length = 4200,
             .depth = 90,
             .width = 35,
@@ -68,14 +68,14 @@ static void test_finds_bottom_plate(void)
             position
         );
 
-    assert(selected == &wall.bottomplate);
+    assert(selected == &wall.framing.bottomplate);
 }
 
 
 static void test_finds_top_plate(void)
 {
     Wall wall = {
-        .topplate = {
+        .framing.topplate = {
             .length = 4200,
             .depth = 90,
             .width = 35,
@@ -98,7 +98,7 @@ static void test_finds_top_plate(void)
             position
         );
 
-    assert(selected == &wall.topplate);
+    assert(selected == &wall.framing.topplate);
 }
 
 
@@ -121,8 +121,8 @@ static void test_finds_noggin(void)
     };
 
     Wall wall = {
-        .nogs = nogs,
-        .nog_count = 1
+        .framing.nogs = nogs,
+        .framing.nog_count = 1
     };
 
     Position position = {
@@ -156,8 +156,8 @@ static void test_finds_header(void)
     };
 
     Wall wall = {
-        .members = members,
-        .member_count = 1
+        .framing.members = members,
+        .framing.member_count = 1
     };
 
     Position position = {
@@ -191,8 +191,8 @@ static void test_finds_sill(void)
     };
 
     Wall wall = {
-        .members = members,
-        .member_count = 1
+        .framing.members = members,
+        .framing.member_count = 1
     };
 
     Position position = {
@@ -226,8 +226,8 @@ static void test_returns_null_for_empty_space(void)
     };
 
     Wall wall = {
-        .studs = studs,
-        .stud_count = 1
+        .framing.studs = studs,
+        .framing.stud_count = 1
     };
 
     Position position = {

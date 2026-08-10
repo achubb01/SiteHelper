@@ -331,38 +331,38 @@ size_t wall_collect_snap_candidates(
     size_t count = 0;
 
     collect_timber_array(
-        wall->studs,
-        wall->stud_count,
+        wall->framing.studs,
+        wall->framing.stud_count,
         candidates,
         capacity,
         &count
     );
 
     collect_timber_array(
-        wall->nogs,
-        wall->nog_count,
+        wall->framing.nogs,
+        wall->framing.nog_count,
         candidates,
         capacity,
         &count
     );
 
     collect_timber_array(
-        wall->members,
-        wall->member_count,
+        wall->framing.members,
+        wall->framing.member_count,
         candidates,
         capacity,
         &count
     );
 
     append_timber_endpoints(
-        &wall->bottomplate,
+        &wall->framing.bottomplate,
         candidates,
         capacity,
         &count
     );
 
     append_timber_endpoints(
-        &wall->topplate,
+        &wall->framing.topplate,
         candidates,
         capacity,
         &count
@@ -370,20 +370,20 @@ size_t wall_collect_snap_candidates(
 
     for (
         size_t i = 0;
-        i < wall->stud_count;
+        i < wall->framing.stud_count;
         i++
     ) {
         append_timber_intersections(
-            &wall->studs[i],
-            &wall->bottomplate,
+            &wall->framing.studs[i],
+            &wall->framing.bottomplate,
             candidates,
             capacity,
             &count
         );
 
         append_timber_intersections(
-            &wall->studs[i],
-            &wall->topplate,
+            &wall->framing.studs[i],
+            &wall->framing.topplate,
             candidates,
             capacity,
             &count
@@ -392,17 +392,17 @@ size_t wall_collect_snap_candidates(
 
     for (
         size_t noggin_index = 0;
-        noggin_index < wall->nog_count;
+        noggin_index < wall->framing.nog_count;
         noggin_index++
     ) {
         for (
             size_t stud_index = 0;
-            stud_index < wall->stud_count;
+            stud_index < wall->framing.stud_count;
             stud_index++
         ) {
             append_timber_intersections(
-                &wall->nogs[noggin_index],
-                &wall->studs[stud_index],
+                &wall->framing.nogs[noggin_index],
+                &wall->framing.studs[stud_index],
                 candidates,
                 capacity,
                 &count

@@ -134,16 +134,16 @@ static void test_wall_render_draws_bottom_and_top_plate_and_studs(void)
     };
 
     Wall wall = {
-        .studs = studs,
-        .stud_count = 1,
+        .framing.studs = studs,
+        .framing.stud_count = 1,
 
-        .nogs = noggins,
-        .nog_count = 1,
+        .framing.nogs = noggins,
+        .framing.nog_count = 1,
 
-        .members = members,
-        .member_count = 2,
+        .framing.members = members,
+        .framing.member_count = 2,
 
-        .bottomplate = {
+        .framing.bottomplate = {
             .length = 4200,
             .width = 35,
             .depth = 90,
@@ -151,7 +151,7 @@ static void test_wall_render_draws_bottom_and_top_plate_and_studs(void)
             .type = TIMBER_PLATE
         },
 
-        .topplate = {
+        .framing.topplate = {
             .length = 4200,
             .width = 35,
             .depth = 90,

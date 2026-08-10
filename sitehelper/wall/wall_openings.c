@@ -94,28 +94,28 @@ int wall_add_opening(
     }
 
     for (size_t i = 0;
-        i < wall->opening_count;
+        i < wall->definition.opening_count;
         i++) {
 
         if (openings_conflict(
                 &opening,
-                &wall->openings[i],
+                &wall->definition.openings[i],
                 settings)) {
 
             return 0;
         }
     }
 
-    if (wall->opening_count ==
-        wall->opening_capacity) {
+    if (wall->definition.opening_count ==
+        wall->definition.opening_capacity) {
 
         size_t new_capacity =
-            wall->opening_capacity == 0
+            wall->definition.opening_capacity == 0
                 ? 1
-                : wall->opening_capacity * 2;
+                : wall->definition.opening_capacity * 2;
 
         Opening *new_openings = realloc(
-            wall->openings,
+            wall->definition.openings,
             new_capacity * sizeof *new_openings
         );
 
@@ -123,16 +123,18 @@ int wall_add_opening(
             return 0;
         }
 
-        wall->openings = new_openings;
-        wall->opening_capacity =
+        wall->definition.openings =
+            new_openings;
+
+        wall->definition.opening_capacity =
             new_capacity;
     }
 
-    wall->openings[
-        wall->opening_count
+    wall->definition.openings[
+        wall->definition.opening_count
     ] = opening;
 
-    wall->opening_count++;
+    wall->definition.opening_count++;
 
     return 1;
 }
@@ -209,7 +211,7 @@ int wall_opening_fits(
      * Preserve right wall-end stud.
      */
     int right_end_stud =
-        wall->bottomplate.length -
+        wall->definition.length -
         settings->stud_width;
 
     if (assembly_end >
@@ -231,11 +233,11 @@ int wall_apply_openings(
     }
 
     for (size_t opening_index = 0;
-         opening_index < wall->opening_count;
+         opening_index < wall->definition.opening_count;
          opening_index++) {
 
         Opening *opening =
-            &wall->openings[opening_index];
+            &wall->definition.openings[opening_index];
 
         /*
          * Clear framed opening boundaries.
@@ -283,7 +285,7 @@ int wall_apply_openings(
 
         if (right_king_position +
             settings->stud_width >
-            wall->bottomplate.length) {
+            wall->definition.length) {
 
             return 0;
         }
@@ -301,10 +303,10 @@ int wall_apply_openings(
             right_king_position +
             settings->stud_width;
 
-        while (stud_index < wall->stud_count) {
+        while (stud_index < wall->framing.stud_count) {
 
             Timber *stud =
-                &wall->studs[stud_index];
+                &wall->framing.studs[stud_index];
 
             if (stud->details.stud.type == STUD_COMMON &&
                 stud_overlaps_range(
@@ -394,9 +396,9 @@ int wall_apply_openings(
      * left-to-right ordering.
      */
     qsort(
-        wall->studs,
-        wall->stud_count,
-        sizeof *wall->studs,
+        wall->framing.studs,
+        wall->framing.stud_count,
+        sizeof *wall->framing.studs,
         wall_compare_stud_position
     );
 
@@ -793,21 +795,21 @@ int wall_repair_stud_spacing(
     }
 
     qsort(
-        wall->studs,
-        wall->stud_count,
-        sizeof *wall->studs,
+        wall->framing.studs,
+        wall->framing.stud_count,
+        sizeof *wall->framing.studs,
         wall_compare_stud_position
     );
 
     size_t i = 1;
 
-    while (i < wall->stud_count) {
+    while (i < wall->framing.stud_count) {
 
         Timber *left =
-            &wall->studs[i - 1];
+            &wall->framing.studs[i - 1];
 
         Timber *right =
-            &wall->studs[i];
+            &wall->framing.studs[i];
 
         int spacing =
             right->position.x -
@@ -879,9 +881,9 @@ int wall_repair_stud_spacing(
          * Re-sort and restart the scan.
          */
         qsort(
-            wall->studs,
-            wall->stud_count,
-            sizeof *wall->studs,
+            wall->framing.studs,
+            wall->framing.stud_count,
+            sizeof *wall->framing.studs,
             wall_compare_stud_position
         );
 
@@ -921,11 +923,11 @@ static int wall_span_is_opening(
     }
 
     for (size_t i = 0;
-         i < wall->opening_count;
+         i < wall->definition.opening_count;
          i++) {
 
         const Opening *opening =
-            &wall->openings[i];
+            &wall->definition.openings[i];
 
         int opening_left =
             opening->frame_position;

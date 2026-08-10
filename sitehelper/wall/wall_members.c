@@ -14,7 +14,7 @@ void wall_clear_members(Wall *wall)
         return;
     }
 
-    wall->member_count = 0;
+    wall->framing.member_count = 0;
 }
 
 static int wall_add_member(
@@ -26,16 +26,16 @@ static int wall_add_member(
         return 0;
     }
 
-    if (wall->member_count ==
-        wall->member_capacity) {
+    if (wall->framing.member_count ==
+        wall->framing.member_capacity) {
 
         size_t new_capacity =
-            wall->member_capacity == 0
+            wall->framing.member_capacity == 0
                 ? 1
-                : wall->member_capacity * 2;
+                : wall->framing.member_capacity * 2;
 
         Timber *new_members = realloc(
-            wall->members,
+            wall->framing.members,
             new_capacity *
             sizeof *new_members
         );
@@ -44,16 +44,16 @@ static int wall_add_member(
             return 0;
         }
 
-        wall->members = new_members;
-        wall->member_capacity =
+        wall->framing.members = new_members;
+        wall->framing.member_capacity =
             new_capacity;
     }
 
-    wall->members[
-        wall->member_count
+    wall->framing.members[
+        wall->framing.member_count
     ] = member;
 
-    wall->member_count++;
+    wall->framing.member_count++;
 
     return 1;
 }

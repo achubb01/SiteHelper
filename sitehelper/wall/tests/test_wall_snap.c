@@ -24,8 +24,8 @@ static void test_collects_vertical_stud_endpoints(void)
     };
 
     Wall wall = {
-        .studs = &stud,
-        .stud_count = 1
+        .framing.studs = &stud,
+        .framing.stud_count = 1
     };
 
     SnapCandidate candidates[2];
@@ -64,8 +64,8 @@ static void test_collects_horizontal_noggin_endpoints(void)
     };
 
     Wall wall = {
-        .nogs = &noggin,
-        .nog_count = 1
+        .framing.nogs = &noggin,
+        .framing.nog_count = 1
     };
 
     SnapCandidate candidates[2];
@@ -106,8 +106,8 @@ static void test_respects_candidate_capacity(void)
     };
 
     Wall wall = {
-        .studs = studs,
-        .stud_count = 2
+        .framing.studs = studs,
+        .framing.stud_count = 2
     };
 
     SnapCandidate candidates[3];
@@ -200,9 +200,9 @@ static void test_collects_stud_to_top_plate_intersection(void)
     };
 
     Wall wall = {
-        .studs = &stud,
-        .stud_count = 1,
-        .topplate = topplate
+        .framing.studs = &stud,
+        .framing.stud_count = 1,
+        .framing.topplate = topplate
     };
 
     SnapCandidate candidates[16];
@@ -280,9 +280,9 @@ static void test_does_not_duplicate_intersection_candidates(void)
     };
 
     Wall wall = {
-        .studs = &stud,
-        .stud_count = 1,
-        .topplate = topplate
+        .framing.studs = &stud,
+        .framing.stud_count = 1,
+        .framing.topplate = topplate
     };
 
     SnapCandidate candidates[32];
@@ -330,10 +330,10 @@ static void test_collects_noggin_to_stud_intersection(void)
     };
 
     Wall wall = {
-        .studs = &stud,
-        .stud_count = 1,
-        .nogs = &noggin,
-        .nog_count = 1
+        .framing.studs = &stud,
+        .framing.stud_count = 1,
+        .framing.nogs = &noggin,
+        .framing.nog_count = 1
     };
 
     SnapCandidate candidates[16];
@@ -373,7 +373,7 @@ static void test_plate_free_end_is_endpoint_not_intersection(void)
     };
 
     Wall wall = {
-        .topplate = topplate
+        .framing.topplate = topplate
     };
 
     SnapCandidate candidates[16];

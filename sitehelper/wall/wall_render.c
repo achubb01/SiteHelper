@@ -144,22 +144,22 @@ void wall_render(
 
     draw_horizontal_timber(
         renderer,
-        &wall->bottomplate,
+        &wall->framing.bottomplate,
         selection,
         style
     );
 
     draw_horizontal_timber(
         renderer,
-        &wall->topplate,
+        &wall->framing.topplate,
         selection,
         style
     );
 
     draw_timber_array(
         renderer,
-        wall->studs,
-        wall->stud_count,
+        wall->framing.studs,
+        wall->framing.stud_count,
         true,
         selection,
         style
@@ -167,8 +167,8 @@ void wall_render(
 
     draw_timber_array(
         renderer,
-        wall->nogs,
-        wall->nog_count,
+        wall->framing.nogs,
+        wall->framing.nog_count,
         false,
         selection,
         style
@@ -176,8 +176,8 @@ void wall_render(
 
     draw_timber_array(
         renderer,
-        wall->members,
-        wall->member_count,
+        wall->framing.members,
+        wall->framing.member_count,
         false,
         selection,
         style

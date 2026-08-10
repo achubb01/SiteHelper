@@ -33,8 +33,8 @@ static void test_opening_can_span_multiple_bays(void)
     };
 
     Wall wall = {
-        .studs = studs,
-        .stud_count = 4
+        .framing.studs = studs,
+        .framing.stud_count = 4
     };
 
     OpeningTool tool;
@@ -99,8 +99,8 @@ static void test_opening_past_wall_end_is_invalid(void)
     };
 
     Wall wall = {
-        .studs = studs,
-        .stud_count = 4
+        .framing.studs = studs,
+        .framing.stud_count = 4
     };
 
     OpeningTool tool;
@@ -151,8 +151,8 @@ static void test_internal_studs_do_not_make_placement_invalid(void)
     };
 
     Wall wall = {
-        .studs = studs,
-        .stud_count = 4
+        .framing.studs = studs,
+        .framing.stud_count = 4
     };
 
     OpeningTool tool;
@@ -207,8 +207,8 @@ static void test_opening_before_wall_start_is_invalid(void)
     };
 
     Wall wall = {
-        .studs = studs,
-        .stud_count = 3
+        .framing.studs = studs,
+        .framing.stud_count = 3
     };
 
     OpeningTool tool;

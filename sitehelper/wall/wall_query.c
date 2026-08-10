@@ -135,23 +135,23 @@ const Timber *wall_find_timber_at_position(
      */
 
     if (horizontal_timber_contains_position(
-            &wall->bottomplate,
+            &wall->framing.bottomplate,
             position)) {
 
-        return &wall->bottomplate;
+        return &wall->framing.bottomplate;
     }
 
     if (horizontal_timber_contains_position(
-            &wall->topplate,
+            &wall->framing.topplate,
             position)) {
 
-        return &wall->topplate;
+        return &wall->framing.topplate;
     }
 
     const Timber *selected =
         find_vertical_timber_in_array(
-            wall->studs,
-            wall->stud_count,
+            wall->framing.studs,
+            wall->framing.stud_count,
             position
         );
 
@@ -161,8 +161,8 @@ const Timber *wall_find_timber_at_position(
 
     selected =
         find_horizontal_timber_in_array(
-            wall->nogs,
-            wall->nog_count,
+            wall->framing.nogs,
+            wall->framing.nog_count,
             position
         );
 
@@ -172,8 +172,8 @@ const Timber *wall_find_timber_at_position(
 
     selected =
         find_horizontal_timber_in_array(
-            wall->members,
-            wall->member_count,
+            wall->framing.members,
+            wall->framing.member_count,
             position
         );
 

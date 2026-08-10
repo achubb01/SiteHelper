@@ -6,8 +6,15 @@
 #include "opening.h"
 #include "timber.h"
 
-typedef struct Wall
-{
+typedef struct WallDefinition {
+    int length;
+
+    Opening *openings;
+    size_t opening_count;
+    size_t opening_capacity;
+} WallDefinition;
+
+typedef struct WallFraming {
     Timber *studs;
     size_t stud_count;
     size_t stud_capacity;
@@ -22,10 +29,11 @@ typedef struct Wall
 
     Timber bottomplate;
     Timber topplate;
+} WallFraming;
 
-    Opening *openings;
-    size_t opening_count;
-    size_t opening_capacity;
+typedef struct Wall {
+    WallDefinition definition;
+    WallFraming framing;
 } Wall;
 
 typedef struct Room
