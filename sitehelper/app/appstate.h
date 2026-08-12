@@ -1,9 +1,17 @@
 #ifndef APPSTATE_H
 #define APPSTATE_H
 
-#include "appcontext.h"
+#include "sitehelper_project.h"
+#include "sitehelper_editor.h"
 
-Room *app_current_room(AppContext *app);
-Wall *app_current_wall(AppContext *app);
+Room *app_current_room(
+    SiteHelperProject *project,
+    const SiteHelperEditor *editor
+);
+
+Wall *app_current_wall(
+    SiteHelperProject *project,
+    const SiteHelperEditor *editor
+);
 
 #endif

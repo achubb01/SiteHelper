@@ -33,7 +33,8 @@ sitehelper_editor_init(
 
     Room *room =
         app_current_room(
-            &app
+            &app.project,
+            &app.editor
         );
 
     assert(room != NULL);
@@ -63,7 +64,8 @@ sitehelper_editor_init(
 
     assert(
         app_current_room(
-            &app
+            &app.project,
+            &app.editor
         ) == NULL
     );
 }
@@ -85,7 +87,8 @@ sitehelper_editor_init(
 
     assert(
         app_current_room(
-            &app
+            &app.project,
+            &app.editor
         ) == NULL
     );
 }
@@ -143,7 +146,8 @@ sitehelper_editor_init(
 
     Room *room =
         app_current_room(
-            &app
+            &app.project,
+            &app.editor
         );
 
     assert(room != NULL);
@@ -204,7 +208,8 @@ sitehelper_editor_init(
 
     Wall *wall =
         app_current_wall(
-            &app
+            &app.project,
+            &app.editor
         );
 
     assert(wall != NULL);
@@ -246,7 +251,8 @@ sitehelper_editor_init(
 
     assert(
         app_current_wall(
-            &app
+            &app.project,
+            &app.editor
         ) == NULL
     );
 
@@ -285,7 +291,8 @@ sitehelper_editor_init(
 
     assert(
         app_current_wall(
-            &app
+            &app.project,
+            &app.editor
         ) == NULL
     );
 
@@ -322,7 +329,8 @@ sitehelper_editor_init(
 
     Room *room =
         app_current_room(
-            &app
+            &app.project,
+            &app.editor
         );
 
     assert(room != NULL);
@@ -365,7 +373,8 @@ sitehelper_editor_init(
 
     Wall *wall =
         app_current_wall(
-            &app
+            &app.project,
+            &app.editor
         );
 
     assert(wall != NULL);
@@ -383,7 +392,8 @@ sitehelper_editor_init(
      */
     room =
         app_current_room(
-            &app
+            &app.project,
+            &app.editor
         );
 
     assert(room != NULL);
@@ -467,7 +477,8 @@ sitehelper_editor_init(
 
     Wall *wall =
         app_current_wall(
-            &app
+            &app.project,
+            &app.editor
         );
 
     assert(wall != NULL);
@@ -479,7 +490,8 @@ sitehelper_editor_init(
 
     room =
         app_current_room(
-            &app
+            &app.project,
+            &app.editor
         );
 
     assert(room != NULL);
@@ -513,13 +525,15 @@ static void test_editor_initial_state_resolves_no_selection(void)
 
     assert(
         app_current_room(
-            &app
+            &app.project,
+            &app.editor
         ) == NULL
     );
 
     assert(
         app_current_wall(
-            &app
+            &app.project,
+            &app.editor
         ) == NULL
     );
 

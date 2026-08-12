@@ -4,34 +4,40 @@
 #include "wall.h"
 
 Room *app_current_room(
-    AppContext *app
+    SiteHelperProject *project,
+    const SiteHelperEditor *editor
 )
 {
-    if (app == NULL) {
+    if (project == NULL ||
+        editor == NULL) {
+
         return NULL;
     }
 
-    if (app->editor.current_room_id ==
+    if (editor->current_room_id ==
         DOMAIN_ID_INVALID) {
 
         return NULL;
     }
 
     return build_find_room_by_id(
-        &app->project.structure,
-        app->editor.current_room_id
+        &project->structure,
+        editor->current_room_id
     );
 }
 
 Wall *app_current_wall(
-    AppContext *app
+    SiteHelperProject *project,
+    const SiteHelperEditor *editor
 )
 {
-    if (app == NULL) {
+    if (project == NULL ||
+        editor == NULL) {
+
         return NULL;
     }
 
-    if (app->editor.current_wall_id ==
+    if (editor->current_wall_id ==
         DOMAIN_ID_INVALID) {
 
         return NULL;
@@ -39,7 +45,8 @@ Wall *app_current_wall(
 
     Room *room =
         app_current_room(
-            app
+            project,
+            editor
         );
 
     if (room == NULL) {
@@ -48,6 +55,6 @@ Wall *app_current_wall(
 
     return room_find_wall_by_id(
         room,
-        app->editor.current_wall_id
+        editor->current_wall_id
     );
 }

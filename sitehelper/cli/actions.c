@@ -166,7 +166,8 @@ void addWall(void *context)
 
     Room *room =
         app_current_room(
-            app
+            &app->project,
+            &app->editor
         );
 
     if (room == NULL) {
@@ -217,7 +218,10 @@ void generateWall(void *context)
         return;
     }
 
-    Wall *wall = app_current_wall(app);
+    Wall *wall = app_current_wall(
+        &app->project,
+        &app->editor
+    );
 
     if (wall == NULL) {
         printf("Please select a valid wall first.\n");
@@ -226,7 +230,10 @@ void generateWall(void *context)
 
     setWallLength(app);
 
-    wall = app_current_wall(app);
+    wall = app_current_wall(
+        &app->project,
+        &app->editor
+    );
 
     if (wall == NULL) {
         fprintf(
@@ -260,7 +267,10 @@ void setWallLength(void *context)
         return;
     }
 
-    Wall *wall = app_current_wall(app);
+    Wall *wall = app_current_wall(
+        &app->project,
+        &app->editor
+    );
 
     if (wall == NULL) {
         printf("Select a wall first.\n");
@@ -409,7 +419,8 @@ void selectWall(void *context)
 
     Room *room =
         app_current_room(
-            app
+            &app->project,
+            &app->editor
         );
 
     if (room == NULL) {
@@ -624,12 +635,14 @@ void printCurrentWall(void *context)
 
     Room *room =
         app_current_room(
-            app
+            &app->project,
+            &app->editor
         );
 
     Wall *wall =
         app_current_wall(
-            app
+            &app->project,
+            &app->editor
         );
 
     if (room == NULL) {
@@ -661,7 +674,10 @@ void addOpening(void *context)
         return;
     }
 
-    Wall *wall = app_current_wall(app);
+    Wall *wall = app_current_wall(
+        &app->project,
+        &app->editor
+    );
 
     if (wall == NULL) {
         printf("Select a wall first.\n");
