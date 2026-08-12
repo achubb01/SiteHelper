@@ -11,6 +11,10 @@ int main(void)
         &context.project
     );
 
+    sitehelper_editor_init(
+        &context.editor
+    );
+
     command_run(
         app_menu_root(),
         &context

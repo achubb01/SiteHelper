@@ -11,6 +11,14 @@ static void test_current_room_resolves_selected_room_by_id(void)
 {
     AppContext app = {0};
 
+sitehelper_project_init(
+    &app.project
+);
+
+sitehelper_editor_init(
+    &app.editor
+);
+
     DomainId room_id = 10;
 
     assert(
@@ -20,11 +28,8 @@ static void test_current_room_resolves_selected_room_by_id(void)
         )
     );
 
-    app.current_room_id =
+    app.editor.current_room_id =
         room_id;
-
-    app.room_selected =
-        true;
 
     Room *room =
         app_current_room(
@@ -38,8 +43,8 @@ static void test_current_room_resolves_selected_room_by_id(void)
         room_id
     );
 
-    free(
-        app.project.structure.rooms
+    sitehelper_project_destroy(
+        &app.project
     );
 }
 
@@ -47,6 +52,14 @@ static void test_current_room_resolves_selected_room_by_id(void)
 static void test_current_room_returns_null_when_no_room_selected(void)
 {
     AppContext app = {0};
+
+sitehelper_project_init(
+    &app.project
+);
+
+sitehelper_editor_init(
+    &app.editor
+);
 
     assert(
         app_current_room(
@@ -60,8 +73,15 @@ static void test_current_room_returns_null_when_selected_id_missing(void)
 {
     AppContext app = {0};
 
-    app.current_room_id = 999;
-    app.room_selected = true;
+sitehelper_project_init(
+    &app.project
+);
+
+sitehelper_editor_init(
+    &app.editor
+);
+
+    app.editor.current_room_id = 999;
 
     assert(
         app_current_room(
@@ -75,6 +95,14 @@ static void test_current_room_survives_room_array_reallocation(void)
 {
     AppContext app = {0};
 
+sitehelper_project_init(
+    &app.project
+);
+
+sitehelper_editor_init(
+    &app.editor
+);
+
     DomainId selected_room_id = 10;
 
     assert(
@@ -84,11 +112,8 @@ static void test_current_room_survives_room_array_reallocation(void)
         )
     );
 
-    app.current_room_id =
+    app.editor.current_room_id =
         selected_room_id;
-
-    app.room_selected =
-        true;
 
     /*
      * Room capacity starts at 1 and grows
@@ -128,8 +153,8 @@ static void test_current_room_survives_room_array_reallocation(void)
         selected_room_id
     );
 
-    free(
-        app.project.structure.rooms
+    sitehelper_project_destroy(
+        &app.project
     );
 }
 
@@ -137,6 +162,14 @@ static void test_current_room_survives_room_array_reallocation(void)
 static void test_current_wall_resolves_selected_wall_by_id(void)
 {
     AppContext app = {0};
+
+sitehelper_project_init(
+    &app.project
+);
+
+sitehelper_editor_init(
+    &app.editor
+);
 
     DomainId room_id = 10;
     DomainId wall_id = 20;
@@ -163,17 +196,11 @@ static void test_current_wall_resolves_selected_wall_by_id(void)
         )
     );
 
-    app.current_room_id =
+    app.editor.current_room_id =
         room_id;
 
-    app.current_wall_id =
+    app.editor.current_wall_id =
         wall_id;
-
-    app.room_selected =
-        true;
-
-    app.wall_selected =
-        true;
 
     Wall *wall =
         app_current_wall(
@@ -187,12 +214,8 @@ static void test_current_wall_resolves_selected_wall_by_id(void)
         wall_id
     );
 
-    free(
-        room->walls
-    );
-
-    free(
-        app.project.structure.rooms
+    sitehelper_project_destroy(
+        &app.project
     );
 }
 
@@ -201,6 +224,14 @@ static void test_current_wall_returns_null_when_no_wall_selected(void)
 {
     AppContext app = {0};
 
+sitehelper_project_init(
+    &app.project
+);
+
+sitehelper_editor_init(
+    &app.editor
+);
+
     DomainId room_id = 10;
 
     assert(
@@ -210,14 +241,8 @@ static void test_current_wall_returns_null_when_no_wall_selected(void)
         )
     );
 
-    app.current_room_id =
+    app.editor.current_room_id =
         room_id;
-
-    app.room_selected =
-        true;
-
-    app.wall_selected =
-        false;
 
     assert(
         app_current_wall(
@@ -225,8 +250,8 @@ static void test_current_wall_returns_null_when_no_wall_selected(void)
         ) == NULL
     );
 
-    free(
-        app.project.structure.rooms
+    sitehelper_project_destroy(
+        &app.project
     );
 }
 
@@ -235,6 +260,14 @@ static void test_current_wall_returns_null_when_selected_wall_id_missing(void)
 {
     AppContext app = {0};
 
+sitehelper_project_init(
+    &app.project
+);
+
+sitehelper_editor_init(
+    &app.editor
+);
+
     DomainId room_id = 10;
 
     assert(
@@ -244,17 +277,11 @@ static void test_current_wall_returns_null_when_selected_wall_id_missing(void)
         )
     );
 
-    app.current_room_id =
+    app.editor.current_room_id =
         room_id;
 
-    app.current_wall_id =
+    app.editor.current_wall_id =
         999;
-
-    app.room_selected =
-        true;
-
-    app.wall_selected =
-        true;
 
     assert(
         app_current_wall(
@@ -262,8 +289,8 @@ static void test_current_wall_returns_null_when_selected_wall_id_missing(void)
         ) == NULL
     );
 
-    free(
-        app.project.structure.rooms
+    sitehelper_project_destroy(
+        &app.project
     );
 }
 
@@ -271,6 +298,14 @@ static void test_current_wall_returns_null_when_selected_wall_id_missing(void)
 static void test_current_wall_survives_wall_array_reallocation(void)
 {
     AppContext app = {0};
+
+sitehelper_project_init(
+    &app.project
+);
+
+sitehelper_editor_init(
+    &app.editor
+);
 
     DomainId room_id = 10;
     DomainId selected_wall_id = 20;
@@ -282,11 +317,8 @@ static void test_current_wall_survives_wall_array_reallocation(void)
         )
     );
 
-    app.current_room_id =
+    app.editor.current_room_id =
         room_id;
-
-    app.room_selected =
-        true;
 
     Room *room =
         app_current_room(
@@ -302,11 +334,8 @@ static void test_current_wall_survives_wall_array_reallocation(void)
         )
     );
 
-    app.current_wall_id =
+    app.editor.current_wall_id =
         selected_wall_id;
-
-    app.wall_selected =
-        true;
 
     /*
      * Force Room.walls through several
@@ -359,12 +388,8 @@ static void test_current_wall_survives_wall_array_reallocation(void)
 
     assert(room != NULL);
 
-    free(
-        room->walls
-    );
-
-    free(
-        app.project.structure.rooms
+    sitehelper_project_destroy(
+        &app.project
     );
 }
 
@@ -372,6 +397,14 @@ static void test_current_wall_survives_wall_array_reallocation(void)
 static void test_current_wall_survives_room_array_reallocation(void)
 {
     AppContext app = {0};
+
+sitehelper_project_init(
+    &app.project
+);
+
+sitehelper_editor_init(
+    &app.editor
+);
 
     DomainId selected_room_id = 10;
     DomainId selected_wall_id = 20;
@@ -398,17 +431,11 @@ static void test_current_wall_survives_room_array_reallocation(void)
         )
     );
 
-    app.current_room_id =
+    app.editor.current_room_id =
         selected_room_id;
 
-    app.current_wall_id =
+    app.editor.current_wall_id =
         selected_wall_id;
-
-    app.room_selected =
-        true;
-
-    app.wall_selected =
-        true;
 
     /*
      * Force BuildStructure.rooms to realloc.
@@ -457,12 +484,47 @@ static void test_current_wall_survives_room_array_reallocation(void)
 
     assert(room != NULL);
 
-    free(
-        room->walls
+    sitehelper_project_destroy(
+        &app.project
+    );
+}
+
+static void test_editor_initial_state_resolves_no_selection(void)
+{
+    AppContext app = {0};
+
+    sitehelper_project_init(
+        &app.project
     );
 
-    free(
-        app.project.structure.rooms
+    sitehelper_editor_init(
+        &app.editor
+    );
+
+    assert(
+        app.editor.current_room_id ==
+        DOMAIN_ID_INVALID
+    );
+
+    assert(
+        app.editor.current_wall_id ==
+        DOMAIN_ID_INVALID
+    );
+
+    assert(
+        app_current_room(
+            &app
+        ) == NULL
+    );
+
+    assert(
+        app_current_wall(
+            &app
+        ) == NULL
+    );
+
+    sitehelper_project_destroy(
+        &app.project
     );
 }
 
@@ -479,6 +541,7 @@ int main(void)
     test_current_wall_returns_null_when_selected_wall_id_missing();
     test_current_wall_survives_wall_array_reallocation();
     test_current_wall_survives_room_array_reallocation();
+    test_editor_initial_state_resolves_no_selection();
 
     printf(
         "All app state tests passed.\n"

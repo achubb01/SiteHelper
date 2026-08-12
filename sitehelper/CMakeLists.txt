@@ -5,6 +5,7 @@ add_library(sitehelper_core
 
     domain/domain_id.c
 
+    editor/sitehelper_editor.c
     editor/snap.c
     editor/opening_tool.c
     editor/opening_placement.c
@@ -332,6 +333,20 @@ target_link_libraries(test_sitehelper_project
 add_test(
     NAME sitehelper_project_tests
     COMMAND test_sitehelper_project
+)
+
+add_executable(test_sitehelper_editor
+    editor/tests/test_sitehelper_editor.c
+)
+
+target_link_libraries(test_sitehelper_editor
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME sitehelper_editor_tests
+    COMMAND test_sitehelper_editor
 )
 
 add_executable(sitehelper

@@ -7,16 +7,19 @@ Room *app_current_room(
     AppContext *app
 )
 {
-    if (app == NULL ||
-        !app->room_selected ||
-        app->current_room_id == DOMAIN_ID_INVALID) {
+    if (app == NULL) {
+        return NULL;
+    }
+
+    if (app->editor.current_room_id ==
+        DOMAIN_ID_INVALID) {
 
         return NULL;
     }
 
     return build_find_room_by_id(
         &app->project.structure,
-        app->current_room_id
+        app->editor.current_room_id
     );
 }
 
@@ -24,19 +27,19 @@ Wall *app_current_wall(
     AppContext *app
 )
 {
-    if (app == NULL ||
-        !app->room_selected ||
-        !app->wall_selected ||
-        app->current_room_id == DOMAIN_ID_INVALID ||
-        app->current_wall_id == DOMAIN_ID_INVALID) {
+    if (app == NULL) {
+        return NULL;
+    }
+
+    if (app->editor.current_wall_id ==
+        DOMAIN_ID_INVALID) {
 
         return NULL;
     }
 
     Room *room =
-        build_find_room_by_id(
-            &app->project.structure,
-            app->current_room_id
+        app_current_room(
+            app
         );
 
     if (room == NULL) {
@@ -45,6 +48,6 @@ Wall *app_current_wall(
 
     return room_find_wall_by_id(
         room,
-        app->current_wall_id
+        app->editor.current_wall_id
     );
 }

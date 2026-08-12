@@ -139,14 +139,11 @@ void addRoom(void *context)
         return;
     }
 
-    app->current_room_id =
+    app->editor.current_room_id =
         room_id;
 
-    app->current_wall_id =
+    app->editor.current_wall_id =
         DOMAIN_ID_INVALID;
-
-    app->room_selected = true;
-    app->wall_selected = false;
 
     printf(
         "Room added. Total rooms: %zu\n",
@@ -203,10 +200,8 @@ void addWall(void *context)
         return;
     }
 
-    app->current_wall_id =
+    app->editor.current_wall_id =
         wall_id;
-
-    app->wall_selected = true;
 
     printf(
         "Wall added. Total walls in current room: %zu\n",
@@ -387,14 +382,11 @@ void selectRoom(void *context)
             room_index
         ];
 
-    app->current_room_id =
+    app->editor.current_room_id =
         room->id;
 
-    app->current_wall_id =
+    app->editor.current_wall_id =
         DOMAIN_ID_INVALID;
-
-    app->room_selected = true;
-    app->wall_selected = false;
 
     printf("Room %ld selected.\n", selection);
 }
@@ -408,7 +400,9 @@ void selectWall(void *context)
         return;
     }
 
-    if (!app->room_selected) {
+    if (app->editor.current_room_id ==
+        DOMAIN_ID_INVALID) {
+
         printf("Select a room first.\n");
         return;
     }
@@ -424,14 +418,11 @@ void selectWall(void *context)
             "Selected room is invalid.\n"
         );
 
-        app->current_room_id =
+        app->editor.current_room_id =
             DOMAIN_ID_INVALID;
 
-        app->current_wall_id =
+        app->editor.current_wall_id =
             DOMAIN_ID_INVALID;
-
-        app->room_selected = false;
-        app->wall_selected = false;
 
         return;
     }
@@ -478,10 +469,8 @@ void selectWall(void *context)
             wall_index
         ];
 
-    app->current_wall_id =
+    app->editor.current_wall_id =
         wall->id;
-
-    app->wall_selected = true;
 
     printf(
         "Wall %ld selected.\n",
