@@ -15,7 +15,7 @@ Room *app_current_room(
     }
 
     return build_find_room_by_id(
-        &app->structure,
+        &app->project.structure,
         app->current_room_id
     );
 }
@@ -35,7 +35,7 @@ Wall *app_current_wall(
 
     Room *room =
         build_find_room_by_id(
-            &app->structure,
+            &app->project.structure,
             app->current_room_id
         );
 

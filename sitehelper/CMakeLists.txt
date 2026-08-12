@@ -1,4 +1,6 @@
 add_library(sitehelper_core
+    project/sitehelper_project.c
+
     app/appstate.c
 
     domain/domain_id.c
@@ -34,6 +36,7 @@ add_library(sitehelper_core
 target_include_directories(sitehelper_core
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/project
         ${CMAKE_CURRENT_SOURCE_DIR}/app
         ${CMAKE_CURRENT_SOURCE_DIR}/cli
         ${CMAKE_CURRENT_SOURCE_DIR}/domain
@@ -315,6 +318,20 @@ target_link_libraries(test_appstate
 add_test(
     NAME appstate_tests
     COMMAND test_appstate
+)
+
+add_executable(test_sitehelper_project
+    project/tests/test_sitehelper_project.c
+)
+
+target_link_libraries(test_sitehelper_project
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME sitehelper_project_tests
+    COMMAND test_sitehelper_project
 )
 
 add_executable(sitehelper

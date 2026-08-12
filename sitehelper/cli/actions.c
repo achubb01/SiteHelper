@@ -33,7 +33,7 @@ void setBuildSettings(void *context)
 
     buffer[strcspn(buffer, "\n")] = '\0';
 
-    app->settings.stud_height = atoi(buffer);
+    app->project.settings.stud_height = atoi(buffer);
 
     printf("Select Timber Width: ");
 
@@ -44,7 +44,7 @@ void setBuildSettings(void *context)
 
     buffer[strcspn(buffer, "\n")] = '\0';
 
-    app->settings.stud_width = atoi(buffer);
+    app->project.settings.stud_width = atoi(buffer);
 
     printf("Select Timber Depth: ");
 
@@ -55,7 +55,7 @@ void setBuildSettings(void *context)
 
     buffer[strcspn(buffer, "\n")] = '\0';
 
-    app->settings.stud_depth = atoi(buffer);
+    app->project.settings.stud_depth = atoi(buffer);
 
     printf("Select Noggin Spacing: ");
 
@@ -66,7 +66,7 @@ void setBuildSettings(void *context)
 
     buffer[strcspn(buffer, "\n")] = '\0';
 
-    app->settings.nog_spacing = atoi(buffer);
+    app->project.settings.nog_spacing = atoi(buffer);
 
     printf("Select Stud Spacing: ");
 
@@ -77,7 +77,7 @@ void setBuildSettings(void *context)
 
     buffer[strcspn(buffer, "\n")] = '\0';
 
-    app->settings.stud_spacing = atoi(buffer);
+    app->project.settings.stud_spacing = atoi(buffer);
 
     printf("1. Even\n2. Maximum\nSelect Spacing Mode: ");
 
@@ -88,7 +88,7 @@ void setBuildSettings(void *context)
 
     buffer[strcspn(buffer, "\n")] = '\0';
 
-    app->settings.stud_spacing_mode = atoi(buffer) -1;
+    app->project.settings.stud_spacing_mode = atoi(buffer) -1;
 }
 
 void describeStandardStud (void *context){
@@ -102,7 +102,7 @@ void describeStandardStud (void *context){
         return;
     }
 
-    printf("Standard Stud Dimensions are:\nHeight: %i\nWidth: %i\nDepth: %i\nNoggin spacing is set to: %i\nStud spacing is set to: %i\nStud spacing mode is set to %i\n", app->settings.stud_height, app->settings.stud_width, app->settings.stud_depth, app->settings.nog_spacing, app->settings.stud_spacing, app->settings.stud_spacing_mode);
+    printf("Standard Stud Dimensions are:\nHeight: %i\nWidth: %i\nDepth: %i\nNoggin spacing is set to: %i\nStud spacing is set to: %i\nStud spacing mode is set to %i\n", app->project.settings.stud_height, app->project.settings.stud_width, app->project.settings.stud_depth, app->project.settings.nog_spacing, app->project.settings.stud_spacing, app->project.settings.stud_spacing_mode);
 }
 
 
@@ -117,7 +117,7 @@ void addRoom(void *context)
 
     DomainId room_id =
         domain_id_generate(
-            &app->domain_ids
+            &app->project.domain_ids
         );
 
     if (room_id == DOMAIN_ID_INVALID) {
@@ -129,7 +129,7 @@ void addRoom(void *context)
     }
 
     if (!build_add_room(
-            &app->structure,
+            &app->project.structure,
             room_id)) {
 
         fprintf(
@@ -150,7 +150,7 @@ void addRoom(void *context)
 
     printf(
         "Room added. Total rooms: %zu\n",
-        app->structure.room_count
+        app->project.structure.room_count
     );
 }
 
@@ -162,7 +162,7 @@ void addWall(void *context)
         return;
     }
 
-    if (app->structure.room_count == 0) {
+    if (app->project.structure.room_count == 0) {
         printf("Create a room before adding a wall\n");
         return;
     }
@@ -181,7 +181,7 @@ void addWall(void *context)
 
     DomainId wall_id =
         domain_id_generate(
-            &app->domain_ids
+            &app->project.domain_ids
         );
 
     if (wall_id == DOMAIN_ID_INVALID) {
@@ -243,7 +243,7 @@ void generateWall(void *context)
 
     if (!wall_generate(
             wall,
-            &app->settings)) {
+            &app->project.settings)) {
 
         printf("Failed to generate wall\n");
         return;
@@ -323,7 +323,7 @@ void setStudSpacing(void *context)
     }
 
     if (!build_set_stud_spacing(
-            &app->settings,
+            &app->project.settings,
             (int)input)) {
 
         printf("Invalid stud spacing.\n");
@@ -345,13 +345,13 @@ void selectRoom(void *context)
         return;
     }
 
-    if (app->structure.room_count == 0) {
+    if (app->project.structure.room_count == 0) {
         printf("No rooms currently built.\n");
         return;
     }
 
     for (size_t i = 0;
-         i < app->structure.room_count;
+         i < app->project.structure.room_count;
          i++) {
 
         printf(
@@ -373,7 +373,7 @@ void selectRoom(void *context)
 
     if (end == buffer ||
         selection < 1 ||
-        selection > (long)app->structure.room_count) {
+        selection > (long)app->project.structure.room_count) {
 
         printf("Invalid room selection.\n");
         return;
@@ -383,7 +383,7 @@ void selectRoom(void *context)
         (size_t)(selection - 1);
 
     Room *room =
-        &app->structure.rooms[
+        &app->project.structure.rooms[
             room_index
         ];
 
@@ -501,32 +501,32 @@ void describeBuild(void *context)
 
     printf(
         "Rooms: %zu\n",
-        app->structure.room_count
+        app->project.structure.room_count
     );
 
     printf(
         "Default stud dimensions: %d x %d x %d mm\n",
-        app->settings.stud_height,
-        app->settings.stud_width,
-        app->settings.stud_depth
+        app->project.settings.stud_height,
+        app->project.settings.stud_width,
+        app->project.settings.stud_depth
     );
 
     printf(
         "Maximum stud spacing: %d mm\n",
-        app->settings.stud_spacing
+        app->project.settings.stud_spacing
     );
 
     printf(
         "Maximum noggin spacing: %d mm\n",
-        app->settings.nog_spacing
+        app->project.settings.nog_spacing
     );
 
     for (size_t room_index = 0;
-         room_index < app->structure.room_count;
+         room_index < app->project.structure.room_count;
          room_index++) {
 
         Room *room =
-            &app->structure.rooms[room_index];
+            &app->project.structure.rooms[room_index];
 
         printf(
             "\nRoom %zu\n",
@@ -751,7 +751,7 @@ void addOpening(void *context)
 
     DomainId opening_id =
         domain_id_generate(
-            &app->domain_ids
+            &app->project.domain_ids
         );
 
     if (opening_id == DOMAIN_ID_INVALID) {
@@ -764,7 +764,7 @@ void addOpening(void *context)
 
     if (!wall_add_opening(
             wall,
-            &app->settings,
+            &app->project.settings,
             opening_id,
             type,
             0,

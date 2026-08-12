@@ -54,4 +54,8 @@ typedef struct
     size_t room_capacity;
 } BuildStructure;
 
+void build_destroy(
+    BuildStructure *structure
+);
+
 #endif

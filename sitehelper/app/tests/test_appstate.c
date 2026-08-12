@@ -15,7 +15,7 @@ static void test_current_room_resolves_selected_room_by_id(void)
 
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             room_id
         )
     );
@@ -39,7 +39,7 @@ static void test_current_room_resolves_selected_room_by_id(void)
     );
 
     free(
-        app.structure.rooms
+        app.project.structure.rooms
     );
 }
 
@@ -79,7 +79,7 @@ static void test_current_room_survives_room_array_reallocation(void)
 
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             selected_room_id
         )
     );
@@ -97,21 +97,21 @@ static void test_current_room_survives_room_array_reallocation(void)
      */
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             20
         )
     );
 
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             30
         )
     );
 
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             40
         )
     );
@@ -129,7 +129,7 @@ static void test_current_room_survives_room_array_reallocation(void)
     );
 
     free(
-        app.structure.rooms
+        app.project.structure.rooms
     );
 }
 
@@ -143,14 +143,14 @@ static void test_current_wall_resolves_selected_wall_by_id(void)
 
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             room_id
         )
     );
 
     Room *room =
         build_find_room_by_id(
-            &app.structure,
+            &app.project.structure,
             room_id
         );
 
@@ -192,7 +192,7 @@ static void test_current_wall_resolves_selected_wall_by_id(void)
     );
 
     free(
-        app.structure.rooms
+        app.project.structure.rooms
     );
 }
 
@@ -205,7 +205,7 @@ static void test_current_wall_returns_null_when_no_wall_selected(void)
 
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             room_id
         )
     );
@@ -226,7 +226,7 @@ static void test_current_wall_returns_null_when_no_wall_selected(void)
     );
 
     free(
-        app.structure.rooms
+        app.project.structure.rooms
     );
 }
 
@@ -239,7 +239,7 @@ static void test_current_wall_returns_null_when_selected_wall_id_missing(void)
 
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             room_id
         )
     );
@@ -263,7 +263,7 @@ static void test_current_wall_returns_null_when_selected_wall_id_missing(void)
     );
 
     free(
-        app.structure.rooms
+        app.project.structure.rooms
     );
 }
 
@@ -277,7 +277,7 @@ static void test_current_wall_survives_wall_array_reallocation(void)
 
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             room_id
         )
     );
@@ -364,7 +364,7 @@ static void test_current_wall_survives_wall_array_reallocation(void)
     );
 
     free(
-        app.structure.rooms
+        app.project.structure.rooms
     );
 }
 
@@ -378,14 +378,14 @@ static void test_current_wall_survives_room_array_reallocation(void)
 
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             selected_room_id
         )
     );
 
     Room *room =
         build_find_room_by_id(
-            &app.structure,
+            &app.project.structure,
             selected_room_id
         );
 
@@ -419,21 +419,21 @@ static void test_current_wall_survives_room_array_reallocation(void)
      */
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             30
         )
     );
 
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             40
         )
     );
 
     assert(
         build_add_room(
-            &app.structure,
+            &app.project.structure,
             50
         )
     );
@@ -462,7 +462,7 @@ static void test_current_wall_survives_room_array_reallocation(void)
     );
 
     free(
-        app.structure.rooms
+        app.project.structure.rooms
     );
 }
 
