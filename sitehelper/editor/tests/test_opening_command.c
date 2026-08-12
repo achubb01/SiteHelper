@@ -3,6 +3,8 @@
 
 #include "opening_command.h"
 
+static const DomainId TEST_OPENING_ID = 1;
+
 static void test_create_builds_opening_from_placement(void)
 {
     OpeningPlacement placement = {
@@ -30,10 +32,16 @@ static void test_create_builds_opening_from_placement(void)
         opening_command_create(
             &placement,
             &tool,
+            TEST_OPENING_ID,
             &command
         );
 
     assert(result == 1);
+
+    assert(
+        command.opening.id
+        == TEST_OPENING_ID
+    );
 
     assert(
         command.opening.type
@@ -64,6 +72,7 @@ static void test_create_builds_opening_from_placement(void)
         command.opening.custom_allowance
         == false
     );
+    
 }
 
 static void test_create_rejects_invalid_placement(void)
@@ -84,6 +93,7 @@ static void test_create_rejects_invalid_placement(void)
         !opening_command_create(
             &placement,
             &tool,
+            TEST_OPENING_ID,
             &command
         )
     );
@@ -111,6 +121,7 @@ static void test_create_rejects_null_arguments(void)
         !opening_command_create(
             NULL,
             &tool,
+            TEST_OPENING_ID,
             &command
         )
     );
@@ -119,6 +130,7 @@ static void test_create_rejects_null_arguments(void)
         !opening_command_create(
             &placement,
             NULL,
+            TEST_OPENING_ID,
             &command
         )
     );
@@ -127,6 +139,7 @@ static void test_create_rejects_null_arguments(void)
         !opening_command_create(
             &placement,
             &tool,
+            TEST_OPENING_ID,
             NULL
         )
     );
@@ -176,6 +189,7 @@ static void test_execute_adds_opening_to_wall(void)
         opening_command_create(
             &placement,
             &tool,
+            TEST_OPENING_ID,
             &command
         )
     );
@@ -194,6 +208,13 @@ static void test_execute_adds_opening_to_wall(void)
     assert(
         wall.definition.opening_count
         == opening_count_before + 1
+    );
+
+    assert(
+        wall.definition.openings[
+            wall.definition.opening_count - 1
+        ].id
+        == TEST_OPENING_ID
     );
 
     assert(
@@ -239,12 +260,41 @@ static void test_execute_adds_opening_to_wall(void)
     wall_destroy(&wall);
 }
 
+static void test_create_rejects_invalid_opening_id(void)
+{
+    OpeningPlacement placement = {
+        .valid = 1,
+        .left = 600.0,
+        .bottom = 900.0,
+        .width = 1200,
+        .height = 1200
+    };
+
+    OpeningTool tool;
+
+    opening_tool_init(
+        &tool
+    );
+
+    OpeningCommand command;
+
+    assert(
+        !opening_command_create(
+            &placement,
+            &tool,
+            DOMAIN_ID_INVALID,
+            &command
+        )
+    );
+}
+
 int main(void)
 {
     test_create_builds_opening_from_placement();
     test_create_rejects_invalid_placement();
     test_create_rejects_null_arguments();
     test_execute_adds_opening_to_wall();
+    test_create_rejects_invalid_opening_id();
 
     printf(
         "All opening command tests passed.\n"

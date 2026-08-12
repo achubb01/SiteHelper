@@ -3,6 +3,7 @@
 int opening_command_create(
     const OpeningPlacement *placement,
     const OpeningTool *tool,
+    DomainId opening_id,
     OpeningCommand *command
 )
 {
@@ -10,6 +11,7 @@ int opening_command_create(
         placement == NULL
         || tool == NULL
         || command == NULL
+        || opening_id == DOMAIN_ID_INVALID
         || !placement->valid
         || placement->width <= 0
         || placement->height <= 0
@@ -19,6 +21,8 @@ int opening_command_create(
 
     *command = (OpeningCommand){
         .opening = {
+            .id = opening_id,
+
             .type = tool->type,
 
             .frame_position =
@@ -60,6 +64,7 @@ int opening_command_execute(
     if (!wall_add_opening(
             wall,
             settings,
+            command->opening.id,
             command->opening.type,
             command->opening.frame_position,
             command->opening.frame_bottom,

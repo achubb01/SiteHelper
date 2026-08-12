@@ -32,12 +32,16 @@ typedef struct WallFraming {
 } WallFraming;
 
 typedef struct Wall {
+    DomainId id;
+
     WallDefinition definition;
     WallFraming framing;
 } Wall;
 
 typedef struct Room
 {
+    DomainId id;
+
     Wall *walls;
     size_t wall_count;
     size_t wall_capacity;

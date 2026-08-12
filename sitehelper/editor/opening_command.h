@@ -13,6 +13,7 @@ typedef struct
 int opening_command_create(
     const OpeningPlacement *placement,
     const OpeningTool *tool,
+    DomainId opening_id,
     OpeningCommand *command
 );
 

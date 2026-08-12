@@ -2,9 +2,20 @@
 
 #include "wall.h"
 
-int build_add_room(BuildStructure *structure)
+int build_add_room(
+    BuildStructure *structure,
+    DomainId room_id
+)
 {
-    if (structure == NULL) {
+    if (structure == NULL ||
+        room_id == DOMAIN_ID_INVALID) {
+        return 0;
+    }
+
+    if (build_find_room_by_id(
+            structure,
+            room_id) != NULL) {
+
         return 0;
     }
 
@@ -29,21 +40,37 @@ int build_add_room(BuildStructure *structure)
         structure->room_capacity = new_capacity;
     }
 
-    structure->rooms[structure->room_count] =
-        (Room){0};
+    structure->rooms[
+        structure->room_count
+    ] = (Room){
+        .id = room_id
+    };
 
     structure->room_count++;
 
     return 1;
 }
 
-int room_add_wall(Room *room)
+int room_add_wall(
+    Room *room,
+    DomainId wall_id
+)
 {
-    if (room == NULL) {
+    if (room == NULL ||
+        wall_id == DOMAIN_ID_INVALID) {
         return 0;
     }
 
-    if (room->wall_count == room->wall_capacity) {
+    if (room_find_wall_by_id(
+            room,
+            wall_id) != NULL) {
+
+        return 0;
+    }
+
+    if (room->wall_count ==
+        room->wall_capacity) {
+
         size_t new_capacity =
             room->wall_capacity == 0
                 ? 1
@@ -62,10 +89,119 @@ int room_add_wall(Room *room)
         room->wall_capacity = new_capacity;
     }
 
-    room->walls[room->wall_count] = (Wall){0};
+    room->walls[
+        room->wall_count
+    ] = (Wall){
+        .id = wall_id
+    };
+
     room->wall_count++;
 
     return 1;
+}
+
+Room *build_find_room_by_id(
+    BuildStructure *structure,
+    DomainId room_id
+)
+{
+    if (structure == NULL ||
+        room_id == DOMAIN_ID_INVALID) {
+
+        return NULL;
+    }
+
+    for (size_t i = 0;
+         i < structure->room_count;
+         i++) {
+
+        Room *room =
+            &structure->rooms[i];
+
+        if (room->id == room_id) {
+            return room;
+        }
+    }
+
+    return NULL;
+}
+
+const Room *build_find_room_by_id_const(
+    const BuildStructure *structure,
+    DomainId room_id
+)
+{
+    if (structure == NULL ||
+        room_id == DOMAIN_ID_INVALID) {
+
+        return NULL;
+    }
+
+    for (size_t i = 0;
+         i < structure->room_count;
+         i++) {
+
+        const Room *room =
+            &structure->rooms[i];
+
+        if (room->id == room_id) {
+            return room;
+        }
+    }
+
+    return NULL;
+}
+
+Wall *room_find_wall_by_id(
+    Room *room,
+    DomainId wall_id
+)
+{
+    if (room == NULL ||
+        wall_id == DOMAIN_ID_INVALID) {
+
+        return NULL;
+    }
+
+    for (size_t i = 0;
+         i < room->wall_count;
+         i++) {
+
+        Wall *wall =
+            &room->walls[i];
+
+        if (wall->id == wall_id) {
+            return wall;
+        }
+    }
+
+    return NULL;
+}
+
+const Wall *room_find_wall_by_id_const(
+    const Room *room,
+    DomainId wall_id
+)
+{
+    if (room == NULL ||
+        wall_id == DOMAIN_ID_INVALID) {
+
+        return NULL;
+    }
+
+    for (size_t i = 0;
+         i < room->wall_count;
+         i++) {
+
+        const Wall *wall =
+            &room->walls[i];
+
+        if (wall->id == wall_id) {
+            return wall;
+        }
+    }
+
+    return NULL;
 }
 
 int build_set_stud_spacing(

@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "wall_query.h"
+#include "wall.h"
 
 
 static void test_finds_stud_at_world_position(void)
@@ -317,6 +318,188 @@ static void test_returns_null_for_null_wall(void)
     assert(result == NULL);
 }
 
+static void test_find_opening_by_id(void)
+{
+    Wall wall = {0};
+
+    BuildSettings settings = {
+        .stud_height = 2400,
+        .stud_depth = 90,
+        .stud_width = 35,
+        .stud_spacing = 600,
+        .nog_spacing = 1200,
+        .stud_spacing_mode = STUD_SPACING_MAXIMISE
+    };
+
+    assert(
+        wall_set_length(
+            &wall,
+            4200
+        )
+    );
+
+    DomainId opening_id = 42;
+
+    assert(
+        wall_add_opening(
+            &wall,
+            &settings,
+            opening_id,
+            OPENING_WINDOW,
+            1200,
+            900,
+            1200,
+            1200
+        )
+    );
+
+    Opening *opening =
+        wall_find_opening_by_id(
+            &wall,
+            opening_id
+        );
+
+    assert(opening != NULL);
+
+    assert(
+        opening->id ==
+        opening_id
+    );
+
+    assert(
+        opening->frame_position ==
+        1200
+    );
+
+    wall_destroy(
+        &wall
+    );
+}
+
+static void test_find_opening_by_id_rejects_invalid_id(void)
+{
+    Wall wall = {0};
+
+    assert(
+        wall_find_opening_by_id(
+            &wall,
+            DOMAIN_ID_INVALID
+        ) == NULL
+    );
+}
+
+static void test_find_opening_by_id_returns_null_when_missing(void)
+{
+    Wall wall = {0};
+
+    assert(
+        wall_find_opening_by_id(
+            &wall,
+            999
+        ) == NULL
+    );
+}
+
+static void test_opening_identity_survives_reallocation(void)
+{
+    Wall wall = {0};
+
+    BuildSettings settings = {
+        .stud_height = 2400,
+        .stud_depth = 90,
+        .stud_width = 35,
+        .stud_spacing = 600,
+        .nog_spacing = 1200,
+        .stud_spacing_mode = STUD_SPACING_MAXIMISE
+    };
+
+    assert(
+        wall_set_length(
+            &wall,
+            12000
+        )
+    );
+
+    DomainId first_id = 1;
+
+    assert(
+        wall_add_opening(
+            &wall,
+            &settings,
+            first_id,
+            OPENING_WINDOW,
+            1200,
+            900,
+            600,
+            600
+        )
+    );
+
+    /*
+     * Initial capacity starts at 1 and doubles,
+     * so adding more openings forces realloc().
+     */
+    assert(
+        wall_add_opening(
+            &wall,
+            &settings,
+            2,
+            OPENING_WINDOW,
+            3000,
+            900,
+            600,
+            600
+        )
+    );
+
+    assert(
+        wall_add_opening(
+            &wall,
+            &settings,
+            3,
+            OPENING_WINDOW,
+            4800,
+            900,
+            600,
+            600
+        )
+    );
+
+    assert(
+        wall_add_opening(
+            &wall,
+            &settings,
+            4,
+            OPENING_WINDOW,
+            6600,
+            900,
+            600,
+            600
+        )
+    );
+
+    Opening *opening =
+        wall_find_opening_by_id(
+            &wall,
+            first_id
+        );
+
+    assert(opening != NULL);
+
+    assert(
+        opening->id ==
+        first_id
+    );
+
+    assert(
+        opening->frame_position ==
+        1200
+    );
+
+    wall_destroy(
+        &wall
+    );
+}
 
 int main(void)
 {
@@ -328,6 +511,10 @@ int main(void)
     test_finds_sill();
     test_returns_null_for_empty_space();
     test_returns_null_for_null_wall();
+    test_find_opening_by_id();
+    test_find_opening_by_id_rejects_invalid_id();
+    test_find_opening_by_id_returns_null_when_missing();
+    test_opening_identity_survives_reallocation();
 
     printf("All wall query tests passed.\n");
 

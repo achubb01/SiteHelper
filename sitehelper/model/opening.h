@@ -2,6 +2,7 @@
 #define OPENING_H
 
 #include <stdbool.h>
+#include "domain_id.h"
 
 typedef enum
 {
@@ -11,6 +12,8 @@ typedef enum
 
 typedef struct
 {
+    DomainId id;
+
     OpeningType type;
 
     int frame_position;

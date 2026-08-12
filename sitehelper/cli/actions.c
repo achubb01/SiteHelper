@@ -115,13 +115,35 @@ void addRoom(void *context)
         return;
     }
 
-    if (!build_add_room(&app->structure)) {
-        fprintf(stderr, "Could not add room\n");
+    DomainId room_id =
+        domain_id_generate(
+            &app->domain_ids
+        );
+
+    if (room_id == DOMAIN_ID_INVALID) {
+        fprintf(
+            stderr,
+            "Could not allocate room identity\n"
+        );
         return;
     }
 
-    app->current_room =
-    app->structure.room_count - 1;
+    if (!build_add_room(
+            &app->structure,
+            room_id)) {
+
+        fprintf(
+            stderr,
+            "Could not add room\n"
+        );
+        return;
+    }
+
+    app->current_room_id =
+        room_id;
+
+    app->current_wall_id =
+        DOMAIN_ID_INVALID;
 
     app->room_selected = true;
     app->wall_selected = false;
@@ -146,17 +168,43 @@ void addWall(void *context)
     }
 
     Room *room =
-    &app->structure.rooms[
-        app->current_room
-    ];
+        app_current_room(
+            app
+        );
 
-    if (!room_add_wall(room)) {
-        fprintf(stderr, "Could not add wall\n");
+    if (room == NULL) {
+        printf(
+            "Select a valid room before adding a wall\n"
+        );
         return;
     }
 
-    app->current_wall =
-    room->wall_count - 1;
+    DomainId wall_id =
+        domain_id_generate(
+            &app->domain_ids
+        );
+
+    if (wall_id == DOMAIN_ID_INVALID) {
+        fprintf(
+            stderr,
+            "Could not allocate wall identity\n"
+        );
+        return;
+    }
+
+    if (!room_add_wall(
+            room,
+            wall_id)) {
+
+        fprintf(
+            stderr,
+            "Could not add wall\n"
+        );
+        return;
+    }
+
+    app->current_wall_id =
+        wall_id;
 
     app->wall_selected = true;
 
@@ -331,13 +379,21 @@ void selectRoom(void *context)
         return;
     }
 
-    app->current_room = (size_t)(selection - 1);
-    app->room_selected = true;
+    size_t room_index =
+        (size_t)(selection - 1);
 
-    /*
-     * A wall selected in another room may not exist
-     * in the newly selected room.
-     */
+    Room *room =
+        &app->structure.rooms[
+            room_index
+        ];
+
+    app->current_room_id =
+        room->id;
+
+    app->current_wall_id =
+        DOMAIN_ID_INVALID;
+
+    app->room_selected = true;
     app->wall_selected = false;
 
     printf("Room %ld selected.\n", selection);
@@ -357,19 +413,28 @@ void selectWall(void *context)
         return;
     }
 
-    if (app->current_room >=
-        app->structure.room_count) {
+    Room *room =
+        app_current_room(
+            app
+        );
 
-        fprintf(stderr, "Selected room is invalid.\n");
+    if (room == NULL) {
+        fprintf(
+            stderr,
+            "Selected room is invalid.\n"
+        );
+
+        app->current_room_id =
+            DOMAIN_ID_INVALID;
+
+        app->current_wall_id =
+            DOMAIN_ID_INVALID;
+
         app->room_selected = false;
         app->wall_selected = false;
+
         return;
     }
-
-    Room *room =
-        &app->structure.rooms[
-            app->current_room
-        ];
 
     if (room->wall_count == 0) {
         printf("The selected room has no walls.\n");
@@ -405,10 +470,23 @@ void selectWall(void *context)
         return;
     }
 
-    app->current_wall = (size_t)(selection - 1);
+    size_t wall_index =
+        (size_t)(selection - 1);
+
+    Wall *wall =
+        &room->walls[
+            wall_index
+        ];
+
+    app->current_wall_id =
+        wall->id;
+
     app->wall_selected = true;
 
-    printf("Wall %zu selected in room %zu\n", app->current_wall, app->current_room);
+    printf(
+        "Wall %ld selected.\n",
+        selection
+    );
 }
 
 void describeBuild(void *context)
@@ -547,14 +625,42 @@ void describeBuild(void *context)
     printf("\n=========================\n");
 }
 
-void printCurrentWall(void *context) {
+void printCurrentWall(void *context)
+{
     AppContext *app = context;
 
     if (app == NULL) {
         return;
     }
 
-    printf("Room is %zu\nWall selected is Wall %zu", app->current_room, app->current_wall);
+    Room *room =
+        app_current_room(
+            app
+        );
+
+    Wall *wall =
+        app_current_wall(
+            app
+        );
+
+    if (room == NULL) {
+        printf(
+            "No valid room selected.\n"
+        );
+        return;
+    }
+
+    if (wall == NULL) {
+        printf(
+            "A room is selected, "
+            "but no valid wall is selected.\n"
+        );
+        return;
+    }
+
+    printf(
+        "Current wall selected successfully.\n"
+    );
 }
 
 void addOpening(void *context)
@@ -643,9 +749,23 @@ void addOpening(void *context)
         return;
     }
 
+    DomainId opening_id =
+        domain_id_generate(
+            &app->domain_ids
+        );
+
+    if (opening_id == DOMAIN_ID_INVALID) {
+        fprintf(
+            stderr,
+            "Could not allocate opening identity.\n"
+        );
+        return;
+    }
+
     if (!wall_add_opening(
             wall,
             &app->settings,
+            opening_id,
             type,
             0,
             (int)position,

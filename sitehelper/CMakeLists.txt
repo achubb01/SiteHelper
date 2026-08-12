@@ -1,6 +1,8 @@
 add_library(sitehelper_core
     app/appstate.c
 
+    domain/domain_id.c
+
     editor/snap.c
     editor/opening_tool.c
     editor/opening_placement.c
@@ -34,6 +36,7 @@ target_include_directories(sitehelper_core
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/app
         ${CMAKE_CURRENT_SOURCE_DIR}/cli
+        ${CMAKE_CURRENT_SOURCE_DIR}/domain
         ${CMAKE_CURRENT_SOURCE_DIR}/editor
         ${CMAKE_CURRENT_SOURCE_DIR}/grid
         ${CMAKE_CURRENT_SOURCE_DIR}/gui
@@ -270,6 +273,48 @@ target_link_libraries(test_opening_command
 add_test(
     NAME opening_command_tests
     COMMAND test_opening_command
+)
+
+add_executable(test_domain_id
+    domain/tests/test_domain_id.c
+)
+
+target_link_libraries(test_domain_id
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME domain_id_tests
+    COMMAND test_domain_id
+)
+
+add_executable(test_build_structure
+    wall/tests/test_build_structure.c
+)
+
+target_link_libraries(test_build_structure
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME build_structure_tests
+    COMMAND test_build_structure
+)
+
+add_executable(test_appstate
+    app/tests/test_appstate.c
+)
+
+target_link_libraries(test_appstate
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME appstate_tests
+    COMMAND test_appstate
 )
 
 add_executable(sitehelper

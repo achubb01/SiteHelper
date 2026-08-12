@@ -1,5 +1,7 @@
 #include <stdlib.h>
 
+#include "domain_id.h"
+
 #include "snap.h"
 #include "editor_tool.h"
 #include "opening_tool.h"
@@ -27,6 +29,8 @@ typedef struct
 
     Wall wall;
     WallEditor editor;
+
+    DomainIdGenerator domain_ids;
 
     WallRenderStyle wall_style;
     GridRenderStyle grid_style;
@@ -276,6 +280,10 @@ static int sitehelper_app_init(
         .stud_spacing_mode =
             STUD_SPACING_MAXIMISE
     };
+
+    domain_id_generator_init(
+        &app->domain_ids
+    );
 
     if (!wall_set_length(
             &app->wall,
@@ -650,11 +658,22 @@ static void sitehelper_app_process_events(
                             break;
                         }
 
+                        DomainId opening_id =
+                            domain_id_generate(
+                                &app->domain_ids
+                            );
+
+                        if (opening_id == DOMAIN_ID_INVALID) {
+                            /* handle failure */
+                            continue;
+                        }
+
                         OpeningCommand command;
 
                         if (!opening_command_create(
                                 &app->opening_placement,
                                 &app->opening_tool,
+                                opening_id,
                                 &command)) {
                             break;
                         }

@@ -1,80 +1,50 @@
 #include <stdlib.h>
 
 #include "appstate.h"
+#include "wall.h"
 
-// void app_set_current_room(AppContext *app, size_t room) {
-//     if (app == NULL) {
-//         return NULL;
-//     }
-
-
-// }
-
-// void app_set_current_wall(AppContext *app);
-
-Room *build_get_room(
-    BuildStructure *structure,
-    size_t index
+Room *app_current_room(
+    AppContext *app
 )
 {
-    if (structure == NULL) {
+    if (app == NULL ||
+        !app->room_selected ||
+        app->current_room_id == DOMAIN_ID_INVALID) {
+
         return NULL;
     }
 
-    if (index >= structure->room_count) {
-        return NULL;
-    }
-
-    return &structure->rooms[index];
-}
-
-Room *app_current_room(AppContext *app)
-{
-    if (app == NULL || !app->room_selected) {
-        return NULL;
-    }
-
-    return build_get_room(
+    return build_find_room_by_id(
         &app->structure,
-        app->current_room
+        app->current_room_id
     );
 }
 
-Wall *build_get_wall(
-    BuildStructure *structure,
-    size_t room_index,
-    size_t wall_index
+Wall *app_current_wall(
+    AppContext *app
 )
 {
-    if (structure == NULL) {
-        return NULL;
-    }
+    if (app == NULL ||
+        !app->room_selected ||
+        !app->wall_selected ||
+        app->current_room_id == DOMAIN_ID_INVALID ||
+        app->current_wall_id == DOMAIN_ID_INVALID) {
 
-    if (room_index >= structure->room_count) {
         return NULL;
     }
 
     Room *room =
-        &structure->rooms[room_index];
+        build_find_room_by_id(
+            &app->structure,
+            app->current_room_id
+        );
 
-    if (wall_index >= room->wall_count) {
+    if (room == NULL) {
         return NULL;
     }
 
-    return &room->walls[wall_index];
-}
-
-Wall *app_current_wall(AppContext *app)
-{
-    if (app == NULL ||
-        !app->room_selected ||
-        !app->wall_selected) {
-        return NULL;
-    }
-
-    return build_get_wall(
-        &app->structure,
-        app->current_room,
-        app->current_wall
+    return room_find_wall_by_id(
+        room,
+        app->current_wall_id
     );
 }

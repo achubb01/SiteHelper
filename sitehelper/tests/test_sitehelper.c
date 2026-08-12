@@ -4,6 +4,9 @@
 
 #include "wall.h"
 
+static const DomainId TEST_OPENING_ID = 1;
+static const DomainId TEST_OPENING_ID_2 = 2;
+
 // void wall_destroy(Wall *wall)
 // {
 //     if (wall == NULL) {
@@ -545,6 +548,7 @@ static void test_property_single_opening_geometry(void)
                                 wall_add_opening(
                                     &wall,
                                     &settings,
+                                    TEST_OPENING_ID,
                                     OPENING_WINDOW,
                                     opening_x,
                                     opening_bottoms[
@@ -981,6 +985,7 @@ static void test_add_opening(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_DOOR,
             1000,
             0,
@@ -1033,6 +1038,7 @@ static void test_reject_opening_outside_wall(void)
         !wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_DOOR,
             2500,
             0,
@@ -1063,6 +1069,7 @@ static void test_reject_opening_too_tall(void)
         !wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_DOOR,
             1000,
             0,
@@ -1097,6 +1104,7 @@ static void test_opening_removes_interfering_studs(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_DOOR,
             1000,
             0,
@@ -1190,6 +1198,7 @@ static void test_opening_places_king_studs(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_DOOR,
             1000,
             0,
@@ -1289,6 +1298,7 @@ static void test_opening_clear_width_matches_frame_width(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_DOOR,
             1000,
             0,
@@ -1380,6 +1390,7 @@ static void test_window_blocks_only_intersecting_noggins(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_WINDOW,
             1000,
             700,
@@ -1484,6 +1495,7 @@ static void test_door_places_trimmer_studs(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_DOOR,
             1000,
             0,
@@ -1650,6 +1662,7 @@ static void test_door_does_not_generate_header(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_DOOR,
             1000,
             0,
@@ -1708,6 +1721,7 @@ static void test_window_places_header_and_sill(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_WINDOW,
 
             1000,   /* frame_position */
@@ -1860,6 +1874,7 @@ static void test_window_places_lower_cripples(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_WINDOW,
             1000,
             700,
@@ -1941,6 +1956,7 @@ static void test_window_lower_cripple_spacing(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_WINDOW,
             1000,
             700,
@@ -2072,6 +2088,7 @@ static void test_window_places_upper_cripples(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_WINDOW,
             1000,
             700,
@@ -2167,6 +2184,7 @@ static void test_window_upper_and_lower_cripples_align(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_WINDOW,
             1000,
             700,
@@ -2297,6 +2315,7 @@ static void test_reject_overlapping_opening_assemblies(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_WINDOW,
             1000,
             700,
@@ -2314,6 +2333,7 @@ static void test_reject_overlapping_opening_assemblies(void)
         !wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID_2,
             OPENING_DOOR,
             1800,
             0,
@@ -2362,6 +2382,7 @@ static void test_accept_separated_openings(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_WINDOW,
             1000,
             700,
@@ -2374,6 +2395,7 @@ static void test_accept_separated_openings(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID_2,
             OPENING_DOOR,
             3000,
             0,
@@ -2417,6 +2439,7 @@ static void test_opening_does_not_break_max_stud_spacing(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_WINDOW,
             1700,
             700,
@@ -2464,6 +2487,7 @@ static void test_all_vertical_member_spacing_with_openings(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_WINDOW,
             1400,
             700,
@@ -2476,6 +2500,7 @@ static void test_all_vertical_member_spacing_with_openings(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID_2,
             OPENING_DOOR,
             3500,
             0,
@@ -2531,6 +2556,7 @@ static void test_opening_positions_preserve_spacing(void)
         if (!wall_add_opening(
                 &wall,
                 &settings,
+                TEST_OPENING_ID,
                 OPENING_WINDOW,
                 opening_x,
                 700,
@@ -2594,6 +2620,7 @@ static void test_repairs_spacing_after_opening(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_WINDOW,
             450,
             700,
@@ -2704,6 +2731,7 @@ test_wall_definition_survives_framing_destroy(void)
         wall_add_opening(
             &wall,
             &settings,
+            TEST_OPENING_ID,
             OPENING_WINDOW,
             1000,
             700,

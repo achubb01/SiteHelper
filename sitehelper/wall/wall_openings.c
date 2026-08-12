@@ -52,6 +52,7 @@ int opening_frame_height(
 int wall_add_opening(
     Wall *wall,
     const BuildSettings *settings,
+    DomainId opening_id,
     OpeningType type,
     int frame_position,
     int frame_bottom,
@@ -68,6 +69,10 @@ int wall_add_opening(
         return 0;
     }
 
+    if (opening_id == DOMAIN_ID_INVALID) {
+        return 0;
+    }
+
     if (frame_position < 0 ||
         frame_bottom < 0 ||
         width <= 0 ||
@@ -76,6 +81,7 @@ int wall_add_opening(
     }
 
     Opening opening = {
+        .id = opening_id,
         .type = type,
         .frame_position = frame_position,
         .frame_bottom = frame_bottom,
@@ -137,6 +143,58 @@ int wall_add_opening(
     wall->definition.opening_count++;
 
     return 1;
+}
+
+Opening *wall_find_opening_by_id(
+    Wall *wall,
+    DomainId opening_id
+)
+{
+    if (wall == NULL ||
+        opening_id == DOMAIN_ID_INVALID) {
+
+        return NULL;
+    }
+
+    for (size_t i = 0;
+         i < wall->definition.opening_count;
+         i++) {
+
+        Opening *opening =
+            &wall->definition.openings[i];
+
+        if (opening->id == opening_id) {
+            return opening;
+        }
+    }
+
+    return NULL;
+}
+
+const Opening *wall_find_opening_by_id_const(
+    const Wall *wall,
+    DomainId opening_id
+)
+{
+    if (wall == NULL ||
+        opening_id == DOMAIN_ID_INVALID) {
+
+        return NULL;
+    }
+
+    for (size_t i = 0;
+         i < wall->definition.opening_count;
+         i++) {
+
+        const Opening *opening =
+            &wall->definition.openings[i];
+
+        if (opening->id == opening_id) {
+            return opening;
+        }
+    }
+
+    return NULL;
 }
 
 int wall_opening_fits(
