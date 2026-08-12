@@ -343,12 +343,21 @@ static void sitehelper_app_render(
         &app->grid_style
     );
 
+    const WallSelection *selection =
+        wall_editor_get_selection(
+            &app->editor
+        );
+
+    const Timber *selected =
+        wall_selection_resolve(
+            selection,
+            &app->wall
+        );
+
     wall_render(
         app->renderer,
         &app->wall,
-        wall_editor_get_selection(
-            &app->editor
-        ),
+        selected,
         &app->wall_style
     );
 

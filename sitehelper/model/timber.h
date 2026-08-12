@@ -22,6 +22,15 @@ typedef enum
     STUD_CRIPPLE
 } StudType;
 
+typedef enum {
+    WALL_MEMBER_NONE,
+    WALL_MEMBER_BOTTOM_PLATE,
+    WALL_MEMBER_TOP_PLATE,
+    WALL_MEMBER_STUD,
+    WALL_MEMBER_NOGGIN,
+    WALL_MEMBER_GENERATED
+} WallMemberKind;
+
 typedef struct
 {
     StudType type;

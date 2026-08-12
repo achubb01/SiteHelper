@@ -13,7 +13,7 @@ typedef struct {
 void wall_render(
     Renderer2D *renderer,
     const Wall *wall,
-    const WallSelection *selection,
+    const Timber *selected,
     const WallRenderStyle *style
 );
 

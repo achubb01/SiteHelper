@@ -120,13 +120,18 @@ static const Timber *find_horizontal_timber_in_array(
 }
 
 
-const Timber *wall_find_timber_at_position(
+WallMemberHit wall_find_member_at_position(
     const Wall *wall,
     Position position
 )
 {
+    WallMemberHit hit = {
+        .kind = WALL_MEMBER_NONE,
+        .timber = NULL
+    };
+
     if (wall == NULL) {
-        return NULL;
+        return hit;
     }
 
     /*
@@ -138,14 +143,26 @@ const Timber *wall_find_timber_at_position(
             &wall->framing.bottomplate,
             position)) {
 
-        return &wall->framing.bottomplate;
+        hit.kind =
+            WALL_MEMBER_BOTTOM_PLATE;
+
+        hit.timber =
+            &wall->framing.bottomplate;
+
+        return hit;
     }
 
     if (horizontal_timber_contains_position(
             &wall->framing.topplate,
             position)) {
 
-        return &wall->framing.topplate;
+        hit.kind =
+            WALL_MEMBER_TOP_PLATE;
+
+        hit.timber =
+            &wall->framing.topplate;
+
+        return hit;
     }
 
     const Timber *selected =
@@ -156,7 +173,14 @@ const Timber *wall_find_timber_at_position(
         );
 
     if (selected != NULL) {
-        return selected;
+
+        hit.kind =
+            WALL_MEMBER_STUD;
+
+        hit.timber =
+            selected;
+
+        return hit;
     }
 
     selected =
@@ -167,7 +191,14 @@ const Timber *wall_find_timber_at_position(
         );
 
     if (selected != NULL) {
-        return selected;
+
+        hit.kind =
+            WALL_MEMBER_NOGGIN;
+
+        hit.timber =
+            selected;
+
+        return hit;
     }
 
     selected =
@@ -177,5 +208,14 @@ const Timber *wall_find_timber_at_position(
             position
         );
 
-    return selected;
+    if (selected != NULL) {
+
+        hit.kind =
+            WALL_MEMBER_GENERATED;
+
+        hit.timber =
+            selected;
+    }
+
+    return hit;
 }

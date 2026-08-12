@@ -3,7 +3,12 @@
 
 #include "sitehelper_model.h"
 
-const Timber *wall_find_timber_at_position(
+typedef struct {
+    WallMemberKind kind;
+    const Timber *timber;
+} WallMemberHit;
+
+WallMemberHit wall_find_member_at_position(
     const Wall *wall,
     Position position
 );

@@ -160,10 +160,6 @@ static void test_wall_render_draws_bottom_and_top_plate_and_studs(void)
         }
     };
 
-    WallSelection selection = {
-    .selected = NULL
-    };
-
     WallRenderStyle style = {
         .timber_colour = {
             .r = 200,
@@ -183,9 +179,10 @@ static void test_wall_render_draws_bottom_and_top_plate_and_studs(void)
     wall_render(
         renderer,
         &wall,
-        &selection,
+        NULL,
         &style
     );
+
     assert(state.fill_rect_called == 6);
 
     /* Bottom plate */
@@ -324,9 +321,152 @@ static void test_wall_render_draws_bottom_and_top_plate_and_studs(void)
     renderer2d_destroy(renderer);
 }
 
+static void test_wall_render_uses_selected_colour_for_selected_timber(void)
+{
+    Renderer2D *renderer =
+        renderer2d_create();
+
+    assert(renderer != NULL);
+
+    FakeBackendState state = {0};
+
+    RendererBackend backend = {
+        .context = &state,
+        .fill_rect = fake_fill_rect
+    };
+
+    renderer2d_set_backend(
+        renderer,
+        backend
+    );
+
+    renderer2d_set_viewport(
+        renderer,
+        (Vec2){0.0, 0.0},
+        800.0,
+        600.0
+    );
+
+    Camera2D camera = {
+        .position = {0.0, 0.0},
+        .scale = 0.1
+    };
+
+    renderer2d_set_camera(
+        renderer,
+        camera
+    );
+
+    Timber studs[] = {
+        {
+            .length = 2400,
+            .depth = 90,
+            .width = 35,
+
+            .position = {
+                .x = 600,
+                .y = 0
+            },
+
+            .type = TIMBER_STUD,
+
+            .details.stud = {
+                .type = STUD_COMMON
+            }
+        }
+    };
+
+    Wall wall = {
+        .framing.studs = studs,
+        .framing.stud_count = 1,
+
+        .framing.bottomplate = {
+            .length = 4200,
+            .width = 35,
+            .depth = 90,
+            .position = {0, 0},
+            .type = TIMBER_PLATE
+        },
+
+        .framing.topplate = {
+            .length = 4200,
+            .width = 35,
+            .depth = 90,
+            .position = {0, 2400},
+            .type = TIMBER_PLATE
+        }
+    };
+
+    WallRenderStyle style = {
+        .timber_colour = {
+            .r = 200,
+            .g = 160,
+            .b = 100,
+            .a = 255
+        },
+
+        .selected_colour = {
+            .r = 255,
+            .g = 220,
+            .b = 40,
+            .a = 255
+        }
+    };
+
+    wall_render(
+        renderer,
+        &wall,
+        &studs[0],
+        &style
+    );
+
+    /*
+     * Draw order:
+     *
+     * 0 bottom plate
+     * 1 top plate
+     * 2 stud
+     */
+
+    assert(
+        state.colours[0].r ==
+        style.timber_colour.r
+    );
+
+    assert(
+        state.colours[1].r ==
+        style.timber_colour.r
+    );
+
+    assert(
+        state.colours[2].r ==
+        style.selected_colour.r
+    );
+
+    assert(
+        state.colours[2].g ==
+        style.selected_colour.g
+    );
+
+    assert(
+        state.colours[2].b ==
+        style.selected_colour.b
+    );
+
+    assert(
+        state.colours[2].a ==
+        style.selected_colour.a
+    );
+
+    renderer2d_destroy(
+        renderer
+    );
+}
+
 int main(void)
 {
     test_wall_render_draws_bottom_and_top_plate_and_studs();
+    test_wall_render_uses_selected_colour_for_selected_timber();
 
     printf("wall render tests passed\n");
 

@@ -3,10 +3,12 @@
 
 #include <stdbool.h>
 
-#include "sitehelper_model.h"
+#include "build_structure.h"
+#include "timber.h"
 
 typedef struct {
-    const Timber *selected;
+    WallMemberKind kind;
+    Timber timber;
 } WallSelection;
 
 void wall_selection_init(
@@ -19,16 +21,22 @@ void wall_selection_clear(
 
 void wall_selection_set(
     WallSelection *selection,
+    WallMemberKind kind,
     const Timber *timber
 );
 
-const Timber *wall_selection_get(
+bool wall_selection_is_empty(
     const WallSelection *selection
 );
 
-bool wall_selection_contains(
+const Timber *wall_selection_resolve(
     const WallSelection *selection,
-    const Timber *timber
+    const Wall *wall
+);
+
+void wall_selection_reconcile(
+    WallSelection *selection,
+    const Wall *wall
 );
 
 #endif

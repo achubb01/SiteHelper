@@ -27,15 +27,16 @@ void wall_editor_select_at_position(
         return;
     }
 
-    const Timber *timber =
-        wall_find_timber_at_position(
+    WallMemberHit hit =
+        wall_find_member_at_position(
             wall,
             position
         );
 
     wall_selection_set(
         &editor->selection,
-        timber
+        hit.kind,
+        hit.timber
     );
 }
 

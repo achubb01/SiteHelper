@@ -1,17 +1,13 @@
 #include "wall_render.h"
-#include "wall_selection.h"
 
 
 static Colour timber_render_colour(
     const Timber *timber,
-    const WallSelection *selection,
+    const Timber *selected,
     const WallRenderStyle *style
 )
 {
-    if (wall_selection_contains(
-        selection,
-        timber)) {
-
+    if (timber == selected) {
         return style->selected_colour;
     }
 
@@ -22,14 +18,14 @@ static Colour timber_render_colour(
 static void draw_vertical_timber(
     Renderer2D *renderer,
     const Timber *timber,
-    const WallSelection *selection,
+    const Timber *selected,
     const WallRenderStyle *style
 )
 {
     Colour colour =
         timber_render_colour(
             timber,
-            selection,
+            selected,
             style
         );
 
@@ -57,14 +53,14 @@ static void draw_vertical_timber(
 static void draw_horizontal_timber(
     Renderer2D *renderer,
     const Timber *timber,
-    const WallSelection *selection,
+    const Timber *selected,
     const WallRenderStyle *style
 )
 {
     Colour colour =
         timber_render_colour(
             timber,
-            selection,
+            selected,
             style
         );
 
@@ -94,7 +90,7 @@ static void draw_timber_array(
     const Timber *timbers,
     size_t count,
     bool vertical,
-    const WallSelection *selection,
+    const Timber *selected,
     const WallRenderStyle *style
 )
 {
@@ -111,7 +107,7 @@ static void draw_timber_array(
             draw_vertical_timber(
                 renderer,
                 &timbers[i],
-                selection,
+                selected,
                 style
             );
 
@@ -120,7 +116,7 @@ static void draw_timber_array(
             draw_horizontal_timber(
                 renderer,
                 &timbers[i],
-                selection,
+                selected,
                 style
             );
         }
@@ -131,7 +127,7 @@ static void draw_timber_array(
 void wall_render(
     Renderer2D *renderer,
     const Wall *wall,
-    const WallSelection *selection,
+    const Timber *selected,
     const WallRenderStyle *style
 )
 {
@@ -145,14 +141,14 @@ void wall_render(
     draw_horizontal_timber(
         renderer,
         &wall->framing.bottomplate,
-        selection,
+        selected,
         style
     );
 
     draw_horizontal_timber(
         renderer,
         &wall->framing.topplate,
-        selection,
+        selected,
         style
     );
 
@@ -161,7 +157,7 @@ void wall_render(
         wall->framing.studs,
         wall->framing.stud_count,
         true,
-        selection,
+        selected,
         style
     );
 
@@ -170,7 +166,7 @@ void wall_render(
         wall->framing.nogs,
         wall->framing.nog_count,
         false,
-        selection,
+        selected,
         style
     );
 
@@ -179,7 +175,7 @@ void wall_render(
         wall->framing.members,
         wall->framing.member_count,
         false,
-        selection,
+        selected,
         style
     );
 }

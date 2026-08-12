@@ -32,13 +32,20 @@ static void test_finds_stud_at_world_position(void)
         .y = 1000
     };
 
-    const Timber *selected =
-        wall_find_timber_at_position(
+    WallMemberHit hit =
+        wall_find_member_at_position(
             &wall,
             position
         );
 
-    assert(selected == &studs[0]);
+    const Timber *result =
+        hit.timber;
+
+    assert(result == &studs[0]);
+    assert(
+        hit.kind ==
+        WALL_MEMBER_STUD
+    );
 }
 
 
@@ -62,13 +69,20 @@ static void test_finds_bottom_plate(void)
         .y = 20
     };
 
-    const Timber *selected =
-        wall_find_timber_at_position(
+    WallMemberHit hit =
+        wall_find_member_at_position(
             &wall,
             position
         );
 
-    assert(selected == &wall.framing.bottomplate);
+    const Timber *result =
+        hit.timber;
+
+    assert(result == &wall.framing.bottomplate);
+    assert(
+        hit.kind ==
+        WALL_MEMBER_BOTTOM_PLATE
+    );
 }
 
 
@@ -92,13 +106,20 @@ static void test_finds_top_plate(void)
         .y = 2420
     };
 
-    const Timber *selected =
-        wall_find_timber_at_position(
+    WallMemberHit hit =
+        wall_find_member_at_position(
             &wall,
             position
         );
 
-    assert(selected == &wall.framing.topplate);
+    const Timber *result =
+        hit.timber;
+
+    assert(result == &wall.framing.topplate);
+    assert(
+        hit.kind ==
+        WALL_MEMBER_TOP_PLATE
+    );
 }
 
 
@@ -130,13 +151,20 @@ static void test_finds_noggin(void)
         .y = 820
     };
 
-    const Timber *selected =
-        wall_find_timber_at_position(
+    WallMemberHit hit =
+        wall_find_member_at_position(
             &wall,
             position
         );
 
-    assert(selected == &nogs[0]);
+    const Timber *result =
+        hit.timber;
+
+    assert(result == &nogs[0]);
+    assert(
+        hit.kind ==
+        WALL_MEMBER_NOGGIN
+    );
 }
 
 
@@ -165,13 +193,20 @@ static void test_finds_header(void)
         .y = 1730
     };
 
-    const Timber *selected =
-        wall_find_timber_at_position(
+    WallMemberHit hit =
+        wall_find_member_at_position(
             &wall,
             position
         );
 
-    assert(selected == &members[0]);
+    const Timber *result =
+        hit.timber;
+
+    assert(result == &members[0]);
+    assert(
+        hit.kind ==
+        WALL_MEMBER_GENERATED
+    );
 }
 
 
@@ -200,13 +235,20 @@ static void test_finds_sill(void)
         .y = 720
     };
 
-    const Timber *selected =
-        wall_find_timber_at_position(
+    WallMemberHit hit =
+        wall_find_member_at_position(
             &wall,
             position
         );
 
-    assert(selected == &members[0]);
+    const Timber *result =
+        hit.timber;
+
+    assert(result == &members[0]);
+    assert(
+        hit.kind ==
+        WALL_MEMBER_GENERATED
+    );
 }
 
 
@@ -235,13 +277,24 @@ static void test_returns_null_for_empty_space(void)
         .y = 1000
     };
 
-    const Timber *selected =
-        wall_find_timber_at_position(
+    WallMemberHit hit =
+        wall_find_member_at_position(
             &wall,
             position
         );
 
-    assert(selected == NULL);
+    const Timber *result =
+        hit.timber;
+
+    assert(result == NULL);
+    assert(
+        hit.kind ==
+        WALL_MEMBER_NONE
+    );
+
+    assert(
+        hit.timber == NULL
+    );
 }
 
 
@@ -252,13 +305,16 @@ static void test_returns_null_for_null_wall(void)
         .y = 100
     };
 
-    const Timber *selected =
-        wall_find_timber_at_position(
+    WallMemberHit hit =
+        wall_find_member_at_position(
             NULL,
             position
         );
 
-    assert(selected == NULL);
+    const Timber *result =
+        hit.timber;
+
+    assert(result == NULL);
 }
 
 
