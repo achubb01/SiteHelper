@@ -1,5 +1,9 @@
 #include <stdlib.h>
 
+#include "sitehelper_project.h"
+#include "sitehelper_editor.h"
+#include "appstate.h"
+
 #include "domain_id.h"
 
 #include "snap.h"
@@ -27,10 +31,9 @@ typedef struct
     Renderer2D *renderer;
     RendererBackend backend;
 
-    Wall wall;
-    WallEditor editor;
-
-    DomainIdGenerator domain_ids;
+    SiteHelperProject project;
+    SiteHelperEditor editor;
+    WallEditor wall_editor;
 
     WallRenderStyle wall_style;
     GridRenderStyle grid_style;
@@ -39,8 +42,6 @@ typedef struct
     int snapped_cursor_visible;
 
     SnapSettings snap_settings;
-
-    BuildSettings build_settings;
 
     Colour background;
 
@@ -96,7 +97,60 @@ static void sitehelper_app_set_active_tool(
     EditorTool tool
 );
 
+static Wall *sitehelper_app_current_wall(
+    SiteHelperApp *app
+);
 
+static const Wall *sitehelper_app_current_wall_const(
+    const SiteHelperApp *app
+);
+
+static Wall *sitehelper_app_current_wall(
+    SiteHelperApp *app
+)
+{
+    if (app == NULL) {
+        return NULL;
+    }
+
+    return app_current_wall(
+        &app->project,
+        &app->editor
+    );
+}
+
+static const Wall *sitehelper_app_current_wall_const(
+    const SiteHelperApp *app
+)
+{
+    if (app == NULL) {
+        return NULL;
+    }
+
+    if (
+        app->editor.current_room_id ==
+            DOMAIN_ID_INVALID
+        || app->editor.current_wall_id ==
+            DOMAIN_ID_INVALID
+    ) {
+        return NULL;
+    }
+
+    const Room *room =
+        build_find_room_by_id_const(
+            &app->project.structure,
+            app->editor.current_room_id
+        );
+
+    if (room == NULL) {
+        return NULL;
+    }
+
+    return room_find_wall_by_id_const(
+        room,
+        app->editor.current_wall_id
+    );
+}
 
 static int sitehelper_app_init(
     SiteHelperApp *app
@@ -266,27 +320,84 @@ static int sitehelper_app_init(
         EDITOR_TOOL_SELECT
     );
     
-    app->build_settings = (BuildSettings){
-        .stud_height = 2400,
-        .stud_depth = 90,
-        .stud_width = 35,
-
-        .stud_spacing = 600,
-        .nog_spacing = 1200,
-
-        .opening_width_allowance = 0,
-        .opening_height_allowance = 0,
-
-        .stud_spacing_mode =
-            STUD_SPACING_MAXIMISE
-    };
-
-    domain_id_generator_init(
-        &app->domain_ids
+    sitehelper_project_init(
+        &app->project
     );
 
+    sitehelper_editor_init(
+        &app->editor
+    );
+
+    wall_editor_init(
+        &app->wall_editor
+    );
+
+    DomainId room_id =
+        domain_id_generate(
+            &app->project.domain_ids
+        );
+
+    if (room_id == DOMAIN_ID_INVALID) {
+        sitehelper_app_destroy(app);
+        return 0;
+    }
+
+    if (!build_add_room(
+            &app->project.structure,
+            room_id)) {
+
+        sitehelper_app_destroy(app);
+        return 0;
+    }
+
+    Room *room =
+        build_find_room_by_id(
+            &app->project.structure,
+            room_id
+        );
+
+    if (room == NULL) {
+        sitehelper_app_destroy(app);
+        return 0;
+    }
+
+    DomainId wall_id =
+        domain_id_generate(
+            &app->project.domain_ids
+        );
+
+    if (wall_id == DOMAIN_ID_INVALID) {
+        sitehelper_app_destroy(app);
+        return 0;
+    }
+
+    if (!room_add_wall(
+            room,
+            wall_id)) {
+
+        sitehelper_app_destroy(app);
+        return 0;
+    }
+
+    Wall *wall =
+        room_find_wall_by_id(
+            room,
+            wall_id
+        );
+
+    if (wall == NULL) {
+        sitehelper_app_destroy(app);
+        return 0;
+    }
+
+    app->editor.current_room_id =
+        room_id;
+
+    app->editor.current_wall_id =
+        wall_id;
+
     if (!wall_set_length(
-            &app->wall,
+            wall,
             4200)) {
 
         sitehelper_app_destroy(app);
@@ -294,16 +405,12 @@ static int sitehelper_app_init(
     }
 
     if (!wall_generate(
-            &app->wall,
-            &app->build_settings)) {
+            wall,
+            &app->project.settings)) {
 
         sitehelper_app_destroy(app);
         return 0;
     }
-
-    wall_editor_init(
-        &app->editor
-    );
 
     app->wall_style = (WallRenderStyle){
         .timber_colour = {
@@ -351,23 +458,30 @@ static void sitehelper_app_render(
         &app->grid_style
     );
 
-    const WallSelection *selection =
-        wall_editor_get_selection(
-            &app->editor
+    const Wall *wall =
+        sitehelper_app_current_wall_const(
+            app
         );
 
-    const Timber *selected =
-        wall_selection_resolve(
-            selection,
-            &app->wall
-        );
+    if (wall != NULL) {
+        const WallSelection *selection =
+            wall_editor_get_selection(
+                &app->wall_editor
+            );
 
-    wall_render(
-        app->renderer,
-        &app->wall,
-        selected,
-        &app->wall_style
-    );
+        const Timber *selected =
+            wall_selection_resolve(
+                selection,
+                wall
+            );
+
+        wall_render(
+            app->renderer,
+            wall,
+            selected,
+            &app->wall_style
+        );
+    }
 
     if (
         app->active_tool
@@ -605,12 +719,23 @@ static void sitehelper_app_process_events(
                     app->snap_result.position
                 );
 
-                app->opening_placement =
-                    opening_find_placement(
-                        &app->wall,
-                        app->snap_result.position,
-                        &app->opening_tool
+                Wall *wall =
+                    sitehelper_app_current_wall(
+                        app
                     );
+
+                if (wall != NULL) {
+                    app->opening_placement =
+                        opening_find_placement(
+                            wall,
+                            app->snap_result.position,
+                            &app->opening_tool
+                        );
+                }
+                else {
+                    app->opening_placement =
+                        (OpeningPlacement){0};
+                }
             }
             else {
                 app->opening_placement =
@@ -644,13 +769,23 @@ static void sitehelper_app_process_events(
             ) {
                 switch (app->active_tool) {
                     case EDITOR_TOOL_SELECT:
-                        select_at_screen_position(
-                            app->renderer,
-                            &app->editor,
-                            &app->wall,
-                            screen_position
-                        );
+                    {
+                        Wall *wall =
+                            sitehelper_app_current_wall(
+                                app
+                            );
+
+                        if (wall != NULL) {
+                            select_at_screen_position(
+                                app->renderer,
+                                &app->wall_editor,
+                                wall,
+                                screen_position
+                            );
+                        }
+
                         break;
+                    }
 
                     case EDITOR_TOOL_OPENING:
                     {
@@ -660,7 +795,7 @@ static void sitehelper_app_process_events(
 
                         DomainId opening_id =
                             domain_id_generate(
-                                &app->domain_ids
+                                &app->project.domain_ids
                             );
 
                         if (opening_id == DOMAIN_ID_INVALID) {
@@ -678,10 +813,20 @@ static void sitehelper_app_process_events(
                             break;
                         }
 
+                        Wall *wall =
+                            sitehelper_app_current_wall(
+                                app
+                            );
+
+                        if (wall == NULL) {
+                            break;
+                        }
+
                         if (!opening_command_execute(
-                                &app->wall,
-                                &app->build_settings,
+                                wall,
+                                &app->project.settings,
                                 &command)) {
+
                             break;
                         }
 
@@ -740,8 +885,8 @@ static void sitehelper_app_destroy(
         return;
     }
 
-    wall_destroy(
-        &app->wall
+    sitehelper_project_destroy(
+        &app->project
     );
 
     renderer2d_sdl_destroy_backend(
@@ -792,12 +937,21 @@ static void sitehelper_app_update_snap_cursor(
         MAX_SNAP_CANDIDATES
     ];
 
-    size_t candidate_count =
-        wall_collect_snap_candidates(
-            &app->wall,
-            candidates,
-            MAX_SNAP_CANDIDATES
+    Wall *wall =
+        sitehelper_app_current_wall(
+            app
         );
+
+    size_t candidate_count = 0;
+
+    if (wall != NULL) {
+        candidate_count =
+            wall_collect_snap_candidates(
+                wall,
+                candidates,
+                MAX_SNAP_CANDIDATES
+            );
+    }
 
     app->snap_result =
         editor_snap(
