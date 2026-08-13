@@ -14,4 +14,14 @@ Wall *app_current_wall(
     const SiteHelperEditor *editor
 );
 
+const Room *app_current_room_const(
+    const SiteHelperProject *project,
+    const SiteHelperEditor *editor
+);
+
+const Wall *app_current_wall_const(
+    const SiteHelperProject *project,
+    const SiteHelperEditor *editor
+);
+
 #endif

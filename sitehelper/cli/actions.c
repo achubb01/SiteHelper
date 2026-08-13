@@ -116,22 +116,11 @@ void addRoom(void *context)
     }
 
     DomainId room_id =
-        domain_id_generate(
-            &app->project.domain_ids
+        sitehelper_project_add_room(
+            &app->project
         );
 
     if (room_id == DOMAIN_ID_INVALID) {
-        fprintf(
-            stderr,
-            "Could not allocate room identity\n"
-        );
-        return;
-    }
-
-    if (!build_add_room(
-            &app->project.structure,
-            room_id)) {
-
         fprintf(
             stderr,
             "Could not add room\n"
@@ -178,22 +167,12 @@ void addWall(void *context)
     }
 
     DomainId wall_id =
-        domain_id_generate(
-            &app->project.domain_ids
+        sitehelper_project_add_wall(
+            &app->project,
+            app->editor.current_room_id
         );
 
     if (wall_id == DOMAIN_ID_INVALID) {
-        fprintf(
-            stderr,
-            "Could not allocate wall identity\n"
-        );
-        return;
-    }
-
-    if (!room_add_wall(
-            room,
-            wall_id)) {
-
         fprintf(
             stderr,
             "Could not add wall\n"

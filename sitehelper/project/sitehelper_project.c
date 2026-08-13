@@ -1,5 +1,7 @@
 #include "sitehelper_project.h"
 
+#include "wall.h"
+
 void sitehelper_project_init(
     SiteHelperProject *project
 )
@@ -43,4 +45,71 @@ void sitehelper_project_destroy(
     );
 
     *project = (SiteHelperProject){0};
+}
+
+DomainId sitehelper_project_add_room(
+    SiteHelperProject *project
+)
+{
+    if (project == NULL) {
+        return DOMAIN_ID_INVALID;
+    }
+
+    DomainId room_id =
+        domain_id_generate(
+            &project->domain_ids
+        );
+
+    if (room_id == DOMAIN_ID_INVALID) {
+        return DOMAIN_ID_INVALID;
+    }
+
+    if (!build_add_room(
+            &project->structure,
+            room_id)) {
+
+        return DOMAIN_ID_INVALID;
+    }
+
+    return room_id;
+}
+
+DomainId sitehelper_project_add_wall(
+    SiteHelperProject *project,
+    DomainId room_id
+)
+{
+    if (project == NULL ||
+        room_id == DOMAIN_ID_INVALID) {
+
+        return DOMAIN_ID_INVALID;
+    }
+
+    Room *room =
+        build_find_room_by_id(
+            &project->structure,
+            room_id
+        );
+
+    if (room == NULL) {
+        return DOMAIN_ID_INVALID;
+    }
+
+    DomainId wall_id =
+        domain_id_generate(
+            &project->domain_ids
+        );
+
+    if (wall_id == DOMAIN_ID_INVALID) {
+        return DOMAIN_ID_INVALID;
+    }
+
+    if (!room_add_wall(
+            room,
+            wall_id)) {
+
+        return DOMAIN_ID_INVALID;
+    }
+
+    return wall_id;
 }

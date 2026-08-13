@@ -101,9 +101,6 @@ static Wall *sitehelper_app_current_wall(
     SiteHelperApp *app
 );
 
-static const Wall *sitehelper_app_current_wall_const(
-    const SiteHelperApp *app
-);
 
 static Wall *sitehelper_app_current_wall(
     SiteHelperApp *app
@@ -116,39 +113,6 @@ static Wall *sitehelper_app_current_wall(
     return app_current_wall(
         &app->project,
         &app->editor
-    );
-}
-
-static const Wall *sitehelper_app_current_wall_const(
-    const SiteHelperApp *app
-)
-{
-    if (app == NULL) {
-        return NULL;
-    }
-
-    if (
-        app->editor.current_room_id ==
-            DOMAIN_ID_INVALID
-        || app->editor.current_wall_id ==
-            DOMAIN_ID_INVALID
-    ) {
-        return NULL;
-    }
-
-    const Room *room =
-        build_find_room_by_id_const(
-            &app->project.structure,
-            app->editor.current_room_id
-        );
-
-    if (room == NULL) {
-        return NULL;
-    }
-
-    return room_find_wall_by_id_const(
-        room,
-        app->editor.current_wall_id
     );
 }
 
@@ -333,19 +297,11 @@ static int sitehelper_app_init(
     );
 
     DomainId room_id =
-        domain_id_generate(
-            &app->project.domain_ids
+        sitehelper_project_add_room(
+            &app->project
         );
 
     if (room_id == DOMAIN_ID_INVALID) {
-        sitehelper_app_destroy(app);
-        return 0;
-    }
-
-    if (!build_add_room(
-            &app->project.structure,
-            room_id)) {
-
         sitehelper_app_destroy(app);
         return 0;
     }
@@ -362,19 +318,12 @@ static int sitehelper_app_init(
     }
 
     DomainId wall_id =
-        domain_id_generate(
-            &app->project.domain_ids
+        sitehelper_project_add_wall(
+            &app->project,
+            room_id
         );
 
     if (wall_id == DOMAIN_ID_INVALID) {
-        sitehelper_app_destroy(app);
-        return 0;
-    }
-
-    if (!room_add_wall(
-            room,
-            wall_id)) {
-
         sitehelper_app_destroy(app);
         return 0;
     }
@@ -459,8 +408,9 @@ static void sitehelper_app_render(
     );
 
     const Wall *wall =
-        sitehelper_app_current_wall_const(
-            app
+        app_current_wall_const(
+            &app->project,
+            &app->editor
         );
 
     if (wall != NULL) {

@@ -20,4 +20,13 @@ void sitehelper_project_destroy(
     SiteHelperProject *project
 );
 
+DomainId sitehelper_project_add_room(
+    SiteHelperProject *project
+);
+
+DomainId sitehelper_project_add_wall(
+    SiteHelperProject *project,
+    DomainId room_id
+);
+
 #endif
