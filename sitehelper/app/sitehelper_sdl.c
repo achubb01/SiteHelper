@@ -54,8 +54,6 @@ typedef struct
 
     GuiToolbar toolbar;
 
-    EditorTool active_tool;
-
     OpeningTool opening_tool;
 
     OpeningPlacement opening_placement;
@@ -268,8 +266,12 @@ static int sitehelper_app_init(
     
     };
 
-    sitehelper_app_layout_gui(
-        app
+    sitehelper_project_init(
+        &app->project
+    );
+
+    sitehelper_editor_init(
+        &app->editor
     );
 
     opening_tool_init(
@@ -281,15 +283,9 @@ static int sitehelper_app_init(
 
     sitehelper_app_set_active_tool(
         app,
-        EDITOR_TOOL_SELECT
-    );
-    
-    sitehelper_project_init(
-        &app->project
-    );
-
-    sitehelper_editor_init(
-        &app->editor
+        sitehelper_editor_get_active_tool(
+            &app->editor
+        )
     );
 
     wall_editor_init(
@@ -434,9 +430,10 @@ static void sitehelper_app_render(
     }
 
     if (
-        app->active_tool
-            == EDITOR_TOOL_OPENING
-        && app->opening_placement.valid
+        sitehelper_editor_get_active_tool(
+            &app->editor
+        )
+            == EDITOR_TOOL_OPENING && app->opening_placement.valid
     ) {
         Rect2 preview_rect = {
             .position = {
@@ -659,10 +656,10 @@ static void sitehelper_app_process_events(
             );
 
             if (
-                app->active_tool
-                    == EDITOR_TOOL_OPENING
-                && app->snap_result.type
-                    != SNAP_NONE
+                sitehelper_editor_get_active_tool(
+                    &app->editor
+                )
+                    == EDITOR_TOOL_OPENING && app->snap_result.type != SNAP_NONE
             ) {
                 opening_tool_update_preview(
                     &app->opening_tool,
@@ -717,7 +714,11 @@ static void sitehelper_app_process_events(
                     screen_position
                 )
             ) {
-                switch (app->active_tool) {
+                switch (
+                    sitehelper_editor_get_active_tool(
+                        &app->editor
+                    )
+                ) {
                     case EDITOR_TOOL_SELECT:
                     {
                         Wall *wall =
@@ -821,7 +822,9 @@ static void sitehelper_app_process_events(
 
             sitehelper_app_set_active_tool(
                 app,
-                app->active_tool
+                sitehelper_editor_get_active_tool(
+                    &app->editor
+                )
             );
         }
     }
@@ -1015,15 +1018,15 @@ static void sitehelper_app_set_active_tool(
     EditorTool tool
 )
 {
-    if (
-        app == NULL
-        || tool < 0
-        || tool >= EDITOR_TOOL_COUNT
-    ) {
+    if (app == NULL) {
         return;
     }
 
-    app->active_tool = tool;
+    if (!sitehelper_editor_set_active_tool(
+            &app->editor,
+            tool)) {
+        return;
+    }
 
     for (
         size_t i = 0;
