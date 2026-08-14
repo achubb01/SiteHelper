@@ -4,6 +4,7 @@
 #include "domain_id.h"
 #include "editor_tool.h"
 #include "editor_selection.h"
+#include "editor_snap_state.h"
 
 typedef struct
 {
@@ -13,6 +14,8 @@ typedef struct
     EditorTool active_tool;
 
     EditorSelection selection;
+
+    EditorSnapState snap;
 } SiteHelperEditor;
 
 void sitehelper_editor_init(
@@ -46,6 +49,29 @@ void sitehelper_editor_reconcile_wall_selection(
 const EditorSelection *
 sitehelper_editor_get_selection(
     const SiteHelperEditor *editor
+);
+
+const SnapResult *
+sitehelper_editor_get_snap_result(
+    const SiteHelperEditor *editor
+);
+
+const SnapSettings *
+sitehelper_editor_get_snap_settings(
+    const SiteHelperEditor *editor
+);
+
+int sitehelper_editor_has_snap(
+    const SiteHelperEditor *editor
+);
+
+void sitehelper_editor_clear_snap(
+    SiteHelperEditor *editor
+);
+
+void sitehelper_editor_set_snap_result(
+    SiteHelperEditor *editor,
+    SnapResult result
 );
 
 #endif

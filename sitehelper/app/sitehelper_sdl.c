@@ -36,11 +36,6 @@ typedef struct
     WallRenderStyle wall_style;
     GridRenderStyle grid_style;
 
-    SnapResult snap_result;
-    int snapped_cursor_visible;
-
-    SnapSettings snap_settings;
-
     Colour background;
 
     GuiLayout gui_layout;
@@ -181,23 +176,6 @@ static int sitehelper_app_init(
 
         .minimum_screen_spacing = 16.0
     };
-
-    app->snap_settings = (SnapSettings){
-        .grid_enabled = 1,
-        .grid_spacing = 100.0,
-
-        .endpoint_enabled = 1,
-        .intersection_enabled = 1,
-
-        .object_snap_tolerance = 80.0
-    };
-
-    app->snap_result = (SnapResult){
-        .position = {0.0, 0.0},
-        .type = SNAP_NONE
-    };
-
-    app->snapped_cursor_visible = 0;
 
     app->gui_layout =
         gui_layout_create(
@@ -655,15 +633,24 @@ static void sitehelper_app_process_events(
                 screen_position
             );
 
+            const SnapResult *snap_result =
+                sitehelper_editor_get_snap_result(
+                    &app->editor
+                );
+
             if (
                 sitehelper_editor_get_active_tool(
                     &app->editor
                 )
-                    == EDITOR_TOOL_OPENING && app->snap_result.type != SNAP_NONE
+                    == EDITOR_TOOL_OPENING
+                && sitehelper_editor_has_snap(
+                    &app->editor
+                )
+                && snap_result != NULL
             ) {
                 opening_tool_update_preview(
                     &app->opening_tool,
-                    app->snap_result.position
+                    snap_result->position
                 );
 
                 Wall *wall =
@@ -675,7 +662,7 @@ static void sitehelper_app_process_events(
                     app->opening_placement =
                         opening_find_placement(
                             wall,
-                            app->snap_result.position,
+                            snap_result->position,
                             &app->opening_tool
                         );
                 }
@@ -865,6 +852,19 @@ static void sitehelper_app_update_snap_cursor(
         return;
     }
 
+    if (
+        !rect2_contains_point(
+            app->gui_layout.viewport,
+            screen_position
+        )
+    ) {
+        sitehelper_editor_clear_snap(
+            &app->editor
+        );
+
+        return;
+    }
+
     Camera2D camera =
         renderer2d_get_camera(
             app->renderer
@@ -906,16 +906,23 @@ static void sitehelper_app_update_snap_cursor(
             );
     }
 
-    app->snap_result =
+    const SnapSettings *snap_settings =
+        sitehelper_editor_get_snap_settings(
+            &app->editor
+        );
+
+    SnapResult result =
         editor_snap(
             world_position,
             candidates,
             candidate_count,
-            &app->snap_settings
+            snap_settings
         );
 
-    app->snapped_cursor_visible =
-        app->snap_result.type != SNAP_NONE;
+    sitehelper_editor_set_snap_result(
+        &app->editor,
+        result
+    );
 }
 
 static void sitehelper_app_render_snap_cursor(
@@ -925,8 +932,19 @@ static void sitehelper_app_render_snap_cursor(
     if (
         app == NULL
         || app->renderer == NULL
-        || !app->snapped_cursor_visible
+        || !sitehelper_editor_has_snap(
+            &app->editor
+        )
     ) {
+        return;
+    }
+
+    const SnapResult *snap_result =
+        sitehelper_editor_get_snap_result(
+            &app->editor
+        );
+
+    if (snap_result == NULL) {
         return;
     }
 
@@ -935,7 +953,7 @@ static void sitehelper_app_render_snap_cursor(
 
     Colour marker_colour;
 
-    switch (app->snap_result.type) {
+    switch (snap_result->type) {
         case SNAP_ENDPOINT:
             marker_colour = (Colour){
                 .r = 255,
@@ -968,7 +986,7 @@ static void sitehelper_app_render_snap_cursor(
     }
 
     Vec2 position =
-        app->snap_result.position;
+        snap_result->position;
 
     renderer2d_draw_line(
         app->renderer,

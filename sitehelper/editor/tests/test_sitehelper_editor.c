@@ -349,6 +349,111 @@ static void test_editor_selecting_null_wall_preserves_selection(void)
     );
 }
 
+static void test_editor_initialises_without_snap(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    assert(
+        !sitehelper_editor_has_snap(
+            &editor
+        )
+    );
+}
+
+static void test_editor_exposes_default_snap_settings(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    const SnapSettings *settings =
+        sitehelper_editor_get_snap_settings(
+            &editor
+        );
+
+    assert(settings != NULL);
+
+    assert(settings->grid_enabled == 1);
+    assert(settings->grid_spacing == 100.0);
+}
+
+static void test_editor_can_store_snap_result(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_snap_result(
+        &editor,
+        (SnapResult){
+            .position = {
+                .x = 300.0,
+                .y = 500.0
+            },
+
+            .type = SNAP_ENDPOINT
+        }
+    );
+
+    assert(
+        sitehelper_editor_has_snap(
+            &editor
+        )
+    );
+
+    const SnapResult *result =
+        sitehelper_editor_get_snap_result(
+            &editor
+        );
+
+    assert(result != NULL);
+
+    assert(result->position.x == 300.0);
+    assert(result->position.y == 500.0);
+    assert(result->type == SNAP_ENDPOINT);
+}
+
+static void test_editor_can_clear_snap(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_snap_result(
+        &editor,
+        (SnapResult){
+            .position = {
+                .x = 300.0,
+                .y = 500.0
+            },
+
+            .type = SNAP_ENDPOINT
+        }
+    );
+
+    sitehelper_editor_clear_snap(
+        &editor
+    );
+
+    assert(
+        !sitehelper_editor_has_snap(
+            &editor
+        )
+    );
+}
+
+
+
 int main(void)
 {
     test_editor_init_has_no_current_room();
@@ -361,7 +466,10 @@ int main(void)
     test_editor_clicking_empty_space_clears_selection();
     test_editor_clear_selection_clears_selection();
     test_editor_selecting_null_wall_preserves_selection();
-    
+    test_editor_initialises_without_snap();
+    test_editor_exposes_default_snap_settings();
+    test_editor_can_store_snap_result();
+    test_editor_can_clear_snap();
 
     printf(
         "All SiteHelper editor tests passed.\n"

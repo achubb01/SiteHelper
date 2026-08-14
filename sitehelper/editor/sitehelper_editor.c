@@ -37,6 +37,10 @@ void sitehelper_editor_init(
     editor_selection_init(
         &editor->selection
     );
+
+    editor_snap_state_init(
+        &editor->snap
+    );
 }
 
 EditorTool sitehelper_editor_get_active_tool(
@@ -139,4 +143,73 @@ sitehelper_editor_get_selection(
     }
 
     return &editor->selection;
+}
+
+const SnapResult *
+sitehelper_editor_get_snap_result(
+    const SiteHelperEditor *editor
+)
+{
+    if (editor == NULL) {
+        return NULL;
+    }
+
+    return editor_snap_state_get_result(
+        &editor->snap
+    );
+}
+
+const SnapSettings *
+sitehelper_editor_get_snap_settings(
+    const SiteHelperEditor *editor
+)
+{
+    if (editor == NULL) {
+        return NULL;
+    }
+
+    return editor_snap_state_get_settings(
+        &editor->snap
+    );
+}
+
+int sitehelper_editor_has_snap(
+    const SiteHelperEditor *editor
+)
+{
+    if (editor == NULL) {
+        return 0;
+    }
+
+    return editor_snap_state_has_snap(
+        &editor->snap
+    );
+}
+
+void sitehelper_editor_clear_snap(
+    SiteHelperEditor *editor
+)
+{
+    if (editor == NULL) {
+        return;
+    }
+
+    editor_snap_state_clear(
+        &editor->snap
+    );
+}
+
+void sitehelper_editor_set_snap_result(
+    SiteHelperEditor *editor,
+    SnapResult result
+)
+{
+    if (editor == NULL) {
+        return;
+    }
+
+    editor_snap_state_set_result(
+        &editor->snap,
+        result
+    );
 }
