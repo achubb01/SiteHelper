@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include "sitehelper_editor.h"
 #include "wall_query.h"
+#include "wall_snap.h"
 
 int sitehelper_editor_set_active_tool(
     SiteHelperEditor *editor,
@@ -207,6 +208,62 @@ void sitehelper_editor_set_snap_result(
     if (editor == NULL) {
         return;
     }
+
+    editor_snap_state_set_result(
+        &editor->snap,
+        result
+    );
+}
+
+void sitehelper_editor_update_snap(
+    SiteHelperEditor *editor,
+    const Wall *wall,
+    Vec2 world_position
+)
+{
+    if (editor == NULL) {
+        return;
+    }
+
+    enum {
+        MAX_SNAP_CANDIDATES = 256
+    };
+
+    SnapCandidate candidates[
+        MAX_SNAP_CANDIDATES
+    ];
+
+    size_t candidate_count = 0;
+
+    if (wall != NULL) {
+        candidate_count =
+            wall_collect_snap_candidates(
+                wall,
+                candidates,
+                MAX_SNAP_CANDIDATES
+            );
+    }
+
+    const SnapSettings *settings =
+        editor_snap_state_get_settings(
+            &editor->snap
+        );
+
+    if (settings == NULL) {
+        editor_snap_state_clear(
+            &editor->snap
+        );
+
+        return;
+    }
+
+    SnapResult result =
+        editor_snap(
+            world_position,
+            candidates,
+            candidate_count,
+            settings
+        );
 
     editor_snap_state_set_result(
         &editor->snap,

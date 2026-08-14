@@ -6,14 +6,12 @@
 
 #include "domain_id.h"
 
-#include "snap.h"
 #include "editor_tool.h"
 #include "opening_tool.h"
 #include "opening_placement.h"
 #include "opening_command.h"
 
 #include "wall_render.h"
-#include "wall_snap.h"
 
 #include "grid_render.h"
 
@@ -882,46 +880,15 @@ static void sitehelper_app_update_snap_cursor(
             screen_position
         );
 
-    enum {
-        MAX_SNAP_CANDIDATES = 256
-    };
-
-    SnapCandidate candidates[
-        MAX_SNAP_CANDIDATES
-    ];
-
     Wall *wall =
         sitehelper_app_current_wall(
             app
         );
 
-    size_t candidate_count = 0;
-
-    if (wall != NULL) {
-        candidate_count =
-            wall_collect_snap_candidates(
-                wall,
-                candidates,
-                MAX_SNAP_CANDIDATES
-            );
-    }
-
-    const SnapSettings *snap_settings =
-        sitehelper_editor_get_snap_settings(
-            &app->editor
-        );
-
-    SnapResult result =
-        editor_snap(
-            world_position,
-            candidates,
-            candidate_count,
-            snap_settings
-        );
-
-    sitehelper_editor_set_snap_result(
+    sitehelper_editor_update_snap(
         &app->editor,
-        result
+        wall,
+        world_position
     );
 }
 

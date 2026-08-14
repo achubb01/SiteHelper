@@ -74,4 +74,10 @@ void sitehelper_editor_set_snap_result(
     SnapResult result
 );
 
+void sitehelper_editor_update_snap(
+    SiteHelperEditor *editor,
+    const Wall *wall,
+    Vec2 world_position
+);
+
 #endif

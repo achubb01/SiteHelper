@@ -452,7 +452,131 @@ static void test_editor_can_clear_snap(void)
     );
 }
 
+static void test_editor_updates_grid_snap_without_wall(void)
+{
+    SiteHelperEditor editor;
 
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_update_snap(
+        &editor,
+        NULL,
+        (Vec2){
+            .x = 103.0,
+            .y = 198.0
+        }
+    );
+
+    const SnapResult *result =
+        sitehelper_editor_get_snap_result(
+            &editor
+        );
+
+    assert(result != NULL);
+    assert(result->type == SNAP_GRID);
+
+    assert(result->position.x == 100.0);
+    assert(result->position.y == 200.0);
+}
+
+static void test_editor_updates_snap_from_wall_candidates(void)
+{
+    Timber stud = {
+        .length = 2400,
+
+        .position = {
+            .x = 600,
+            .y = 0
+        },
+
+        .type = TIMBER_STUD
+    };
+
+    Wall wall = {
+        .framing.studs = &stud,
+        .framing.stud_count = 1
+    };
+
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_update_snap(
+        &editor,
+        &wall,
+        (Vec2){
+            .x = 620.0,
+            .y = 20.0
+        }
+    );
+
+    const SnapResult *result =
+        sitehelper_editor_get_snap_result(
+            &editor
+        );
+
+    assert(result != NULL);
+
+    assert(
+        result->type
+        == SNAP_ENDPOINT
+    );
+
+    assert(
+        result->position.x
+        == 600.0
+    );
+
+    assert(
+        result->position.y
+        == 0.0
+    );
+}
+
+static void test_editor_snap_update_replaces_previous_result(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_snap_result(
+        &editor,
+        (SnapResult){
+            .position = {
+                .x = 999.0,
+                .y = 999.0
+            },
+            .type = SNAP_ENDPOINT
+        }
+    );
+
+    sitehelper_editor_update_snap(
+        &editor,
+        NULL,
+        (Vec2){
+            .x = 101.0,
+            .y = 201.0
+        }
+    );
+
+    const SnapResult *result =
+        sitehelper_editor_get_snap_result(
+            &editor
+        );
+
+    assert(result != NULL);
+
+    assert(
+        result->position.x != 999.0
+        || result->position.y != 999.0
+    );
+}
 
 int main(void)
 {
@@ -470,6 +594,9 @@ int main(void)
     test_editor_exposes_default_snap_settings();
     test_editor_can_store_snap_result();
     test_editor_can_clear_snap();
+    test_editor_updates_grid_snap_without_wall();
+    test_editor_updates_snap_from_wall_candidates();
+    test_editor_snap_update_replaces_previous_result();
 
     printf(
         "All SiteHelper editor tests passed.\n"
