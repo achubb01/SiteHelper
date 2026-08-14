@@ -7,6 +7,7 @@ add_library(sitehelper_core
 
     editor/sitehelper_editor.c
     editor/editor_selection.c
+    editor/editor_snap_state.c
     editor/snap.c
     editor/opening_tool.c
     editor/opening_placement.c
@@ -347,6 +348,22 @@ target_link_libraries(test_editor_selection
 add_test(
     NAME editor_selection_tests
     COMMAND test_editor_selection
+)
+
+add_executable(
+    test_editor_snap_state
+    editor/tests/test_editor_snap_state.c
+)
+
+target_link_libraries(
+    test_editor_snap_state
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME editor_snap_state_tests
+    COMMAND test_editor_snap_state
 )
 
 add_executable(sitehelper
