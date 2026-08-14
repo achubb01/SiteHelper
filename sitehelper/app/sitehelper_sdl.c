@@ -12,7 +12,6 @@
 #include "opening_placement.h"
 #include "opening_command.h"
 
-#include "wall_editor.h"
 #include "wall_render.h"
 #include "wall_snap.h"
 
@@ -33,7 +32,6 @@ typedef struct
 
     SiteHelperProject project;
     SiteHelperEditor editor;
-    WallEditor wall_editor;
 
     WallRenderStyle wall_style;
     GridRenderStyle grid_style;
@@ -288,10 +286,6 @@ static int sitehelper_app_init(
         )
     );
 
-    wall_editor_init(
-        &app->wall_editor
-    );
-
     DomainId room_id =
         sitehelper_project_add_room(
             &app->project
@@ -410,14 +404,20 @@ static void sitehelper_app_render(
         );
 
     if (wall != NULL) {
-        const WallSelection *selection =
-            wall_editor_get_selection(
-                &app->wall_editor
+        const EditorSelection *selection =
+            sitehelper_editor_get_selection(
+                &app->editor
+            );
+
+        const WallSelection *wall_selection =
+            editor_selection_get_wall_member(
+                selection,
+                wall->id
             );
 
         const Timber *selected =
             wall_selection_resolve(
-                selection,
+                wall_selection,
                 wall
             );
 
@@ -485,7 +485,7 @@ static void sitehelper_app_render(
 
 static void select_at_screen_position(
     Renderer2D *renderer,
-    WallEditor *editor,
+    SiteHelperEditor *editor,
     const Wall *wall,
     Vec2 screen_position
 )
@@ -516,7 +516,7 @@ static void select_at_screen_position(
         .y = (int)world_position.y
     };
 
-    wall_editor_select_at_position(
+    sitehelper_editor_select_wall_member_at_position(
         editor,
         wall,
         position
@@ -729,7 +729,7 @@ static void sitehelper_app_process_events(
                         if (wall != NULL) {
                             select_at_screen_position(
                                 app->renderer,
-                                &app->wall_editor,
+                                &app->editor,
                                 wall,
                                 screen_position
                             );

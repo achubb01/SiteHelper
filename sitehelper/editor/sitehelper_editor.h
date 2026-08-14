@@ -3,6 +3,7 @@
 
 #include "domain_id.h"
 #include "editor_tool.h"
+#include "editor_selection.h"
 
 typedef struct
 {
@@ -10,6 +11,8 @@ typedef struct
     DomainId current_wall_id;
 
     EditorTool active_tool;
+
+    EditorSelection selection;
 } SiteHelperEditor;
 
 void sitehelper_editor_init(
@@ -22,6 +25,26 @@ int sitehelper_editor_set_active_tool(
 );
 
 EditorTool sitehelper_editor_get_active_tool(
+    const SiteHelperEditor *editor
+);
+
+void sitehelper_editor_clear_selection(
+    SiteHelperEditor *editor
+);
+
+void sitehelper_editor_select_wall_member_at_position(
+    SiteHelperEditor *editor,
+    const Wall *wall,
+    Position position
+);
+
+void sitehelper_editor_reconcile_wall_selection(
+    SiteHelperEditor *editor,
+    const Wall *wall
+);
+
+const EditorSelection *
+sitehelper_editor_get_selection(
     const SiteHelperEditor *editor
 );
 

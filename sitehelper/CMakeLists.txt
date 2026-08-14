@@ -6,6 +6,7 @@ add_library(sitehelper_core
     domain/domain_id.c
 
     editor/sitehelper_editor.c
+    editor/editor_selection.c
     editor/snap.c
     editor/opening_tool.c
     editor/opening_placement.c
@@ -22,7 +23,6 @@ add_library(sitehelper_core
     wall/wall_render.c
     wall/wall_query.c
     wall/wall_selection.c
-    wall/wall_editor.c
     wall/wall_snap.c
 
     gui/gui_layout.c
@@ -123,20 +123,6 @@ target_link_libraries(test_wall_selection
 add_test(
     NAME wall_selection_tests
     COMMAND test_wall_selection
-)
-
-add_executable(test_wall_editor
-    wall/tests/test_wall_editor.c
-)
-
-target_link_libraries(test_wall_editor
-    PRIVATE
-        sitehelper_core
-)
-
-add_test(
-    NAME wall_editor_tests
-    COMMAND test_wall_editor
 )
 
 add_executable(test_grid_render
@@ -347,6 +333,20 @@ target_link_libraries(test_sitehelper_editor
 add_test(
     NAME sitehelper_editor_tests
     COMMAND test_sitehelper_editor
+)
+
+add_executable(test_editor_selection
+    editor/tests/test_editor_selection.c
+)
+
+target_link_libraries(test_editor_selection
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME editor_selection_tests
+    COMMAND test_editor_selection
 )
 
 add_executable(sitehelper
