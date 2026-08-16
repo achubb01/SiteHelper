@@ -399,11 +399,10 @@ static void sitehelper_app_render(
         );
 
     if (
-        sitehelper_editor_get_active_tool(
+        sitehelper_editor_has_opening_preview(
             &app->editor
-        ) == EDITOR_TOOL_OPENING
+        )
         && placement != NULL
-        && placement->valid
     ) {
         Rect2 preview_rect = {
             .position = {

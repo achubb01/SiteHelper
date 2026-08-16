@@ -123,4 +123,8 @@ int sitehelper_editor_primary_action_requires_id(
     const SiteHelperEditor *editor
 );
 
+int sitehelper_editor_has_opening_preview(
+    const SiteHelperEditor *editor
+);
+
 #endif

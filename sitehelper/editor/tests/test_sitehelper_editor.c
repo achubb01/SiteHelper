@@ -1182,6 +1182,59 @@ static void test_select_primary_action_does_not_require_id(void)
     );
 }
 
+static void test_editor_has_opening_preview_when_opening_placement_valid(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_active_tool(
+        &editor,
+        EDITOR_TOOL_OPENING
+    );
+
+    editor.opening_placement =
+        (OpeningPlacement){
+            .valid = 1,
+            .left = 600.0,
+            .bottom = 900.0,
+            .width = 1200,
+            .height = 1200
+        };
+
+    assert(
+        sitehelper_editor_has_opening_preview(
+            &editor
+        )
+    );
+}
+
+static void test_editor_has_no_opening_preview_in_select_mode(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    editor.opening_placement =
+        (OpeningPlacement){
+            .valid = 1,
+            .left = 600.0,
+            .bottom = 900.0,
+            .width = 1200,
+            .height = 1200
+        };
+
+    assert(
+        !sitehelper_editor_has_opening_preview(
+            &editor
+        )
+    );
+}
+
 int main(void)
 {
     test_editor_init_has_no_current_room();
@@ -1218,6 +1271,8 @@ int main(void)
     test_opening_primary_action_produces_command();
     test_opening_primary_action_requires_id();
     test_select_primary_action_does_not_require_id();
+    test_editor_has_opening_preview_when_opening_placement_valid();
+    test_editor_has_no_opening_preview_in_select_mode();
 
     printf(
         "All SiteHelper editor tests passed.\n"

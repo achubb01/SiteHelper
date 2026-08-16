@@ -493,3 +493,17 @@ int sitehelper_editor_primary_action_requires_id(
             return 0;
     }
 }
+
+int sitehelper_editor_has_opening_preview(
+    const SiteHelperEditor *editor
+)
+{
+    if (editor == NULL) {
+        return 0;
+    }
+
+    return
+        editor->active_tool
+            == EDITOR_TOOL_OPENING
+        && editor->opening_placement.valid;
+}
