@@ -507,3 +507,34 @@ int sitehelper_editor_has_opening_preview(
             == EDITOR_TOOL_OPENING
         && editor->opening_placement.valid;
 }
+
+int sitehelper_editor_get_opening_preview_rect(
+    const SiteHelperEditor *editor,
+    Rect2 *rect
+)
+{
+    if (
+        editor == NULL
+        || rect == NULL
+        || !sitehelper_editor_has_opening_preview(
+            editor
+        )
+    ) {
+        return 0;
+    }
+
+    *rect = (Rect2){
+        .position = {
+            .x = editor->opening_placement.left,
+            .y = editor->opening_placement.bottom
+        },
+
+        .width =
+            (double)editor->opening_placement.width,
+
+        .height =
+            (double)editor->opening_placement.height
+    };
+
+    return 1;
+}

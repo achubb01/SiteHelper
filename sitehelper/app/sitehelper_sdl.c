@@ -393,30 +393,14 @@ static void sitehelper_app_render(
         );
     }
 
-    const OpeningPlacement *placement =
-        sitehelper_editor_get_opening_placement(
-            &app->editor
-        );
+    Rect2 preview_rect;
 
     if (
-        sitehelper_editor_has_opening_preview(
-            &app->editor
+        sitehelper_editor_get_opening_preview_rect(
+            &app->editor,
+            &preview_rect
         )
-        && placement != NULL
     ) {
-        Rect2 preview_rect = {
-            .position = {
-                .x = placement->left,
-                .y = placement->bottom
-            },
-
-            .width =
-                (double)placement->width,
-
-            .height =
-                (double)placement->height
-        };
-
         renderer2d_draw_rect(
             app->renderer,
             preview_rect,

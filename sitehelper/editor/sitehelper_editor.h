@@ -127,4 +127,9 @@ int sitehelper_editor_has_opening_preview(
     const SiteHelperEditor *editor
 );
 
+int sitehelper_editor_get_opening_preview_rect(
+    const SiteHelperEditor *editor,
+    Rect2 *rect
+);
+
 #endif
