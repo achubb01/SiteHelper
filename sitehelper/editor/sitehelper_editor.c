@@ -401,3 +401,76 @@ int sitehelper_editor_create_opening_command(
         command
     );
 }
+
+void sitehelper_editor_complete_opening_command(
+    SiteHelperEditor *editor
+)
+{
+    if (editor == NULL) {
+        return;
+    }
+
+    editor->opening_placement =
+        (OpeningPlacement){0};
+}
+
+int sitehelper_editor_primary_action(
+    SiteHelperEditor *editor,
+    const Wall *wall,
+    Vec2 world_position,
+    DomainId command_id,
+    EditorAction *action
+)
+{
+    if (
+        editor == NULL
+        || action == NULL
+    ) {
+        return 0;
+    }
+
+    *action = (EditorAction){
+        .kind = EDITOR_ACTION_NONE
+    };
+
+    switch (editor->active_tool) {
+        case EDITOR_TOOL_SELECT:
+        {
+            if (wall == NULL) {
+                return 1;
+            }
+
+            Position position = {
+                .x = (int)world_position.x,
+                .y = (int)world_position.y
+            };
+
+            sitehelper_editor_select_wall_member_at_position(
+                editor,
+                wall,
+                position
+            );
+
+            return 1;
+        }
+
+        case EDITOR_TOOL_OPENING:
+        {
+            if (!sitehelper_editor_create_opening_command(
+                    editor,
+                    command_id,
+                    &action->opening_command)) {
+                return 0;
+            }
+
+            action->kind =
+                EDITOR_ACTION_OPENING_COMMAND;
+
+            return 1;
+        }
+        
+        case EDITOR_TOOL_WALL:
+        default:
+            return 1;
+    }
+}

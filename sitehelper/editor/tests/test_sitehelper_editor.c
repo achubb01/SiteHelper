@@ -920,6 +920,233 @@ static void test_editor_rejects_invalid_opening_command_id(void)
     );
 }
 
+static void test_editor_completing_opening_command_clears_placement(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_active_tool(
+        &editor,
+        EDITOR_TOOL_OPENING
+    );
+
+    editor.opening_placement =
+        (OpeningPlacement){
+            .valid = 1,
+            .left = 600.0,
+            .bottom = 900.0,
+            .width = 1200,
+            .height = 1200
+        };
+
+    sitehelper_editor_complete_opening_command(
+        &editor
+    );
+
+    const OpeningPlacement *placement =
+        sitehelper_editor_get_opening_placement(
+            &editor
+        );
+
+    assert(placement != NULL);
+    assert(!placement->valid);
+}
+
+static void test_editor_complete_opening_command_accepts_null(void)
+{
+    sitehelper_editor_complete_opening_command(
+        NULL
+    );
+}
+
+static void test_select_primary_action_selects_wall_member(void)
+{
+    Timber stud =
+        make_test_stud();
+
+    Wall wall = {
+        .id = 10,
+
+        .framing.studs = &stud,
+        .framing.stud_count = 1
+    };
+
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    EditorAction action;
+
+    assert(
+        sitehelper_editor_primary_action(
+            &editor,
+            &wall,
+            (Vec2){
+                .x = 120.0,
+                .y = 1000.0
+            },
+            DOMAIN_ID_INVALID,
+            &action
+        )
+    );
+
+    assert(
+        action.kind
+        == EDITOR_ACTION_NONE
+    );
+
+    const EditorSelection *selection =
+        sitehelper_editor_get_selection(
+            &editor
+        );
+
+    const WallSelection *wall_selection =
+        editor_selection_get_wall_member(
+            selection,
+            wall.id
+        );
+
+    assert(wall_selection != NULL);
+
+    assert(
+        wall_selection_resolve(
+            wall_selection,
+            &wall
+        ) == &stud
+    );
+}
+
+static void test_select_primary_action_with_null_wall_preserves_selection(void)
+{
+    Timber stud =
+        make_test_stud();
+
+    Wall wall = {
+        .id = 10,
+
+        .framing.studs = &stud,
+        .framing.stud_count = 1
+    };
+
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    EditorAction action;
+
+    assert(
+        sitehelper_editor_primary_action(
+            &editor,
+            &wall,
+            (Vec2){
+                .x = 120.0,
+                .y = 1000.0
+            },
+            DOMAIN_ID_INVALID,
+            &action
+        )
+    );
+
+    assert(
+        action.kind
+        == EDITOR_ACTION_NONE
+    );
+
+    assert(
+        !editor_selection_is_empty(
+            sitehelper_editor_get_selection(
+                &editor
+            )
+        )
+    );
+
+    assert(
+        sitehelper_editor_primary_action(
+            &editor,
+            NULL,
+            (Vec2){
+                .x = 0.0,
+                .y = 0.0
+            },
+            DOMAIN_ID_INVALID,
+            &action
+        )
+    );
+
+    assert(
+        action.kind
+        == EDITOR_ACTION_NONE
+    );
+
+    assert(
+        !editor_selection_is_empty(
+            sitehelper_editor_get_selection(
+                &editor
+            )
+        )
+    );
+}
+
+static void test_opening_primary_action_produces_command(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_active_tool(
+        &editor,
+        EDITOR_TOOL_OPENING
+    );
+
+    editor.opening_placement =
+        (OpeningPlacement){
+            .valid = 1,
+            .left = 600.0,
+            .bottom = 900.0,
+            .width = 1200,
+            .height = 1200
+        };
+
+    editor.opening_tool.type =
+        OPENING_WINDOW;
+
+    EditorAction action;
+
+    assert(
+        sitehelper_editor_primary_action(
+            &editor,
+            NULL,
+            (Vec2){0.0, 0.0},
+            1,
+            &action
+        )
+    );
+
+    assert(
+        action.kind
+        == EDITOR_ACTION_OPENING_COMMAND
+    );
+
+    assert(
+        action.opening_command.opening.id
+        == 1
+    );
+
+    assert(
+        action.opening_command.opening.type
+        == OPENING_WINDOW
+    );
+}
+
 int main(void)
 {
     test_editor_init_has_no_current_room();
@@ -949,6 +1176,11 @@ int main(void)
     test_editor_creates_opening_command();
     test_editor_does_not_create_opening_command_in_select_mode();
     test_editor_rejects_invalid_opening_command_id();
+    test_editor_completing_opening_command_clears_placement();
+    test_editor_complete_opening_command_accepts_null();
+    test_select_primary_action_selects_wall_member();
+    test_select_primary_action_with_null_wall_preserves_selection();
+    test_opening_primary_action_produces_command();
 
     printf(
         "All SiteHelper editor tests passed.\n"

@@ -8,6 +8,7 @@
 #include "opening_tool.h"
 #include "opening_placement.h"
 #include "opening_command.h"
+#include "editor_action.h"
 
 typedef struct
 {
@@ -104,6 +105,18 @@ int sitehelper_editor_create_opening_command(
     const SiteHelperEditor *editor,
     DomainId opening_id,
     OpeningCommand *command
+);
+
+void sitehelper_editor_complete_opening_command(
+    SiteHelperEditor *editor
+);
+
+int sitehelper_editor_primary_action(
+    SiteHelperEditor *editor,
+    const Wall *wall,
+    Vec2 world_position,
+    DomainId command_id,
+    EditorAction *action
 );
 
 #endif

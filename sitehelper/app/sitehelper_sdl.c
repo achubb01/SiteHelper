@@ -455,46 +455,6 @@ static void sitehelper_app_render(
     );
 }
 
-static void select_at_screen_position(
-    Renderer2D *renderer,
-    SiteHelperEditor *editor,
-    const Wall *wall,
-    Vec2 screen_position
-)
-{
-    if (
-        renderer == NULL
-        || editor == NULL
-        || wall == NULL
-    ) {
-        return;
-    }
-
-    Camera2D camera =
-        renderer2d_get_camera(renderer);
-
-    Viewport2D viewport =
-        renderer2d_get_viewport(renderer);
-
-    Vec2 world_position =
-        camera_screen_to_world(
-            &camera,
-            viewport,
-            screen_position
-        );
-
-    Position position = {
-        .x = (int)world_position.x,
-        .y = (int)world_position.y
-    };
-
-    sitehelper_editor_select_wall_member_at_position(
-        editor,
-        wall,
-        position
-    );
-}
-
 static void sitehelper_app_process_events(
     SiteHelperApp *app
 )
@@ -652,56 +612,64 @@ static void sitehelper_app_process_events(
                     screen_position
                 )
             ) {
-                switch (
+                Camera2D camera =
+                    renderer2d_get_camera(
+                        app->renderer
+                    );
+
+                Viewport2D viewport =
+                    renderer2d_get_viewport(
+                        app->renderer
+                    );
+
+                Vec2 world_position =
+                    camera_screen_to_world(
+                        &camera,
+                        viewport,
+                        screen_position
+                    );
+
+                Wall *wall =
+                    sitehelper_app_current_wall(
+                        app
+                    );
+
+                DomainId command_id =
+                    DOMAIN_ID_INVALID;
+
+                if (
                     sitehelper_editor_get_active_tool(
                         &app->editor
                     )
+                    == EDITOR_TOOL_OPENING
                 ) {
-                    case EDITOR_TOOL_SELECT:
-                    {
-                        Wall *wall =
-                            sitehelper_app_current_wall(
-                                app
-                            );
+                    command_id =
+                        domain_id_generate(
+                            &app->project.domain_ids
+                        );
 
-                        if (wall != NULL) {
-                            select_at_screen_position(
-                                app->renderer,
-                                &app->editor,
-                                wall,
-                                screen_position
-                            );
-                        }
-
-                        break;
+                    if (
+                        command_id
+                        == DOMAIN_ID_INVALID
+                    ) {
+                        continue;
                     }
+                }
 
-                    case EDITOR_TOOL_OPENING:
+                EditorAction action;
+
+                if (!sitehelper_editor_primary_action(
+                        &app->editor,
+                        wall,
+                        world_position,
+                        command_id,
+                        &action)) {
+                    continue;
+                }
+
+                switch (action.kind) {
+                    case EDITOR_ACTION_OPENING_COMMAND:
                     {
-                        DomainId opening_id =
-                            domain_id_generate(
-                                &app->project.domain_ids
-                            );
-
-                        if (opening_id == DOMAIN_ID_INVALID) {
-                            /* handle failure */
-                            continue;
-                        }
-
-                        OpeningCommand command;
-
-                        if (!sitehelper_editor_create_opening_command(
-                                &app->editor,
-                                opening_id,
-                                &command)) {
-                            break;
-                        }
-
-                        Wall *wall =
-                            sitehelper_app_current_wall(
-                                app
-                            );
-
                         if (wall == NULL) {
                             break;
                         }
@@ -709,23 +677,18 @@ static void sitehelper_app_process_events(
                         if (!opening_command_execute(
                                 wall,
                                 &app->project.settings,
-                                &command)) {
-
+                                &action.opening_command)) {
                             break;
                         }
 
-                        app->editor.opening_placement =
-                            (OpeningPlacement){0};
+                        sitehelper_editor_complete_opening_command(
+                            &app->editor
+                        );
 
                         break;
                     }
 
-                    case EDITOR_TOOL_WALL:
-                        /*
-                        * Wall tool comes later.
-                        */
-                        break;
-
+                    case EDITOR_ACTION_NONE:
                     default:
                         break;
                 }
