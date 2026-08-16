@@ -1147,6 +1147,41 @@ static void test_opening_primary_action_produces_command(void)
     );
 }
 
+static void test_opening_primary_action_requires_id(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_active_tool(
+        &editor,
+        EDITOR_TOOL_OPENING
+    );
+
+    assert(
+        sitehelper_editor_primary_action_requires_id(
+            &editor
+        )
+    );
+}
+
+static void test_select_primary_action_does_not_require_id(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    assert(
+        !sitehelper_editor_primary_action_requires_id(
+            &editor
+        )
+    );
+}
+
 int main(void)
 {
     test_editor_init_has_no_current_room();
@@ -1181,6 +1216,8 @@ int main(void)
     test_select_primary_action_selects_wall_member();
     test_select_primary_action_with_null_wall_preserves_selection();
     test_opening_primary_action_produces_command();
+    test_opening_primary_action_requires_id();
+    test_select_primary_action_does_not_require_id();
 
     printf(
         "All SiteHelper editor tests passed.\n"

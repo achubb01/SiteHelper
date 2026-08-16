@@ -119,4 +119,8 @@ int sitehelper_editor_primary_action(
     EditorAction *action
 );
 
+int sitehelper_editor_primary_action_requires_id(
+    const SiteHelperEditor *editor
+);
+
 #endif

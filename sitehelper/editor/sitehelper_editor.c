@@ -474,3 +474,22 @@ int sitehelper_editor_primary_action(
             return 1;
     }
 }
+
+int sitehelper_editor_primary_action_requires_id(
+    const SiteHelperEditor *editor
+)
+{
+    if (editor == NULL) {
+        return 0;
+    }
+
+    switch (editor->active_tool) {
+        case EDITOR_TOOL_OPENING:
+            return 1;
+
+        case EDITOR_TOOL_SELECT:
+        case EDITOR_TOOL_WALL:
+        default:
+            return 0;
+    }
+}

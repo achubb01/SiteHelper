@@ -638,10 +638,9 @@ static void sitehelper_app_process_events(
                     DOMAIN_ID_INVALID;
 
                 if (
-                    sitehelper_editor_get_active_tool(
+                    sitehelper_editor_primary_action_requires_id(
                         &app->editor
                     )
-                    == EDITOR_TOOL_OPENING
                 ) {
                     command_id =
                         domain_id_generate(
