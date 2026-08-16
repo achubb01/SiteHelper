@@ -697,7 +697,7 @@ static void sitehelper_app_process_events(
 
                         if (!opening_command_create(
                                 &app->editor.opening_placement,
-                                &app->editor.opening_tool,
+                                app->editor.opening_tool.type,
                                 opening_id,
                                 &command)) {
                             break;

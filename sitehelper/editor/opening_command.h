@@ -2,7 +2,6 @@
 #define OPENING_COMMAND_H
 
 #include "opening_placement.h"
-#include "opening_tool.h"
 #include "wall.h"
 
 typedef struct
@@ -12,7 +11,7 @@ typedef struct
 
 int opening_command_create(
     const OpeningPlacement *placement,
-    const OpeningTool *tool,
+    OpeningType opening_type,
     DomainId opening_id,
     OpeningCommand *command
 );

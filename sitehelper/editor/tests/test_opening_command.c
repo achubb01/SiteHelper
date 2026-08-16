@@ -20,18 +20,12 @@ static void test_create_builds_opening_from_placement(void)
         .height = 1200
     };
 
-    OpeningTool tool;
-
-    opening_tool_init(
-        &tool
-    );
-
     OpeningCommand command;
 
     int result =
         opening_command_create(
             &placement,
-            &tool,
+            OPENING_WINDOW,
             TEST_OPENING_ID,
             &command
         );
@@ -72,7 +66,6 @@ static void test_create_builds_opening_from_placement(void)
         command.opening.custom_allowance
         == false
     );
-    
 }
 
 static void test_create_rejects_invalid_placement(void)
@@ -81,18 +74,12 @@ static void test_create_rejects_invalid_placement(void)
         .valid = 0
     };
 
-    OpeningTool tool;
-
-    opening_tool_init(
-        &tool
-    );
-
     OpeningCommand command;
 
     assert(
         !opening_command_create(
             &placement,
-            &tool,
+            OPENING_WINDOW,
             TEST_OPENING_ID,
             &command
         )
@@ -109,18 +96,12 @@ static void test_create_rejects_null_arguments(void)
         .height = 1200
     };
 
-    OpeningTool tool;
-
-    opening_tool_init(
-        &tool
-    );
-
     OpeningCommand command;
 
     assert(
         !opening_command_create(
             NULL,
-            &tool,
+            OPENING_WINDOW,
             TEST_OPENING_ID,
             &command
         )
@@ -129,16 +110,7 @@ static void test_create_rejects_null_arguments(void)
     assert(
         !opening_command_create(
             &placement,
-            NULL,
-            TEST_OPENING_ID,
-            &command
-        )
-    );
-
-    assert(
-        !opening_command_create(
-            &placement,
-            &tool,
+            OPENING_WINDOW,
             TEST_OPENING_ID,
             NULL
         )
@@ -180,15 +152,12 @@ static void test_execute_adds_opening_to_wall(void)
         .height = 1200
     };
 
-    OpeningTool tool;
-    opening_tool_init(&tool);
-
     OpeningCommand command;
 
     assert(
         opening_command_create(
             &placement,
-            &tool,
+            OPENING_WINDOW,
             TEST_OPENING_ID,
             &command
         )
@@ -270,18 +239,12 @@ static void test_create_rejects_invalid_opening_id(void)
         .height = 1200
     };
 
-    OpeningTool tool;
-
-    opening_tool_init(
-        &tool
-    );
-
     OpeningCommand command;
 
     assert(
         !opening_command_create(
             &placement,
-            &tool,
+            OPENING_WINDOW,
             DOMAIN_ID_INVALID,
             &command
         )

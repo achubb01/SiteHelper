@@ -2,14 +2,13 @@
 
 int opening_command_create(
     const OpeningPlacement *placement,
-    const OpeningTool *tool,
+    OpeningType opening_type,
     DomainId opening_id,
     OpeningCommand *command
 )
 {
     if (
         placement == NULL
-        || tool == NULL
         || command == NULL
         || opening_id == DOMAIN_ID_INVALID
         || !placement->valid
@@ -23,7 +22,7 @@ int opening_command_create(
         .opening = {
             .id = opening_id,
 
-            .type = tool->type,
+            .type = opening_type,
 
             .frame_position =
                 (int)placement->left,
