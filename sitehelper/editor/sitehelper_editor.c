@@ -16,6 +16,20 @@ int sitehelper_editor_set_active_tool(
         return 0;
     }
 
+    if (tool == EDITOR_TOOL_OPENING) {
+        opening_tool_activate(
+            &editor->opening_tool
+        );
+    }
+    else {
+        opening_tool_cancel(
+            &editor->opening_tool
+        );
+
+        editor->opening_placement =
+            (OpeningPlacement){0};
+    }
+
     editor->active_tool = tool;
 
     return 1;
@@ -42,6 +56,13 @@ void sitehelper_editor_init(
     editor_snap_state_init(
         &editor->snap
     );
+
+    opening_tool_init(
+        &editor->opening_tool
+    );
+
+    editor->opening_placement =
+        (OpeningPlacement){0};
 }
 
 EditorTool sitehelper_editor_get_active_tool(
@@ -269,4 +290,91 @@ void sitehelper_editor_update_snap(
         &editor->snap,
         result
     );
+}
+
+void sitehelper_editor_pointer_move(
+    SiteHelperEditor *editor,
+    const Wall *wall,
+    Vec2 world_position
+)
+{
+    if (editor == NULL) {
+        return;
+    }
+
+    sitehelper_editor_update_snap(
+        editor,
+        wall,
+        world_position
+    );
+
+    switch (editor->active_tool) {
+        case EDITOR_TOOL_OPENING:
+        {
+            const SnapResult *snap_result =
+                editor_snap_state_get_result(
+                    &editor->snap
+                );
+
+            if (
+                wall == NULL
+                || snap_result == NULL
+                || snap_result->type == SNAP_NONE
+            ) {
+                editor->opening_placement =
+                    (OpeningPlacement){0};
+
+                return;
+            }
+
+            opening_tool_update_preview(
+                &editor->opening_tool,
+                snap_result->position
+            );
+
+            editor->opening_placement =
+                opening_find_placement(
+                    wall,
+                    snap_result->position,
+                    &editor->opening_tool
+                );
+
+            break;
+        }
+
+        case EDITOR_TOOL_SELECT:
+        case EDITOR_TOOL_WALL:
+        default:
+            editor->opening_placement =
+                (OpeningPlacement){0};
+            break;
+    }
+}
+
+const OpeningPlacement *
+sitehelper_editor_get_opening_placement(
+    const SiteHelperEditor *editor
+)
+{
+    if (editor == NULL) {
+        return NULL;
+    }
+
+    return &editor->opening_placement;
+}
+
+void sitehelper_editor_pointer_leave(
+    SiteHelperEditor *editor
+)
+{
+    if (editor == NULL) {
+        return;
+    }
+
+    sitehelper_editor_clear_snap(
+        editor
+    );
+
+    editor->opening_placement =
+        (OpeningPlacement){0};
 }

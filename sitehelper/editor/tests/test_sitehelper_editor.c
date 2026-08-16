@@ -578,6 +578,244 @@ static void test_editor_snap_update_replaces_previous_result(void)
     );
 }
 
+static void test_editor_initialises_without_opening_placement(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    assert(
+        editor.opening_placement.valid == 0
+    );
+}
+
+static void test_editor_initialises_opening_tool_inactive(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    assert(
+        editor.opening_tool.active == 0
+    );
+}
+
+static void test_editor_activates_opening_tool(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    assert(
+        sitehelper_editor_set_active_tool(
+            &editor,
+            EDITOR_TOOL_OPENING
+        )
+    );
+
+    assert(editor.opening_tool.active);
+}
+
+static void test_editor_switching_away_cancels_opening_tool(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_active_tool(
+        &editor,
+        EDITOR_TOOL_OPENING
+    );
+
+    editor.opening_placement.valid = 1;
+
+    sitehelper_editor_set_active_tool(
+        &editor,
+        EDITOR_TOOL_SELECT
+    );
+
+    assert(!editor.opening_tool.active);
+    assert(!editor.opening_placement.valid);
+}
+
+static void test_opening_tool_pointer_move_updates_preview(void)
+{
+    Timber studs[] = {
+        {
+            .position = {0, 0},
+            .width = 35,
+            .length = 2400,
+            .type = TIMBER_STUD
+        },
+        {
+            .position = {600, 0},
+            .width = 35,
+            .length = 2400,
+            .type = TIMBER_STUD
+        },
+        {
+            .position = {1200, 0},
+            .width = 35,
+            .length = 2400,
+            .type = TIMBER_STUD
+        },
+        {
+            .position = {1800, 0},
+            .width = 35,
+            .length = 2400,
+            .type = TIMBER_STUD
+        }
+    };
+
+    Wall wall = {
+        .framing.studs = studs,
+        .framing.stud_count = 4
+    };
+
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_active_tool(
+        &editor,
+        EDITOR_TOOL_OPENING
+    );
+
+    sitehelper_editor_pointer_move(
+        &editor,
+        &wall,
+        (Vec2){
+            .x = 300.0,
+            .y = 1000.0
+        }
+    );
+
+    assert(
+        editor.opening_tool.preview_position.x
+        == 300.0
+    );
+
+    assert(
+        editor.opening_tool.preview_position.y
+        == 1000.0
+    );
+}
+
+static void test_editor_pointer_move_updates_opening_placement(void)
+{
+    Timber studs[] = {
+        {
+            .position = {0, 0},
+            .width = 35,
+            .length = 2400,
+            .type = TIMBER_STUD
+        },
+        {
+            .position = {600, 0},
+            .width = 35,
+            .length = 2400,
+            .type = TIMBER_STUD
+        },
+        {
+            .position = {1200, 0},
+            .width = 35,
+            .length = 2400,
+            .type = TIMBER_STUD
+        },
+        {
+            .position = {1800, 0},
+            .width = 35,
+            .length = 2400,
+            .type = TIMBER_STUD
+        }
+    };
+
+    Wall wall = {
+        .framing.studs = studs,
+        .framing.stud_count = 4
+    };
+
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_active_tool(
+        &editor,
+        EDITOR_TOOL_OPENING
+    );
+
+    editor.opening_tool.width = 1200;
+
+    sitehelper_editor_pointer_move(
+        &editor,
+        &wall,
+        (Vec2){
+            .x = 300.0,
+            .y = 1000.0
+        }
+    );
+
+    const OpeningPlacement *placement =
+        sitehelper_editor_get_opening_placement(
+            &editor
+        );
+
+    assert(placement != NULL);
+    assert(placement->valid == 1);
+
+    assert(placement->left == 300.0);
+    assert(placement->bottom == 900.0);
+
+    assert(placement->width == 1200);
+    assert(placement->height == 1200);
+
+    assert(
+        placement->start_bay_index == 0
+    );
+
+    assert(
+        placement->end_bay_index == 2
+    );
+}
+
+static void test_select_tool_pointer_move_has_no_opening_placement(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_pointer_move(
+        &editor,
+        NULL,
+        (Vec2){
+            .x = 100.0,
+            .y = 200.0
+        }
+    );
+
+    const OpeningPlacement *placement =
+        sitehelper_editor_get_opening_placement(
+            &editor
+        );
+
+    assert(placement != NULL);
+    assert(!placement->valid);
+}
+
 int main(void)
 {
     test_editor_init_has_no_current_room();
@@ -597,6 +835,13 @@ int main(void)
     test_editor_updates_grid_snap_without_wall();
     test_editor_updates_snap_from_wall_candidates();
     test_editor_snap_update_replaces_previous_result();
+    test_editor_initialises_without_opening_placement();
+    test_editor_initialises_opening_tool_inactive();
+    test_editor_activates_opening_tool();
+    test_editor_switching_away_cancels_opening_tool();
+    test_opening_tool_pointer_move_updates_preview();
+    test_editor_pointer_move_updates_opening_placement();
+    test_select_tool_pointer_move_has_no_opening_placement();
 
     printf(
         "All SiteHelper editor tests passed.\n"

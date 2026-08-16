@@ -5,6 +5,8 @@
 #include "editor_tool.h"
 #include "editor_selection.h"
 #include "editor_snap_state.h"
+#include "opening_tool.h"
+#include "opening_placement.h"
 
 typedef struct
 {
@@ -14,8 +16,10 @@ typedef struct
     EditorTool active_tool;
 
     EditorSelection selection;
-
     EditorSnapState snap;
+
+    OpeningTool opening_tool;
+    OpeningPlacement opening_placement;
 } SiteHelperEditor;
 
 void sitehelper_editor_init(
@@ -78,6 +82,21 @@ void sitehelper_editor_update_snap(
     SiteHelperEditor *editor,
     const Wall *wall,
     Vec2 world_position
+);
+
+void sitehelper_editor_pointer_move(
+    SiteHelperEditor *editor,
+    const Wall *wall,
+    Vec2 world_position
+);
+
+const OpeningPlacement *
+sitehelper_editor_get_opening_placement(
+    const SiteHelperEditor *editor
+);
+
+void sitehelper_editor_pointer_leave(
+    SiteHelperEditor *editor
 );
 
 #endif

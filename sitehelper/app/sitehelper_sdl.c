@@ -45,10 +45,6 @@ typedef struct
 
     GuiToolbar toolbar;
 
-    OpeningTool opening_tool;
-
-    OpeningPlacement opening_placement;
-
     int running;
 } SiteHelperApp;
 
@@ -68,7 +64,7 @@ static void sitehelper_app_destroy(
     SiteHelperApp *app
 );
 
-static void sitehelper_app_update_snap_cursor(
+static void sitehelper_app_update_editor_pointer(
     SiteHelperApp *app,
     Vec2 screen_position
 );
@@ -248,13 +244,6 @@ static int sitehelper_app_init(
         &app->editor
     );
 
-    opening_tool_init(
-        &app->opening_tool
-    );
-
-    app->opening_placement =
-        (OpeningPlacement){0};
-
     sitehelper_app_set_active_tool(
         app,
         sitehelper_editor_get_active_tool(
@@ -405,21 +394,29 @@ static void sitehelper_app_render(
         );
     }
 
+    const OpeningPlacement *placement =
+        sitehelper_editor_get_opening_placement(
+            &app->editor
+        );
+
     if (
         sitehelper_editor_get_active_tool(
             &app->editor
-        )
-            == EDITOR_TOOL_OPENING && app->opening_placement.valid
+        ) == EDITOR_TOOL_OPENING
+        && placement != NULL
+        && placement->valid
     ) {
         Rect2 preview_rect = {
             .position = {
-                .x = app->opening_placement.left,
-                .y = app->opening_placement.bottom
+                .x = placement->left,
+                .y = placement->bottom
             },
+
             .width =
-                (double)app->opening_placement.width,
+                (double)placement->width,
+
             .height =
-                (double)app->opening_placement.height
+                (double)placement->height
         };
 
         renderer2d_draw_rect(
@@ -626,53 +623,10 @@ static void sitehelper_app_process_events(
                 screen_position
             );
 
-            sitehelper_app_update_snap_cursor(
+            sitehelper_app_update_editor_pointer(
                 app,
                 screen_position
             );
-
-            const SnapResult *snap_result =
-                sitehelper_editor_get_snap_result(
-                    &app->editor
-                );
-
-            if (
-                sitehelper_editor_get_active_tool(
-                    &app->editor
-                )
-                    == EDITOR_TOOL_OPENING
-                && sitehelper_editor_has_snap(
-                    &app->editor
-                )
-                && snap_result != NULL
-            ) {
-                opening_tool_update_preview(
-                    &app->opening_tool,
-                    snap_result->position
-                );
-
-                Wall *wall =
-                    sitehelper_app_current_wall(
-                        app
-                    );
-
-                if (wall != NULL) {
-                    app->opening_placement =
-                        opening_find_placement(
-                            wall,
-                            snap_result->position,
-                            &app->opening_tool
-                        );
-                }
-                else {
-                    app->opening_placement =
-                        (OpeningPlacement){0};
-                }
-            }
-            else {
-                app->opening_placement =
-                    (OpeningPlacement){0};
-            }
         }
 
         if (event.primary_mouse_released) {
@@ -725,7 +679,7 @@ static void sitehelper_app_process_events(
 
                     case EDITOR_TOOL_OPENING:
                     {
-                        if (!app->opening_placement.valid) {
+                        if (!app->editor.opening_placement.valid) {
                             break;
                         }
 
@@ -742,8 +696,8 @@ static void sitehelper_app_process_events(
                         OpeningCommand command;
 
                         if (!opening_command_create(
-                                &app->opening_placement,
-                                &app->opening_tool,
+                                &app->editor.opening_placement,
+                                &app->editor.opening_tool,
                                 opening_id,
                                 &command)) {
                             break;
@@ -766,7 +720,7 @@ static void sitehelper_app_process_events(
                             break;
                         }
 
-                        app->opening_placement =
+                        app->editor.opening_placement =
                             (OpeningPlacement){0};
 
                         break;
@@ -838,7 +792,7 @@ static void sitehelper_app_destroy(
     *app = (SiteHelperApp){0};
 }
 
-static void sitehelper_app_update_snap_cursor(
+static void sitehelper_app_update_editor_pointer(
     SiteHelperApp *app,
     Vec2 screen_position
 )
@@ -856,7 +810,7 @@ static void sitehelper_app_update_snap_cursor(
             screen_position
         )
     ) {
-        sitehelper_editor_clear_snap(
+        sitehelper_editor_pointer_leave(
             &app->editor
         );
 
@@ -885,7 +839,7 @@ static void sitehelper_app_update_snap_cursor(
             app
         );
 
-    sitehelper_editor_update_snap(
+    sitehelper_editor_pointer_move(
         &app->editor,
         wall,
         world_position
@@ -1021,17 +975,6 @@ static void sitehelper_app_set_active_tool(
         gui_button_set_active(
             &app->toolbar.buttons[i],
             i == (size_t)tool
-        );
-    }
-
-    if (tool == EDITOR_TOOL_OPENING) {
-        opening_tool_activate(
-            &app->opening_tool
-        );
-    }
-    else {
-        opening_tool_cancel(
-            &app->opening_tool
         );
     }
 }
