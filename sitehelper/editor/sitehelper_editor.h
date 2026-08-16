@@ -7,6 +7,7 @@
 #include "editor_snap_state.h"
 #include "opening_tool.h"
 #include "opening_placement.h"
+#include "opening_command.h"
 
 typedef struct
 {
@@ -97,6 +98,12 @@ sitehelper_editor_get_opening_placement(
 
 void sitehelper_editor_pointer_leave(
     SiteHelperEditor *editor
+);
+
+int sitehelper_editor_create_opening_command(
+    const SiteHelperEditor *editor,
+    DomainId opening_id,
+    OpeningCommand *command
 );
 
 #endif

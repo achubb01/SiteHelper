@@ -816,6 +816,110 @@ static void test_select_tool_pointer_move_has_no_opening_placement(void)
     assert(!placement->valid);
 }
 
+static void test_editor_creates_opening_command(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_active_tool(
+        &editor,
+        EDITOR_TOOL_OPENING
+    );
+
+    editor.opening_placement =
+        (OpeningPlacement){
+            .valid = 1,
+            .left = 600.0,
+            .bottom = 900.0,
+            .width = 1200,
+            .height = 1200
+        };
+
+    editor.opening_tool.type =
+        OPENING_WINDOW;
+
+    OpeningCommand command;
+
+    assert(
+        sitehelper_editor_create_opening_command(
+            &editor,
+            1,
+            &command
+        )
+    );
+
+    assert(command.opening.id == 1);
+    assert(command.opening.type == OPENING_WINDOW);
+    assert(command.opening.frame_position == 600);
+    assert(command.opening.frame_bottom == 900);
+    assert(command.opening.width == 1200);
+    assert(command.opening.height == 1200);
+}
+
+static void test_editor_does_not_create_opening_command_in_select_mode(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    editor.opening_placement =
+        (OpeningPlacement){
+            .valid = 1,
+            .left = 600.0,
+            .bottom = 900.0,
+            .width = 1200,
+            .height = 1200
+        };
+
+    OpeningCommand command;
+
+    assert(
+        !sitehelper_editor_create_opening_command(
+            &editor,
+            1,
+            &command
+        )
+    );
+}
+
+static void test_editor_rejects_invalid_opening_command_id(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_active_tool(
+        &editor,
+        EDITOR_TOOL_OPENING
+    );
+
+    editor.opening_placement =
+        (OpeningPlacement){
+            .valid = 1,
+            .left = 600.0,
+            .bottom = 900.0,
+            .width = 1200,
+            .height = 1200
+        };
+
+    OpeningCommand command;
+
+    assert(
+        !sitehelper_editor_create_opening_command(
+            &editor,
+            DOMAIN_ID_INVALID,
+            &command
+        )
+    );
+}
+
 int main(void)
 {
     test_editor_init_has_no_current_room();
@@ -842,6 +946,9 @@ int main(void)
     test_opening_tool_pointer_move_updates_preview();
     test_editor_pointer_move_updates_opening_placement();
     test_select_tool_pointer_move_has_no_opening_placement();
+    test_editor_creates_opening_command();
+    test_editor_does_not_create_opening_command_in_select_mode();
+    test_editor_rejects_invalid_opening_command_id();
 
     printf(
         "All SiteHelper editor tests passed.\n"

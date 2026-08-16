@@ -7,8 +7,7 @@
 #include "domain_id.h"
 
 #include "editor_tool.h"
-#include "opening_tool.h"
-#include "opening_placement.h"
+
 #include "opening_command.h"
 
 #include "wall_render.h"
@@ -679,10 +678,6 @@ static void sitehelper_app_process_events(
 
                     case EDITOR_TOOL_OPENING:
                     {
-                        if (!app->editor.opening_placement.valid) {
-                            break;
-                        }
-
                         DomainId opening_id =
                             domain_id_generate(
                                 &app->project.domain_ids
@@ -695,9 +690,8 @@ static void sitehelper_app_process_events(
 
                         OpeningCommand command;
 
-                        if (!opening_command_create(
-                                &app->editor.opening_placement,
-                                app->editor.opening_tool.type,
+                        if (!sitehelper_editor_create_opening_command(
+                                &app->editor,
                                 opening_id,
                                 &command)) {
                             break;

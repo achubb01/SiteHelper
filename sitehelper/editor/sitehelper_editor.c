@@ -378,3 +378,26 @@ void sitehelper_editor_pointer_leave(
     editor->opening_placement =
         (OpeningPlacement){0};
 }
+
+int sitehelper_editor_create_opening_command(
+    const SiteHelperEditor *editor,
+    DomainId opening_id,
+    OpeningCommand *command
+)
+{
+    if (
+        editor == NULL
+        || command == NULL
+        || editor->active_tool
+            != EDITOR_TOOL_OPENING
+    ) {
+        return 0;
+    }
+
+    return opening_command_create(
+        &editor->opening_placement,
+        editor->opening_tool.type,
+        opening_id,
+        command
+    );
+}
