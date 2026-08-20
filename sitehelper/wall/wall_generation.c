@@ -87,31 +87,11 @@ static int wall_generate_plates(
     return 1;
 }
 
-int wall_generate(
+static int wall_build_framing(
     Wall *wall,
     const BuildSettings *settings
 )
 {
-    if (wall == NULL || settings == NULL) {
-        return 0;
-    }
-
-    if (wall->definition.length <= 0) {
-        return 0;
-    }
-
-    if (settings->stud_height <= 0 ||
-        settings->stud_width <= 0 ||
-        settings->stud_depth <= 0 ||
-        settings->stud_spacing <= 0 ||
-        settings->nog_spacing <= 0) {
-        return 0;
-    }
-
-    wall_clear_studs(wall);
-    wall_clear_noggins(wall);
-    wall_clear_members(wall);
-
     if (!wall_generate_plates(
             wall,
             settings)) {
@@ -141,6 +121,68 @@ int wall_generate(
             settings)) {
         return 0;
     }
+
+    return 1;
+}
+
+int wall_generate(
+    Wall *wall,
+    const BuildSettings *settings
+)
+{
+    if (wall == NULL || settings == NULL) {
+        return 0;
+    }
+
+    if (wall->definition.length <= 0) {
+        return 0;
+    }
+
+    if (settings->stud_height <= 0 ||
+        settings->stud_width <= 0 ||
+        settings->stud_depth <= 0 ||
+        settings->stud_spacing <= 0 ||
+        settings->nog_spacing <= 0) {
+        return 0;
+    }
+
+    /*
+     * Build replacement framing separately
+     * from the currently committed framing.
+     *
+     * The definition is borrowed from the
+     * live wall. The candidate does not own
+     * the openings array.
+     */
+    Wall candidate = {
+        .id = wall->id,
+        .definition = wall->definition,
+        .framing = {0}
+    };
+
+    if (!wall_build_framing(
+            &candidate,
+            settings)) {
+
+        wall_framing_destroy(
+            &candidate.framing
+        );
+
+        return 0;
+    }
+
+    /*
+     * Generation completed successfully.
+     *
+     * Only now do we discard the previously
+     * committed framing.
+     */
+    wall_framing_destroy(
+        &wall->framing
+    );
+
+    wall->framing =
+        candidate.framing;
 
     return 1;
 }

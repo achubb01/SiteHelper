@@ -15,9 +15,17 @@ int main(void)
         &context.editor
     );
 
+    sitehelper_command_history_init(
+        &context.history
+    );
+
     command_run(
         app_menu_root(),
         &context
+    );
+
+    sitehelper_command_history_destroy(
+        &context.history
     );
 
     sitehelper_project_destroy(

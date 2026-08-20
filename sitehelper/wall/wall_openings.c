@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 #include "wall.h"
 #include "wall_internal.h"
@@ -1007,6 +1008,56 @@ static int wall_span_is_opening(
 
             return 1;
         }
+    }
+
+    return 0;
+}
+
+int wall_remove_opening_by_id(
+    Wall *wall,
+    DomainId opening_id
+)
+{
+    if (
+        wall == NULL
+        || opening_id == DOMAIN_ID_INVALID
+    ) {
+        return 0;
+    }
+
+    for (
+        size_t i = 0;
+        i < wall->definition.opening_count;
+        i++
+    ) {
+        if (
+            wall->definition.openings[i].id
+            != opening_id
+        ) {
+            continue;
+        }
+
+        size_t remaining =
+            wall->definition.opening_count
+            - i
+            - 1;
+
+        if (remaining > 0) {
+            memmove(
+                &wall->definition.openings[i],
+                &wall->definition.openings[i + 1],
+                remaining
+                    * sizeof *wall->definition.openings
+            );
+        }
+
+        wall->definition.opening_count--;
+
+        wall->definition.openings[
+            wall->definition.opening_count
+        ] = (Opening){0};
+
+        return 1;
     }
 
     return 0;

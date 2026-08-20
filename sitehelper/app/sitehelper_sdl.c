@@ -8,7 +8,9 @@
 
 #include "editor_tool.h"
 
+#include "sitehelper_command.h"
 #include "opening_command.h"
+#include "command_history.h"
 
 #include "wall_render.h"
 
@@ -29,6 +31,7 @@ typedef struct
 
     SiteHelperProject project;
     SiteHelperEditor editor;
+    SiteHelperCommandHistory history;
 
     WallRenderStyle wall_style;
     GridRenderStyle grid_style;
@@ -241,6 +244,10 @@ static int sitehelper_app_init(
 
     sitehelper_editor_init(
         &app->editor
+    );
+
+    sitehelper_command_history_init(
+        &app->history
     );
 
     sitehelper_app_set_active_tool(
@@ -532,6 +539,15 @@ static void sitehelper_app_process_events(
             );
         }
 
+        if (event.undo_requested) {
+            sitehelper_command_history_undo(
+                &app->history,
+                &app->project
+            );
+
+            continue;
+        }
+
         if (event.mouse_wheel) {
             Vec2 screen_position = {
                 .x = event.mouse_x,
@@ -617,54 +633,33 @@ static void sitehelper_app_process_events(
                         app
                     );
 
-                DomainId command_id =
-                    DOMAIN_ID_INVALID;
-
-                if (
-                    sitehelper_editor_primary_action_requires_id(
-                        &app->editor
-                    )
-                ) {
-                    command_id =
-                        domain_id_generate(
-                            &app->project.domain_ids
-                        );
-
-                    if (
-                        command_id
-                        == DOMAIN_ID_INVALID
-                    ) {
-                        continue;
-                    }
-                }
-
                 EditorAction action;
 
                 if (!sitehelper_editor_primary_action(
                         &app->editor,
                         wall,
                         world_position,
-                        command_id,
                         &action)) {
                     continue;
                 }
 
                 switch (action.kind) {
-                    case EDITOR_ACTION_OPENING_COMMAND:
+
+                    case EDITOR_ACTION_COMMAND:
                     {
-                        if (wall == NULL) {
+                        SiteHelperCommandResult result;
+
+                        if (!sitehelper_command_history_execute(
+                                &app->history,
+                                &app->project,
+                                &action.command,
+                                &result)) {
                             break;
                         }
 
-                        if (!opening_command_execute(
-                                wall,
-                                &app->project.settings,
-                                &action.opening_command)) {
-                            break;
-                        }
-
-                        sitehelper_editor_complete_opening_command(
-                            &app->editor
+                        sitehelper_editor_complete_action(
+                            &app->editor,
+                            &action
                         );
 
                         break;
@@ -715,6 +710,10 @@ static void sitehelper_app_destroy(
     if (app == NULL) {
         return;
     }
+
+    sitehelper_command_history_destroy(
+        &app->history
+    );
 
     sitehelper_project_destroy(
         &app->project

@@ -501,6 +501,152 @@ static void test_opening_identity_survives_reallocation(void)
     );
 }
 
+static void
+test_remove_opening_by_id_removes_only_target(void)
+{
+    Wall wall = {0};
+
+    BuildSettings settings = {
+        .stud_height = 2400,
+        .stud_depth = 90,
+        .stud_width = 35,
+        .stud_spacing = 600,
+        .nog_spacing = 1200,
+        .stud_spacing_mode =
+            STUD_SPACING_MAXIMISE
+    };
+
+    assert(
+        wall_set_length(
+            &wall,
+            6000
+        )
+    );
+
+    assert(
+        wall_add_opening(
+            &wall,
+            &settings,
+            1,
+            OPENING_WINDOW,
+            600,
+            900,
+            900,
+            1200
+        )
+    );
+
+    assert(
+        wall_add_opening(
+            &wall,
+            &settings,
+            2,
+            OPENING_WINDOW,
+            3000,
+            900,
+            1200,
+            1200
+        )
+    );
+
+    assert(
+        wall.definition.opening_count
+        == 2
+    );
+
+    assert(
+        wall_remove_opening_by_id(
+            &wall,
+            1
+        )
+    );
+
+    assert(
+        wall.definition.opening_count
+        == 1
+    );
+
+    assert(
+        wall_find_opening_by_id_const(
+            &wall,
+            1
+        ) == NULL
+    );
+
+    assert(
+        wall_find_opening_by_id_const(
+            &wall,
+            2
+        ) != NULL
+    );
+
+    wall_destroy(
+        &wall
+    );
+}
+
+static void
+test_remove_missing_opening_preserves_definition(void)
+{
+    Wall wall = {0};
+
+    BuildSettings settings = {
+        .stud_height = 2400,
+        .stud_depth = 90,
+        .stud_width = 35,
+        .stud_spacing = 600,
+        .nog_spacing = 1200,
+        .stud_spacing_mode =
+            STUD_SPACING_MAXIMISE
+    };
+
+    assert(
+        wall_set_length(
+            &wall,
+            4200
+        )
+    );
+
+    assert(
+        wall_add_opening(
+            &wall,
+            &settings,
+            1,
+            OPENING_WINDOW,
+            1200,
+            900,
+            1200,
+            1200
+        )
+    );
+
+    size_t count_before =
+        wall.definition.opening_count;
+
+    assert(
+        !wall_remove_opening_by_id(
+            &wall,
+            999
+        )
+    );
+
+    assert(
+        wall.definition.opening_count
+        == count_before
+    );
+
+    assert(
+        wall_find_opening_by_id_const(
+            &wall,
+            1
+        ) != NULL
+    );
+
+    wall_destroy(
+        &wall
+    );
+}
+
 int main(void)
 {
     test_finds_stud_at_world_position();
@@ -515,6 +661,9 @@ int main(void)
     test_find_opening_by_id_rejects_invalid_id();
     test_find_opening_by_id_returns_null_when_missing();
     test_opening_identity_survives_reallocation();
+
+    test_remove_opening_by_id_removes_only_target();
+    test_remove_missing_opening_preserves_definition();
 
     printf("All wall query tests passed.\n");
 

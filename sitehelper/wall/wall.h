@@ -21,6 +21,7 @@ int wall_add_opening(Wall *wall, const BuildSettings *settings, DomainId opening
 Opening *wall_find_opening_by_id(Wall *wall, DomainId opening_id);
 const Opening *wall_find_opening_by_id_const(const Wall *wall, DomainId opening_id);
 int wall_opening_fits(const Wall *wall, const Opening *opening, const BuildSettings *settings);
+int wall_remove_opening_by_id(Wall *wall, DomainId opening_id);
 
 void wall_destroy(Wall *wall);
 void wall_framing_destroy(WallFraming *framing);

@@ -297,6 +297,7 @@ int renderer2d_sdl_poll_event(
     if (sdl_event.type == SDL_EVENT_QUIT) {
         event->quit_requested = 1;
     }
+
     else if (sdl_event.type == SDL_EVENT_WINDOW_RESIZED) {
         event->viewport_resized = 1;
 
@@ -306,25 +307,37 @@ int renderer2d_sdl_poll_event(
         event->viewport_height =
             (double)sdl_event.window.data2;
     }
+
     else if (sdl_event.type == SDL_EVENT_KEY_DOWN) {
-        switch (sdl_event.key.key) {
-            case SDLK_LEFT:
-                event->move_left = 1;
-                break;
 
-            case SDLK_RIGHT:
-                event->move_right = 1;
-                break;
+        if (
+            sdl_event.key.key == SDLK_Z
+            && (sdl_event.key.mod & SDL_KMOD_CTRL)
+            && !sdl_event.key.repeat
+        ) {
+            event->undo_requested = 1;
+        }
+        else {
+            switch (sdl_event.key.key) {
+                case SDLK_LEFT:
+                    event->move_left = 1;
+                    break;
 
-            case SDLK_UP:
-                event->move_up = 1;
-                break;
+                case SDLK_RIGHT:
+                    event->move_right = 1;
+                    break;
 
-            case SDLK_DOWN:
-                event->move_down = 1;
-                break;
+                case SDLK_UP:
+                    event->move_up = 1;
+                    break;
+
+                case SDLK_DOWN:
+                    event->move_down = 1;
+                    break;
+            }
         }
     }
+
     else if (
     sdl_event.type == SDL_EVENT_MOUSE_MOTION
     ) {
@@ -349,6 +362,7 @@ int renderer2d_sdl_poll_event(
                 (double)sdl_event.motion.yrel;
         }
     }
+
     else if (sdl_event.type == SDL_EVENT_MOUSE_WHEEL) {
         event->mouse_wheel = 1;
 
@@ -357,6 +371,7 @@ int renderer2d_sdl_poll_event(
         event->mouse_x = (double)sdl_event.wheel.mouse_x;
         event->mouse_y = (double)sdl_event.wheel.mouse_y;
     }
+
     else if (
         sdl_event.type == SDL_EVENT_MOUSE_BUTTON_DOWN
         &&
@@ -367,6 +382,7 @@ int renderer2d_sdl_poll_event(
         event->mouse_x = (double)sdl_event.button.x;
         event->mouse_y = (double)sdl_event.button.y;
     }
+    
     else if (
         sdl_event.type == SDL_EVENT_MOUSE_BUTTON_UP
         &&

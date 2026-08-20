@@ -8,6 +8,7 @@
 #include "wall.h"
 #include "appstate.h"
 #include "appcontext.h"
+#include "sitehelper_command.h"
 
 //Setting Menu
 void setBuildSettings(void *context)
@@ -722,39 +723,99 @@ void addOpening(void *context)
     printf("Enter nominal opening height: ");
 
     if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-        fprintf(stderr, "Failed to read opening height.\n");
-        return;
-    }
-
-    long height = strtol(buffer, &end, 10);
-
-    if (end == buffer || height <= 0) {
-        printf("Invalid opening height.\n");
-        return;
-    }
-
-    DomainId opening_id =
-        domain_id_generate(
-            &app->project.domain_ids
-        );
-
-    if (opening_id == DOMAIN_ID_INVALID) {
         fprintf(
             stderr,
-            "Could not allocate opening identity.\n"
+            "Failed to read opening height.\n"
         );
         return;
     }
 
-    if (!wall_add_opening(
-            wall,
-            &app->project.settings,
-            opening_id,
+    long height =
+        strtol(
+            buffer,
+            &end,
+            10
+        );
+
+    if (end == buffer || height <= 0) {
+        printf(
+            "Invalid opening height.\n"
+        );
+        return;
+    }
+
+    int frame_bottom = 0;
+
+    if (type == OPENING_WINDOW) {
+        printf(
+            "Enter framed opening bottom height: "
+        );
+
+        if (fgets(buffer, sizeof buffer, stdin) == NULL) {
+            fprintf(
+                stderr,
+                "Failed to read opening bottom height.\n"
+            );
+            return;
+        }
+
+        long bottom =
+            strtol(
+                buffer,
+                &end,
+                10
+            );
+
+        if (end == buffer || bottom < 0) {
+            printf(
+                "Invalid opening bottom height.\n"
+            );
+            return;
+        }
+
+        frame_bottom =
+            (int)bottom;
+    }
+
+    OpeningCommand opening_command;
+
+    if (!opening_command_create(
+            app->editor.current_room_id,
+            app->editor.current_wall_id,
             type,
-            0,
             (int)position,
+            frame_bottom,
             (int)width,
-            (int)height)) {
+            (int)height,
+            &opening_command)) {
+
+        printf(
+            "Could not create opening command.\n"
+        );
+
+        return;
+    }
+
+    SiteHelperCommand command;
+
+    if (!sitehelper_command_from_opening(
+            &opening_command,
+            &command)) {
+
+        printf(
+            "Could not create application command.\n"
+        );
+
+        return;
+    }
+
+    SiteHelperCommandResult result;
+
+    if (!sitehelper_command_history_execute(
+            &app->history,
+            &app->project,
+            &command,
+            &result)) {
 
         printf(
             "Could not add opening. "

@@ -11,7 +11,10 @@ add_library(sitehelper_core
     editor/snap.c
     editor/opening_tool.c
     editor/opening_placement.c
-    editor/opening_command.c
+
+    command/opening_command.c
+    command/sitehelper_command.c
+    command/command_history.c
 
     wall/wall_generation.c
     wall/wall_lifecycle.c
@@ -43,6 +46,7 @@ target_include_directories(sitehelper_core
         ${CMAKE_CURRENT_SOURCE_DIR}/cli
         ${CMAKE_CURRENT_SOURCE_DIR}/domain
         ${CMAKE_CURRENT_SOURCE_DIR}/editor
+        ${CMAKE_CURRENT_SOURCE_DIR}/command
         ${CMAKE_CURRENT_SOURCE_DIR}/grid
         ${CMAKE_CURRENT_SOURCE_DIR}/gui
         ${CMAKE_CURRENT_SOURCE_DIR}/model
@@ -253,7 +257,7 @@ add_test(
 )
 
 add_executable(test_opening_command
-    editor/tests/test_opening_command.c
+    command/tests/test_opening_command.c
 )
 
 target_link_libraries(test_opening_command
@@ -364,6 +368,38 @@ target_link_libraries(
 add_test(
     NAME editor_snap_state_tests
     COMMAND test_editor_snap_state
+)
+
+add_executable(
+    sitehelper_command_tests
+    command/tests/test_sitehelper_command.c
+)
+
+target_link_libraries(
+    sitehelper_command_tests
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME sitehelper_command_tests
+    COMMAND sitehelper_command_tests
+)
+
+add_executable(
+    command_history_tests
+    command/tests/test_command_history.c
+)
+
+target_link_libraries(
+    command_history_tests
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME command_history_tests
+    COMMAND command_history_tests
 )
 
 add_executable(sitehelper

@@ -2879,6 +2879,167 @@ test_wall_definition_survives_framing_destroy(void)
     wall_destroy(&wall);
 }
 
+static void
+test_failed_wall_regeneration_preserves_existing_framing(void)
+{
+    Wall wall = {0};
+
+    BuildSettings settings = {
+        .stud_height = 2400,
+        .stud_width = 35,
+        .stud_depth = 90,
+        .stud_spacing = 450,
+        .nog_spacing = 900,
+        .stud_spacing_mode =
+            STUD_SPACING_MAXIMISE
+    };
+
+    assert(
+        wall_set_length(
+            &wall,
+            4200
+        )
+    );
+
+    /*
+     * Establish a valid committed framing.
+     */
+    assert(
+        wall_generate(
+            &wall,
+            &settings
+        )
+    );
+
+    assert(
+        wall.framing.stud_count > 0
+    );
+
+    assert(
+        wall.framing.nog_count > 0
+    );
+
+    Timber *studs_before =
+        wall.framing.studs;
+
+    Timber *nogs_before =
+        wall.framing.nogs;
+
+    Timber *members_before =
+        wall.framing.members;
+
+    size_t stud_count_before =
+        wall.framing.stud_count;
+
+    size_t stud_capacity_before =
+        wall.framing.stud_capacity;
+
+    size_t nog_count_before =
+        wall.framing.nog_count;
+
+    size_t nog_capacity_before =
+        wall.framing.nog_capacity;
+
+    size_t member_count_before =
+        wall.framing.member_count;
+
+    size_t member_capacity_before =
+        wall.framing.member_capacity;
+
+    Timber bottomplate_before =
+        wall.framing.bottomplate;
+
+    Timber topplate_before =
+        wall.framing.topplate;
+
+    /*
+     * Force generation to fail after it
+     * has entered the generation process.
+     */
+    settings.stud_spacing_mode =
+        (StudSpacingMode)999;
+
+    assert(
+        !wall_generate(
+            &wall,
+            &settings
+        )
+    );
+
+    /*
+     * Failure must preserve the previously
+     * committed framing exactly.
+     */
+    assert(
+        wall.framing.studs ==
+        studs_before
+    );
+
+    assert(
+        wall.framing.nogs ==
+        nogs_before
+    );
+
+    assert(
+        wall.framing.members ==
+        members_before
+    );
+
+    assert(
+        wall.framing.stud_count ==
+        stud_count_before
+    );
+
+    assert(
+        wall.framing.stud_capacity ==
+        stud_capacity_before
+    );
+
+    assert(
+        wall.framing.nog_count ==
+        nog_count_before
+    );
+
+    assert(
+        wall.framing.nog_capacity ==
+        nog_capacity_before
+    );
+
+    assert(
+        wall.framing.member_count ==
+        member_count_before
+    );
+
+    assert(
+        wall.framing.member_capacity ==
+        member_capacity_before
+    );
+
+    assert(
+        wall.framing.bottomplate.length ==
+        bottomplate_before.length
+    );
+
+    assert(
+        wall.framing.bottomplate.position.y ==
+        bottomplate_before.position.y
+    );
+
+    assert(
+        wall.framing.topplate.length ==
+        topplate_before.length
+    );
+
+    assert(
+        wall.framing.topplate.position.y ==
+        topplate_before.position.y
+    );
+
+    wall_destroy(
+        &wall
+    );
+}
+
 int main(void)
 {
     test_wall_generates_complete_plates();
@@ -2915,6 +3076,8 @@ int main(void)
     test_wall_destroy_can_be_called_twice();
 
     test_wall_definition_survives_framing_destroy();
+
+    test_failed_wall_regeneration_preserves_existing_framing();
 
     printf("All sitehelper tests passed.\n");
 

@@ -381,7 +381,6 @@ void sitehelper_editor_pointer_leave(
 
 int sitehelper_editor_create_opening_command(
     const SiteHelperEditor *editor,
-    DomainId opening_id,
     OpeningCommand *command
 )
 {
@@ -395,9 +394,13 @@ int sitehelper_editor_create_opening_command(
     }
 
     return opening_command_create(
-        &editor->opening_placement,
+        editor->current_room_id,
+        editor->current_wall_id,
         editor->opening_tool.type,
-        opening_id,
+        (int)editor->opening_placement.left,
+        (int)editor->opening_placement.bottom,
+        editor->opening_placement.width,
+        editor->opening_placement.height,
         command
     );
 }
@@ -418,7 +421,6 @@ int sitehelper_editor_primary_action(
     SiteHelperEditor *editor,
     const Wall *wall,
     Vec2 world_position,
-    DomainId command_id,
     EditorAction *action
 )
 {
@@ -456,15 +458,22 @@ int sitehelper_editor_primary_action(
 
         case EDITOR_TOOL_OPENING:
         {
+            OpeningCommand opening_command;
+
             if (!sitehelper_editor_create_opening_command(
                     editor,
-                    command_id,
-                    &action->opening_command)) {
+                    &opening_command)) {
+                return 0;
+            }
+
+            if (!sitehelper_command_from_opening(
+                    &opening_command,
+                    &action->command)) {
                 return 0;
             }
 
             action->kind =
-                EDITOR_ACTION_OPENING_COMMAND;
+                EDITOR_ACTION_COMMAND;
 
             return 1;
         }
@@ -472,25 +481,6 @@ int sitehelper_editor_primary_action(
         case EDITOR_TOOL_WALL:
         default:
             return 1;
-    }
-}
-
-int sitehelper_editor_primary_action_requires_id(
-    const SiteHelperEditor *editor
-)
-{
-    if (editor == NULL) {
-        return 0;
-    }
-
-    switch (editor->active_tool) {
-        case EDITOR_TOOL_OPENING:
-            return 1;
-
-        case EDITOR_TOOL_SELECT:
-        case EDITOR_TOOL_WALL:
-        default:
-            return 0;
     }
 }
 
@@ -537,4 +527,40 @@ int sitehelper_editor_get_opening_preview_rect(
     };
 
     return 1;
+}
+
+void sitehelper_editor_complete_action(
+    SiteHelperEditor *editor,
+    const EditorAction *action
+)
+{
+    if (
+        editor == NULL
+        || action == NULL
+    ) {
+        return;
+    }
+
+    if (
+        action->kind
+        != EDITOR_ACTION_COMMAND
+    ) {
+        return;
+    }
+
+    switch (action->command.type) {
+
+        case SITEHELPER_COMMAND_ADD_OPENING:
+
+            sitehelper_editor_complete_opening_command(
+                editor
+            );
+
+            break;
+
+        case SITEHELPER_COMMAND_NONE:
+        case SITEHELPER_COMMAND_COUNT:
+        default:
+            break;
+    }
 }

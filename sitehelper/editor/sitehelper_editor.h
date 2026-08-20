@@ -103,7 +103,6 @@ void sitehelper_editor_pointer_leave(
 
 int sitehelper_editor_create_opening_command(
     const SiteHelperEditor *editor,
-    DomainId opening_id,
     OpeningCommand *command
 );
 
@@ -115,12 +114,7 @@ int sitehelper_editor_primary_action(
     SiteHelperEditor *editor,
     const Wall *wall,
     Vec2 world_position,
-    DomainId command_id,
     EditorAction *action
-);
-
-int sitehelper_editor_primary_action_requires_id(
-    const SiteHelperEditor *editor
 );
 
 int sitehelper_editor_has_opening_preview(
@@ -130,6 +124,11 @@ int sitehelper_editor_has_opening_preview(
 int sitehelper_editor_get_opening_preview_rect(
     const SiteHelperEditor *editor,
     Rect2 *rect
+);
+
+void sitehelper_editor_complete_action(
+    SiteHelperEditor *editor,
+    const EditorAction *action
 );
 
 #endif
