@@ -122,7 +122,7 @@ sitehelper_command_history_execute(
      */
     if (!sitehelper_command_history_reserve(
             history,
-            history->count + 1)) {
+            history->cursor + 1)) {
         return 0;
     }
 
@@ -134,7 +134,7 @@ sitehelper_command_history_execute(
     }
 
     history->entries[
-        history->count
+        history->cursor
     ] =
         (SiteHelperCommandHistoryEntry){
             .command =
@@ -144,7 +144,14 @@ sitehelper_command_history_execute(
                 *result
         };
 
-    history->count++;
+    /*
+    * The new command replaces any redoable
+    * branch beyond the current cursor.
+    */
+    history->cursor++;
+
+    history->count =
+        history->cursor;
 
     return 1;
 }
@@ -159,18 +166,18 @@ sitehelper_command_history_undo(
     if (
         history == NULL
         || project == NULL
-        || history->count == 0
+        || history->cursor == 0
     ) {
         return 0;
     }
 
     SiteHelperCommandHistoryEntry *entry =
         &history->entries[
-            history->count - 1
+            history->cursor - 1
         ];
 
     /*
-     * Do not remove the history entry until
+     * Do not move the history cursor until
      * the domain mutation has been successfully
      * reversed.
      */
@@ -181,12 +188,43 @@ sitehelper_command_history_undo(
         return 0;
     }
 
-    history->count--;
+    history->cursor--;
 
-    history->entries[
-        history->count
-    ] =
-        (SiteHelperCommandHistoryEntry){0};
+    return 1;
+}
+
+int
+sitehelper_command_history_redo(
+    SiteHelperCommandHistory *history,
+    SiteHelperProject *project
+)
+{
+    if (
+        history == NULL
+        || project == NULL
+        || history->cursor >= history->count
+    ) {
+        return 0;
+    }
+
+    SiteHelperCommandHistoryEntry *entry =
+        &history->entries[
+            history->cursor
+        ];
+
+    /*
+     * Do not move the history cursor until
+     * the domain mutation has been successfully
+     * reapplied.
+     */
+    if (!sitehelper_command_redo(
+            project,
+            &entry->command,
+            &entry->result)) {
+        return 0;
+    }
+
+    history->cursor++;
 
     return 1;
 }

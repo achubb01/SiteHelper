@@ -1337,6 +1337,62 @@ test_editor_complete_action_accepts_null(void)
     );
 }
 
+static void
+test_editor_invalidate_transient_state_clears_snap_and_opening_placement(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(
+        &editor
+    );
+
+    sitehelper_editor_set_snap_result(
+        &editor,
+        (SnapResult){
+            .position = {
+                .x = 1200.0,
+                .y = 900.0
+            },
+            .type = SNAP_ENDPOINT
+        }
+    );
+
+    editor.opening_placement =
+        (OpeningPlacement){
+            .valid = 1,
+            .start_bay_index = 1,
+            .end_bay_index = 2,
+            .left = 1200.0,
+            .bottom = 900.0,
+            .width = 1200,
+            .height = 1200
+        };
+
+    assert(
+        sitehelper_editor_has_snap(
+            &editor
+        )
+    );
+
+    assert(
+        editor.opening_placement.valid
+    );
+
+    sitehelper_editor_invalidate_transient_state(
+        &editor
+    );
+
+    assert(
+        !sitehelper_editor_has_snap(
+            &editor
+        )
+    );
+
+    assert(
+        !editor.opening_placement.valid
+    );
+}
+
 int main(void)
 {
     test_editor_init_has_no_current_room();
@@ -1377,6 +1433,7 @@ int main(void)
     test_editor_rejects_opening_command_without_target();
     test_editor_complete_action_clears_opening_placement();
     test_editor_complete_action_accepts_null();
+    test_editor_invalidate_transient_state_clears_snap_and_opening_placement();
 
     printf(
         "All SiteHelper editor tests passed.\n"

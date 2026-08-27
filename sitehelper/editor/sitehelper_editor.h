@@ -131,4 +131,8 @@ void sitehelper_editor_complete_action(
     const EditorAction *action
 );
 
+void sitehelper_editor_invalidate_transient_state(
+    SiteHelperEditor *editor
+);
+
 #endif

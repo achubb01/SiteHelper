@@ -57,4 +57,10 @@ int sitehelper_command_undo(
     const SiteHelperCommandResult *result
 );
 
+int sitehelper_command_redo(
+    SiteHelperProject *project,
+    const SiteHelperCommand *command,
+    const SiteHelperCommandResult *result
+);
+
 #endif

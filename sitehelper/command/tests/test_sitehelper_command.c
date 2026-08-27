@@ -441,12 +441,159 @@ test_undo_dispatches_opening_command(void)
     );
 }
 
+static void
+test_redo_dispatches_opening_command(void)
+{
+    SiteHelperProject project;
+
+    sitehelper_project_init(
+        &project
+    );
+
+    DomainId room_id =
+        sitehelper_project_add_room(
+            &project
+        );
+
+    assert(
+        room_id
+        != DOMAIN_ID_INVALID
+    );
+
+    DomainId wall_id =
+        sitehelper_project_add_wall(
+            &project,
+            room_id
+        );
+
+    assert(
+        wall_id
+        != DOMAIN_ID_INVALID
+    );
+
+    Room *room =
+        build_find_room_by_id(
+            &project.structure,
+            room_id
+        );
+
+    assert(room != NULL);
+
+    Wall *wall =
+        room_find_wall_by_id(
+            room,
+            wall_id
+        );
+
+    assert(wall != NULL);
+
+    assert(
+        wall_set_length(
+            wall,
+            4200
+        )
+    );
+
+    assert(
+        wall_generate(
+            wall,
+            &project.settings
+        )
+    );
+
+    OpeningCommand opening;
+
+    assert(
+        opening_command_create(
+            room_id,
+            wall_id,
+            OPENING_WINDOW,
+            1200,
+            900,
+            1200,
+            1200,
+            &opening
+        )
+    );
+
+    SiteHelperCommand command;
+
+    assert(
+        sitehelper_command_from_opening(
+            &opening,
+            &command
+        )
+    );
+
+    SiteHelperCommandResult result;
+
+    assert(
+        sitehelper_command_execute(
+            &project,
+            &command,
+            &result
+        )
+    );
+
+    DomainId opening_id =
+        result.data.add_opening.opening_id;
+
+    DomainId next_after_execute =
+        project.domain_ids.next;
+
+    assert(
+        sitehelper_command_undo(
+            &project,
+            &command,
+            &result
+        )
+    );
+
+    assert(
+        wall_find_opening_by_id_const(
+            wall,
+            opening_id
+        ) == NULL
+    );
+
+    assert(
+        sitehelper_command_redo(
+            &project,
+            &command,
+            &result
+        )
+    );
+
+    const Opening *restored =
+        wall_find_opening_by_id_const(
+            wall,
+            opening_id
+        );
+
+    assert(restored != NULL);
+
+    assert(
+        restored->id
+        == opening_id
+    );
+
+    assert(
+        project.domain_ids.next
+        == next_after_execute
+    );
+
+    sitehelper_project_destroy(
+        &project
+    );
+}
+
 int main(void)
 {
     test_execute_dispatches_opening_command();
     test_execute_rejects_unknown_command();
     test_failed_command_produces_no_result();
     test_undo_dispatches_opening_command();
+    test_redo_dispatches_opening_command();
 
     printf(
         "All SiteHelper command tests passed.\n"

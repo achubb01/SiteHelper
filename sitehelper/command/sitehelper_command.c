@@ -126,3 +126,41 @@ int sitehelper_command_undo(
             return 0;
     }
 }
+
+int sitehelper_command_redo(
+    SiteHelperProject *project,
+    const SiteHelperCommand *command,
+    const SiteHelperCommandResult *result
+)
+{
+    if (
+        project == NULL
+        || command == NULL
+        || result == NULL
+    ) {
+        return 0;
+    }
+
+    if (
+        command->type
+        != result->type
+    ) {
+        return 0;
+    }
+
+    switch (command->type) {
+
+        case SITEHELPER_COMMAND_ADD_OPENING:
+
+            return opening_command_redo(
+                project,
+                &command->data.opening,
+                result->data.add_opening.opening_id
+            );
+
+        case SITEHELPER_COMMAND_NONE:
+        case SITEHELPER_COMMAND_COUNT:
+        default:
+            return 0;
+    }
+}

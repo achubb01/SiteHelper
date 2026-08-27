@@ -310,3 +310,109 @@ int opening_command_undo(
 
     return 1;
 }
+
+int opening_command_redo(
+    SiteHelperProject *project,
+    const OpeningCommand *command,
+    DomainId opening_id
+)
+{
+    if (
+        project == NULL
+        || command == NULL
+        || opening_id == DOMAIN_ID_INVALID
+    ) {
+        return 0;
+    }
+
+    Room *room =
+        build_find_room_by_id(
+            &project->structure,
+            command->room_id
+        );
+
+    if (room == NULL) {
+        return 0;
+    }
+
+    Wall *wall =
+        room_find_wall_by_id(
+            room,
+            command->wall_id
+        );
+
+    if (wall == NULL) {
+        return 0;
+    }
+
+    /*
+     * Redo is only valid after the
+     * original opening has been undone.
+     */
+    if (
+        wall_find_opening_by_id_const(
+            wall,
+            opening_id
+        ) != NULL
+    ) {
+        return 0;
+    }
+
+    Wall candidate = {0};
+
+    if (!opening_command_copy_wall_definition(
+            wall,
+            &candidate)) {
+        return 0;
+    }
+
+    /*
+     * Restore the opening using its
+     * original identity.
+     *
+     * Do not allocate another DomainId.
+     */
+    if (!wall_add_opening(
+            &candidate,
+            &project->settings,
+            opening_id,
+            command->type,
+            command->frame_position,
+            command->frame_bottom,
+            command->width,
+            command->height)) {
+
+        wall_destroy(
+            &candidate
+        );
+
+        return 0;
+    }
+
+    if (!wall_generate(
+            &candidate,
+            &project->settings)) {
+
+        wall_destroy(
+            &candidate
+        );
+
+        return 0;
+    }
+
+    /*
+     * Everything succeeded.
+     * Commit atomically.
+     */
+    Wall previous =
+        *wall;
+
+    *wall =
+        candidate;
+
+    wall_destroy(
+        &previous
+    );
+
+    return 1;
+}

@@ -371,12 +371,9 @@ void sitehelper_editor_pointer_leave(
         return;
     }
 
-    sitehelper_editor_clear_snap(
+    sitehelper_editor_invalidate_transient_state(
         editor
     );
-
-    editor->opening_placement =
-        (OpeningPlacement){0};
 }
 
 int sitehelper_editor_create_opening_command(
@@ -563,4 +560,20 @@ void sitehelper_editor_complete_action(
         default:
             break;
     }
+}
+
+void sitehelper_editor_invalidate_transient_state(
+    SiteHelperEditor *editor
+)
+{
+    if (editor == NULL) {
+        return;
+    }
+
+    sitehelper_editor_clear_snap(
+        editor
+    );
+
+    editor->opening_placement =
+        (OpeningPlacement){0};
 }

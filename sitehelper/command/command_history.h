@@ -19,6 +19,7 @@ typedef struct
     SiteHelperCommandHistoryEntry *entries;
 
     size_t count;
+    size_t cursor;
     size_t capacity;
 
 } SiteHelperCommandHistory;
@@ -40,6 +41,11 @@ int sitehelper_command_history_execute(
 );
 
 int sitehelper_command_history_undo(
+    SiteHelperCommandHistory *history,
+    SiteHelperProject *project
+);
+
+int sitehelper_command_history_redo(
     SiteHelperCommandHistory *history,
     SiteHelperProject *project
 );

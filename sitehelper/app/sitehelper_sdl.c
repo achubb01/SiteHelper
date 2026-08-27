@@ -540,10 +540,61 @@ static void sitehelper_app_process_events(
         }
 
         if (event.undo_requested) {
-            sitehelper_command_history_undo(
-                &app->history,
-                &app->project
-            );
+            if (sitehelper_command_history_undo(
+                    &app->history,
+                    &app->project)) {
+
+                Wall *wall =
+                    sitehelper_app_current_wall(
+                        app
+                    );
+
+                if (wall != NULL) {
+                    sitehelper_editor_reconcile_wall_selection(
+                        &app->editor,
+                        wall
+                    );
+                }
+                else {
+                    sitehelper_editor_clear_selection(
+                        &app->editor
+                    );
+                }
+
+                sitehelper_editor_invalidate_transient_state(
+                    &app->editor
+                );
+            }
+
+            continue;
+        }
+
+        if (event.redo_requested) {
+            if (sitehelper_command_history_redo(
+                    &app->history,
+                    &app->project)) {
+
+                Wall *wall =
+                    sitehelper_app_current_wall(
+                        app
+                    );
+
+                if (wall != NULL) {
+                    sitehelper_editor_reconcile_wall_selection(
+                        &app->editor,
+                        wall
+                    );
+                }
+                else {
+                    sitehelper_editor_clear_selection(
+                        &app->editor
+                    );
+                }
+
+                sitehelper_editor_invalidate_transient_state(
+                    &app->editor
+                );
+            }
 
             continue;
         }

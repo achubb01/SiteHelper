@@ -311,6 +311,23 @@ int renderer2d_sdl_poll_event(
     else if (sdl_event.type == SDL_EVENT_KEY_DOWN) {
 
         if (
+            (
+                (
+                    sdl_event.key.key == SDLK_Y
+                    && (sdl_event.key.mod & SDL_KMOD_CTRL)
+                )
+                ||
+                (
+                    sdl_event.key.key == SDLK_Z
+                    && (sdl_event.key.mod & SDL_KMOD_CTRL)
+                    && (sdl_event.key.mod & SDL_KMOD_SHIFT)
+                )
+            )
+            && !sdl_event.key.repeat
+        ) {
+            event->redo_requested = 1;
+        }
+        else if (
             sdl_event.key.key == SDLK_Z
             && (sdl_event.key.mod & SDL_KMOD_CTRL)
             && !sdl_event.key.repeat

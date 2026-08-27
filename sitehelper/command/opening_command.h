@@ -42,4 +42,10 @@ int opening_command_undo(
     DomainId opening_id
 );
 
+int opening_command_redo(
+    SiteHelperProject *project,
+    const OpeningCommand *command,
+    DomainId opening_id
+);
+
 #endif

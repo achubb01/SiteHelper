@@ -1149,6 +1149,256 @@ test_undo_failure_preserves_wall_state(void)
     );
 }
 
+static void
+test_redo_restores_created_opening_with_same_identity(void)
+{
+    SiteHelperProject project;
+
+    sitehelper_project_init(
+        &project
+    );
+
+    DomainId room_id;
+    DomainId wall_id;
+
+    Wall *wall =
+        add_test_wall(
+            &project,
+            4200,
+            &room_id,
+            &wall_id
+        );
+
+    assert(wall != NULL);
+
+    OpeningCommand command;
+
+    assert(
+        opening_command_create(
+            room_id,
+            wall_id,
+            OPENING_WINDOW,
+            1200,
+            900,
+            1200,
+            1200,
+            &command
+        )
+    );
+
+    DomainId opening_id =
+        DOMAIN_ID_INVALID;
+
+    assert(
+        opening_command_execute(
+            &project,
+            &command,
+            &opening_id
+        )
+    );
+
+    DomainId next_after_execute =
+        project.domain_ids.next;
+
+    assert(
+        opening_command_undo(
+            &project,
+            &command,
+            opening_id
+        )
+    );
+
+    assert(
+        wall_find_opening_by_id_const(
+            wall,
+            opening_id
+        ) == NULL
+    );
+
+    assert(
+        opening_command_redo(
+            &project,
+            &command,
+            opening_id
+        )
+    );
+
+    const Opening *opening =
+        wall_find_opening_by_id_const(
+            wall,
+            opening_id
+        );
+
+    assert(opening != NULL);
+
+    assert(
+        opening->id
+        == opening_id
+    );
+
+    assert(
+        opening->type
+        == OPENING_WINDOW
+    );
+
+    assert(
+        opening->frame_position
+        == 1200
+    );
+
+    assert(
+        opening->frame_bottom
+        == 900
+    );
+
+    assert(
+        opening->width
+        == 1200
+    );
+
+    assert(
+        opening->height
+        == 1200
+    );
+
+    /*
+     * Redo restores the original
+     * identity. It must not allocate
+     * another DomainId.
+     */
+    assert(
+        project.domain_ids.next
+        == next_after_execute
+    );
+
+    sitehelper_project_destroy(
+        &project
+    );
+}
+
+static void
+test_redo_failure_preserves_wall_state(void)
+{
+    SiteHelperProject project;
+
+    sitehelper_project_init(
+        &project
+    );
+
+    DomainId room_id;
+    DomainId wall_id;
+
+    Wall *wall =
+        add_test_wall(
+            &project,
+            4200,
+            &room_id,
+            &wall_id
+        );
+
+    assert(wall != NULL);
+
+    OpeningCommand command;
+
+    assert(
+        opening_command_create(
+            room_id,
+            wall_id,
+            OPENING_WINDOW,
+            1200,
+            900,
+            1200,
+            1200,
+            &command
+        )
+    );
+
+    DomainId opening_id =
+        DOMAIN_ID_INVALID;
+
+    assert(
+        opening_command_execute(
+            &project,
+            &command,
+            &opening_id
+        )
+    );
+
+    assert(
+        opening_command_undo(
+            &project,
+            &command,
+            opening_id
+        )
+    );
+
+    /*
+     * Capture the authoritative/live
+     * state after undo.
+     */
+    size_t opening_count_before =
+        wall->definition.opening_count;
+
+    Timber *studs_before =
+        wall->framing.studs;
+
+    size_t stud_count_before =
+        wall->framing.stud_count;
+
+    DomainId next_before =
+        project.domain_ids.next;
+
+    /*
+     * Force regeneration of the redo
+     * candidate to fail.
+     */
+    project.settings.stud_spacing_mode =
+        (StudSpacingMode)999;
+
+    assert(
+        !opening_command_redo(
+            &project,
+            &command,
+            opening_id
+        )
+    );
+
+    /*
+     * The undone state must remain
+     * completely authoritative.
+     */
+    assert(
+        wall->definition.opening_count
+        == opening_count_before
+    );
+
+    assert(
+        wall_find_opening_by_id_const(
+            wall,
+            opening_id
+        ) == NULL
+    );
+
+    assert(
+        wall->framing.studs
+        == studs_before
+    );
+
+    assert(
+        wall->framing.stud_count
+        == stud_count_before
+    );
+
+    assert(
+        project.domain_ids.next
+        == next_before
+    );
+
+    sitehelper_project_destroy(
+        &project
+    );
+}
+
 int main(void)
 {
     test_create_builds_opening_from_placement();
@@ -1164,7 +1414,9 @@ int main(void)
     test_failed_execute_does_not_consume_domain_id();
     test_execute_rejects_null_opening_id_output();
     test_undo_removes_created_opening();
+    test_redo_restores_created_opening_with_same_identity();
     test_undo_failure_preserves_wall_state();
+    test_redo_failure_preserves_wall_state();
 
     printf(
         "All opening command tests passed.\n"

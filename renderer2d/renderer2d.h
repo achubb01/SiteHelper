@@ -19,6 +19,7 @@ typedef struct Renderer2DEvent {
     int move_down;
 
     int undo_requested;
+    int redo_requested;
 
     int primary_mouse_pressed;   
     int primary_mouse_released;
