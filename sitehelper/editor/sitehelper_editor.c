@@ -295,6 +295,7 @@ void sitehelper_editor_update_snap(
 void sitehelper_editor_pointer_move(
     SiteHelperEditor *editor,
     const Wall *wall,
+    const BuildSettings *settings,
     Vec2 world_position
 )
 {
@@ -334,10 +335,30 @@ void sitehelper_editor_pointer_move(
 
             editor->opening_placement =
                 opening_find_placement(
-                    wall,
                     snap_result->position,
                     &editor->opening_tool
                 );
+
+            if (
+                editor->opening_placement.has_candidate
+            ) {
+                WallOpeningProposal proposal = {
+                    .type = editor->opening_tool.type,
+                    .frame_position =
+                        (int)editor->opening_placement.left,
+                    .frame_bottom =
+                        (int)editor->opening_placement.bottom,
+                    .width = editor->opening_placement.width,
+                    .height = editor->opening_placement.height
+                };
+
+                editor->opening_placement.validation =
+                    wall_validate_opening(
+                        wall,
+                        settings,
+                        &proposal
+                    );
+            }
 
             break;
         }
@@ -386,6 +407,9 @@ int sitehelper_editor_create_opening_command(
         || command == NULL
         || editor->active_tool
             != EDITOR_TOOL_OPENING
+        || !opening_placement_is_valid(
+            &editor->opening_placement
+        )
     ) {
         return 0;
     }
@@ -492,7 +516,7 @@ int sitehelper_editor_has_opening_preview(
     return
         editor->active_tool
             == EDITOR_TOOL_OPENING
-        && editor->opening_placement.valid;
+        && editor->opening_placement.has_candidate;
 }
 
 int sitehelper_editor_get_opening_preview_rect(

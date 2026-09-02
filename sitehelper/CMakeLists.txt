@@ -130,6 +130,20 @@ add_test(
     COMMAND test_wall_selection
 )
 
+add_executable(test_wall_opening_validation
+    wall/tests/test_wall_opening_validation.c
+)
+
+target_link_libraries(test_wall_opening_validation
+    PRIVATE
+        sitehelper_core
+)
+
+add_test(
+    NAME wall_opening_validation_tests
+    COMMAND test_wall_opening_validation
+)
+
 add_executable(test_grid_render
     grid/tests/test_grid_render.c
 )

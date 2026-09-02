@@ -831,6 +831,7 @@ static void sitehelper_app_update_editor_pointer(
     sitehelper_editor_pointer_move(
         &app->editor,
         wall,
+        &app->project.settings,
         world_position
     );
 }

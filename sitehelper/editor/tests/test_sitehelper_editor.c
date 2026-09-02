@@ -25,6 +25,49 @@ static Timber make_test_stud(void)
     return stud;
 }
 
+static BuildSettings opening_test_settings(void)
+{
+    return (BuildSettings){
+        .stud_height = 2400,
+        .stud_depth = 90,
+        .stud_width = 35,
+        .stud_spacing = 600,
+        .nog_spacing = 1200,
+        .opening_width_allowance = 0,
+        .opening_height_allowance = 0
+    };
+}
+
+static OpeningPlacement valid_opening_placement(void)
+{
+    return (OpeningPlacement){
+        .has_candidate = 1,
+        .left = 600.0,
+        .bottom = 900.0,
+        .width = 1200,
+        .height = 1200,
+        .validation = {
+            .code = WALL_OPENING_VALID
+        }
+    };
+}
+
+static SiteHelperEditor opening_test_editor(void)
+{
+    SiteHelperEditor editor;
+
+    sitehelper_editor_init(&editor);
+    editor.current_room_id = 10;
+    editor.current_wall_id = 20;
+
+    assert(sitehelper_editor_set_active_tool(
+        &editor,
+        EDITOR_TOOL_OPENING
+    ));
+
+    return editor;
+}
+
 static void test_editor_init_has_no_current_room(void)
 {
     SiteHelperEditor editor;
@@ -586,9 +629,7 @@ static void test_editor_initialises_without_opening_placement(void)
         &editor
     );
 
-    assert(
-        editor.opening_placement.valid == 0
-    );
+    assert(!editor.opening_placement.has_candidate);
 }
 
 static void test_editor_initialises_opening_tool_inactive(void)
@@ -635,7 +676,7 @@ static void test_editor_switching_away_cancels_opening_tool(void)
         EDITOR_TOOL_OPENING
     );
 
-    editor.opening_placement.valid = 1;
+    editor.opening_placement = valid_opening_placement();
 
     sitehelper_editor_set_active_tool(
         &editor,
@@ -643,7 +684,7 @@ static void test_editor_switching_away_cancels_opening_tool(void)
     );
 
     assert(!editor.opening_tool.active);
-    assert(!editor.opening_placement.valid);
+    assert(!editor.opening_placement.has_candidate);
 }
 
 static void test_opening_tool_pointer_move_updates_preview(void)
@@ -676,9 +717,11 @@ static void test_opening_tool_pointer_move_updates_preview(void)
     };
 
     Wall wall = {
+        .definition.length = 4000,
         .framing.studs = studs,
         .framing.stud_count = 4
     };
+    BuildSettings settings = opening_test_settings();
 
     SiteHelperEditor editor;
 
@@ -694,6 +737,7 @@ static void test_opening_tool_pointer_move_updates_preview(void)
     sitehelper_editor_pointer_move(
         &editor,
         &wall,
+        &settings,
         (Vec2){
             .x = 300.0,
             .y = 1000.0
@@ -741,9 +785,11 @@ static void test_editor_pointer_move_updates_opening_placement(void)
     };
 
     Wall wall = {
+        .definition.length = 4000,
         .framing.studs = studs,
         .framing.stud_count = 4
     };
+    BuildSettings settings = opening_test_settings();
 
     SiteHelperEditor editor;
 
@@ -761,6 +807,7 @@ static void test_editor_pointer_move_updates_opening_placement(void)
     sitehelper_editor_pointer_move(
         &editor,
         &wall,
+        &settings,
         (Vec2){
             .x = 300.0,
             .y = 1000.0
@@ -773,7 +820,9 @@ static void test_editor_pointer_move_updates_opening_placement(void)
         );
 
     assert(placement != NULL);
-    assert(placement->valid == 1);
+    assert(placement->has_candidate);
+    assert(placement->validation.code == WALL_OPENING_VALID);
+    assert(opening_placement_is_valid(placement));
 
     assert(placement->left == 300.0);
     assert(placement->bottom == 900.0);
@@ -781,13 +830,6 @@ static void test_editor_pointer_move_updates_opening_placement(void)
     assert(placement->width == 1200);
     assert(placement->height == 1200);
 
-    assert(
-        placement->start_bay_index == 0
-    );
-
-    assert(
-        placement->end_bay_index == 2
-    );
 }
 
 static void test_select_tool_pointer_move_has_no_opening_placement(void)
@@ -801,6 +843,7 @@ static void test_select_tool_pointer_move_has_no_opening_placement(void)
     sitehelper_editor_pointer_move(
         &editor,
         NULL,
+        NULL,
         (Vec2){
             .x = 100.0,
             .y = 200.0
@@ -813,7 +856,8 @@ static void test_select_tool_pointer_move_has_no_opening_placement(void)
         );
 
     assert(placement != NULL);
-    assert(!placement->valid);
+    assert(!placement->has_candidate);
+    assert(!opening_placement_is_valid(placement));
 }
 
 static void test_editor_creates_opening_command(void)
@@ -832,14 +876,7 @@ static void test_editor_creates_opening_command(void)
         EDITOR_TOOL_OPENING
     );
 
-    editor.opening_placement =
-        (OpeningPlacement){
-            .valid = 1,
-            .left = 600.0,
-            .bottom = 900.0,
-            .width = 1200,
-            .height = 1200
-        };
+    editor.opening_placement = valid_opening_placement();
 
     editor.opening_tool.type =
         OPENING_WINDOW;
@@ -874,14 +911,7 @@ static void test_editor_does_not_create_opening_command_in_select_mode(void)
     editor.current_room_id = 10;
     editor.current_wall_id = 20;
 
-    editor.opening_placement =
-        (OpeningPlacement){
-            .valid = 1,
-            .left = 600.0,
-            .bottom = 900.0,
-            .width = 1200,
-            .height = 1200
-        };
+    editor.opening_placement = valid_opening_placement();
 
     OpeningCommand command;
 
@@ -906,14 +936,7 @@ static void test_editor_completing_opening_command_clears_placement(void)
         EDITOR_TOOL_OPENING
     );
 
-    editor.opening_placement =
-        (OpeningPlacement){
-            .valid = 1,
-            .left = 600.0,
-            .bottom = 900.0,
-            .width = 1200,
-            .height = 1200
-        };
+    editor.opening_placement = valid_opening_placement();
 
     sitehelper_editor_complete_opening_command(
         &editor
@@ -925,7 +948,7 @@ static void test_editor_completing_opening_command_clears_placement(void)
         );
 
     assert(placement != NULL);
-    assert(!placement->valid);
+    assert(!placement->has_candidate);
 }
 
 static void test_editor_complete_opening_command_accepts_null(void)
@@ -1080,14 +1103,7 @@ static void test_opening_primary_action_produces_command(void)
         EDITOR_TOOL_OPENING
     );
 
-    editor.opening_placement =
-        (OpeningPlacement){
-            .valid = 1,
-            .left = 600.0,
-            .bottom = 900.0,
-            .width = 1200,
-            .height = 1200
-        };
+    editor.opening_placement = valid_opening_placement();
 
     editor.opening_tool.type =
         OPENING_WINDOW;
@@ -1158,14 +1174,7 @@ static void test_editor_has_opening_preview_when_opening_placement_valid(void)
         EDITOR_TOOL_OPENING
     );
 
-    editor.opening_placement =
-        (OpeningPlacement){
-            .valid = 1,
-            .left = 600.0,
-            .bottom = 900.0,
-            .width = 1200,
-            .height = 1200
-        };
+    editor.opening_placement = valid_opening_placement();
 
     assert(
         sitehelper_editor_has_opening_preview(
@@ -1182,14 +1191,7 @@ static void test_editor_has_no_opening_preview_in_select_mode(void)
         &editor
     );
 
-    editor.opening_placement =
-        (OpeningPlacement){
-            .valid = 1,
-            .left = 600.0,
-            .bottom = 900.0,
-            .width = 1200,
-            .height = 1200
-        };
+    editor.opening_placement = valid_opening_placement();
 
     assert(
         !sitehelper_editor_has_opening_preview(
@@ -1211,14 +1213,7 @@ static void test_editor_returns_opening_preview_rect(void)
         EDITOR_TOOL_OPENING
     );
 
-    editor.opening_placement =
-        (OpeningPlacement){
-            .valid = 1,
-            .left = 600.0,
-            .bottom = 900.0,
-            .width = 1200,
-            .height = 1200
-        };
+    editor.opening_placement = valid_opening_placement();
 
     Rect2 rect;
 
@@ -1267,14 +1262,7 @@ test_editor_rejects_opening_command_without_target(void)
         EDITOR_TOOL_OPENING
     );
 
-    editor.opening_placement =
-        (OpeningPlacement){
-            .valid = 1,
-            .left = 600.0,
-            .bottom = 900.0,
-            .width = 1200,
-            .height = 1200
-        };
+    editor.opening_placement = valid_opening_placement();
 
     OpeningCommand command;
 
@@ -1295,7 +1283,7 @@ test_editor_complete_action_clears_opening_placement(void)
         &editor
     );
 
-    editor.opening_placement.valid = 1;
+    editor.opening_placement = valid_opening_placement();
 
     EditorAction action = {
         .kind =
@@ -1313,7 +1301,7 @@ test_editor_complete_action_clears_opening_placement(void)
     );
 
     assert(
-        !editor.opening_placement.valid
+        !editor.opening_placement.has_candidate
     );
 }
 
@@ -1357,16 +1345,7 @@ test_editor_invalidate_transient_state_clears_snap_and_opening_placement(void)
         }
     );
 
-    editor.opening_placement =
-        (OpeningPlacement){
-            .valid = 1,
-            .start_bay_index = 1,
-            .end_bay_index = 2,
-            .left = 1200.0,
-            .bottom = 900.0,
-            .width = 1200,
-            .height = 1200
-        };
+    editor.opening_placement = valid_opening_placement();
 
     assert(
         sitehelper_editor_has_snap(
@@ -1375,7 +1354,7 @@ test_editor_invalidate_transient_state_clears_snap_and_opening_placement(void)
     );
 
     assert(
-        editor.opening_placement.valid
+        editor.opening_placement.has_candidate
     );
 
     sitehelper_editor_invalidate_transient_state(
@@ -1389,8 +1368,223 @@ test_editor_invalidate_transient_state_clears_snap_and_opening_placement(void)
     );
 
     assert(
-        !editor.opening_placement.valid
+        !editor.opening_placement.has_candidate
     );
+}
+
+static void test_editor_keeps_validated_candidate_geometry(void)
+{
+    Wall wall = {
+        .definition.length = 4200
+    };
+    BuildSettings settings = opening_test_settings();
+    SiteHelperEditor editor = opening_test_editor();
+
+    sitehelper_editor_pointer_move(
+        &editor,
+        &wall,
+        &settings,
+        (Vec2){.x = 600.0, .y = 1000.0}
+    );
+
+    const OpeningPlacement *placement =
+        sitehelper_editor_get_opening_placement(&editor);
+    OpeningCommand command;
+
+    assert(placement->has_candidate);
+    assert(placement->validation.code == WALL_OPENING_VALID);
+    assert(opening_placement_is_valid(placement));
+    assert(sitehelper_editor_has_opening_preview(&editor));
+    assert(sitehelper_editor_create_opening_command(&editor, &command));
+}
+
+static void test_editor_keeps_left_end_rejected_candidate(void)
+{
+    Wall wall = {
+        .definition.length = 4200
+    };
+    BuildSettings settings = opening_test_settings();
+    SiteHelperEditor editor = opening_test_editor();
+
+    sitehelper_editor_pointer_move(
+        &editor,
+        &wall,
+        &settings,
+        (Vec2){.x = 100.0, .y = 1000.0}
+    );
+
+    const OpeningPlacement *placement =
+        sitehelper_editor_get_opening_placement(&editor);
+    OpeningCommand command;
+
+    assert(placement->has_candidate);
+    assert(placement->validation.code ==
+        WALL_OPENING_TOO_CLOSE_TO_LEFT_END);
+    assert(!opening_placement_is_valid(placement));
+    assert(sitehelper_editor_has_opening_preview(&editor));
+    assert(!sitehelper_editor_create_opening_command(&editor, &command));
+}
+
+static void test_editor_keeps_right_end_rejected_candidate(void)
+{
+    Wall wall = {
+        .definition.length = 4200
+    };
+    BuildSettings settings = opening_test_settings();
+    SiteHelperEditor editor = opening_test_editor();
+
+    sitehelper_editor_pointer_move(
+        &editor,
+        &wall,
+        &settings,
+        (Vec2){.x = 3000.0, .y = 1000.0}
+    );
+
+    const OpeningPlacement *placement =
+        sitehelper_editor_get_opening_placement(&editor);
+    OpeningCommand command;
+
+    assert(placement->has_candidate);
+    assert(placement->validation.code ==
+        WALL_OPENING_TOO_CLOSE_TO_RIGHT_END);
+    assert(!opening_placement_is_valid(placement));
+    assert(sitehelper_editor_has_opening_preview(&editor));
+    assert(!sitehelper_editor_create_opening_command(&editor, &command));
+}
+
+static void test_editor_keeps_height_rejected_candidate(void)
+{
+    Wall wall = {
+        .definition.length = 4200
+    };
+    BuildSettings settings = opening_test_settings();
+    SiteHelperEditor editor = opening_test_editor();
+    editor.opening_tool.bottom = 1300;
+
+    sitehelper_editor_pointer_move(
+        &editor,
+        &wall,
+        &settings,
+        (Vec2){.x = 600.0, .y = 1000.0}
+    );
+
+    const OpeningPlacement *placement =
+        sitehelper_editor_get_opening_placement(&editor);
+    OpeningCommand command;
+
+    assert(placement->has_candidate);
+    assert(placement->validation.code == WALL_OPENING_INVALID_HEIGHT);
+    assert(!opening_placement_is_valid(placement));
+    assert(sitehelper_editor_has_opening_preview(&editor));
+    assert(!sitehelper_editor_create_opening_command(&editor, &command));
+}
+
+static void test_editor_keeps_overlapping_candidate(void)
+{
+    Opening openings[] = {
+        {
+            .id = 77,
+            .type = OPENING_WINDOW,
+            .frame_position = 1200,
+            .frame_bottom = 900,
+            .width = 1200,
+            .height = 1200
+        }
+    };
+    Wall wall = {
+        .definition = {
+            .length = 4200,
+            .openings = openings,
+            .opening_count = 1
+        }
+    };
+    BuildSettings settings = opening_test_settings();
+    SiteHelperEditor editor = opening_test_editor();
+
+    sitehelper_editor_pointer_move(
+        &editor,
+        &wall,
+        &settings,
+        (Vec2){.x = 1400.0, .y = 1000.0}
+    );
+
+    const OpeningPlacement *placement =
+        sitehelper_editor_get_opening_placement(&editor);
+    OpeningCommand command;
+
+    assert(placement->has_candidate);
+    assert(placement->validation.code == WALL_OPENING_OVERLAPS_OPENING);
+    assert(placement->validation.conflicting_opening_id == 77);
+    assert(!opening_placement_is_valid(placement));
+    assert(sitehelper_editor_has_opening_preview(&editor));
+    assert(!sitehelper_editor_create_opening_command(&editor, &command));
+}
+
+static void test_editor_applies_opening_width_allowance_during_validation(void)
+{
+    BuildSettings settings = opening_test_settings();
+    const int wall_length = 4305;
+    const int nominal_width = 1200;
+    const int nominal_left =
+        wall_length -
+        (3 * settings.stud_width) -
+        nominal_width;
+    Wall wall = {
+        .definition.length = wall_length
+    };
+    SiteHelperEditor editor = opening_test_editor();
+
+    editor.opening_tool.width = nominal_width;
+
+    sitehelper_editor_pointer_move(
+        &editor,
+        &wall,
+        &settings,
+        (Vec2){.x = (double)nominal_left, .y = 1000.0}
+    );
+
+    const OpeningPlacement *placement =
+        sitehelper_editor_get_opening_placement(&editor);
+
+    assert(placement->has_candidate);
+    assert(placement->left == (double)nominal_left);
+    assert(placement->bottom == 900.0);
+    assert(placement->width == nominal_width);
+    assert(placement->height == 1200);
+    assert(placement->validation.code == WALL_OPENING_VALID);
+
+    settings.opening_width_allowance = 10;
+
+    sitehelper_editor_pointer_move(
+        &editor,
+        &wall,
+        &settings,
+        (Vec2){.x = (double)nominal_left, .y = 1000.0}
+    );
+
+    placement = sitehelper_editor_get_opening_placement(&editor);
+    OpeningCommand command;
+
+    assert(placement->has_candidate);
+    assert(placement->left == (double)nominal_left);
+    assert(placement->bottom == 900.0);
+    assert(placement->width == nominal_width);
+    assert(placement->height == 1200);
+    assert(placement->validation.code ==
+        WALL_OPENING_TOO_CLOSE_TO_RIGHT_END);
+    assert(sitehelper_editor_has_opening_preview(&editor));
+    assert(!sitehelper_editor_create_opening_command(&editor, &command));
+}
+
+static void test_editor_rejects_command_without_candidate(void)
+{
+    SiteHelperEditor editor = opening_test_editor();
+    OpeningCommand command;
+
+    assert(!editor.opening_placement.has_candidate);
+    assert(!opening_placement_is_valid(&editor.opening_placement));
+    assert(!sitehelper_editor_has_opening_preview(&editor));
+    assert(!sitehelper_editor_create_opening_command(&editor, &command));
 }
 
 int main(void)
@@ -1434,6 +1628,13 @@ int main(void)
     test_editor_complete_action_clears_opening_placement();
     test_editor_complete_action_accepts_null();
     test_editor_invalidate_transient_state_clears_snap_and_opening_placement();
+    test_editor_keeps_validated_candidate_geometry();
+    test_editor_keeps_left_end_rejected_candidate();
+    test_editor_keeps_right_end_rejected_candidate();
+    test_editor_keeps_height_rejected_candidate();
+    test_editor_keeps_overlapping_candidate();
+    test_editor_applies_opening_width_allowance_during_validation();
+    test_editor_rejects_command_without_candidate();
 
     printf(
         "All SiteHelper editor tests passed.\n"

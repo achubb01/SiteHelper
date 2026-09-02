@@ -77,19 +77,6 @@ static Wall *add_test_wall(
 
 static void test_create_builds_opening_from_placement(void)
 {
-    OpeningPlacement placement = {
-        .valid = 1,
-
-        .start_bay_index = 0,
-        .end_bay_index = 2,
-
-        .left = 600.0,
-        .bottom = 900.0,
-
-        .width = 1200,
-        .height = 1200
-    };
-
     OpeningCommand command;
 
     assert(
@@ -228,14 +215,6 @@ static void test_execute_adds_opening_to_wall(void)
             &room_id,
             &wall_id
         );
-
-    OpeningPlacement placement = {
-        .valid = 1,
-        .left = 1200.0,
-        .bottom = 900.0,
-        .width = 1200,
-        .height = 1200
-    };
 
     OpeningCommand command;
 
@@ -379,14 +358,6 @@ static void test_execute_failure_preserves_wall_state(void)
 
     size_t nog_count_before =
         wall->framing.nog_count;
-
-    OpeningPlacement placement = {
-        .valid = 1,
-        .left = 1200.0,
-        .bottom = 900.0,
-        .width = 1200,
-        .height = 1200
-    };
 
     OpeningCommand command;
 
@@ -1399,6 +1370,120 @@ test_redo_failure_preserves_wall_state(void)
     );
 }
 
+static void test_execute_rejects_overlapping_opening_without_mutation(void)
+{
+    SiteHelperProject project;
+
+    sitehelper_project_init(
+        &project
+    );
+
+    DomainId room_id;
+    DomainId wall_id;
+
+    Wall *wall =
+        add_test_wall(
+            &project,
+            4200,
+            &room_id,
+            &wall_id
+        );
+
+    DomainId existing_opening_id =
+        domain_id_generate(
+            &project.domain_ids
+        );
+
+    assert(
+        wall_add_opening(
+            wall,
+            &project.settings,
+            existing_opening_id,
+            OPENING_WINDOW,
+            1200,
+            900,
+            1200,
+            1200
+        )
+    );
+
+    assert(
+        wall_generate(
+            wall,
+            &project.settings
+        )
+    );
+
+    size_t opening_count_before =
+        wall->definition.opening_count;
+
+    size_t stud_count_before =
+        wall->framing.stud_count;
+
+    size_t nog_count_before =
+        wall->framing.nog_count;
+
+    DomainId next_before =
+        project.domain_ids.next;
+
+    OpeningCommand command;
+
+    assert(
+        opening_command_create(
+            room_id,
+            wall_id,
+            OPENING_WINDOW,
+
+            /* deliberately overlaps */
+            1400,
+            900,
+            1200,
+            1200,
+
+            &command
+        )
+    );
+
+    DomainId created_opening_id = 999;
+
+    assert(
+        !opening_command_execute(
+            &project,
+            &command,
+            &created_opening_id
+        )
+    );
+
+    assert(
+        created_opening_id ==
+        DOMAIN_ID_INVALID
+    );
+
+    assert(
+        wall->definition.opening_count ==
+        opening_count_before
+    );
+
+    assert(
+        wall->framing.stud_count ==
+        stud_count_before
+    );
+
+    assert(
+        wall->framing.nog_count ==
+        nog_count_before
+    );
+
+    assert(
+        project.domain_ids.next ==
+        next_before
+    );
+
+    sitehelper_project_destroy(
+        &project
+    );
+}
+
 int main(void)
 {
     test_create_builds_opening_from_placement();
@@ -1417,6 +1502,7 @@ int main(void)
     test_redo_restores_created_opening_with_same_identity();
     test_undo_failure_preserves_wall_state();
     test_redo_failure_preserves_wall_state();
+    test_execute_rejects_overlapping_opening_without_mutation();
 
     printf(
         "All opening command tests passed.\n"

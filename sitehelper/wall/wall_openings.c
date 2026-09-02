@@ -14,6 +14,114 @@ static int opening_assembly_end(const Opening *opening, const BuildSettings *set
 static int openings_conflict(const Opening *a, const Opening *b, const BuildSettings *settings);
 static int wall_span_is_opening(const Wall *wall, const BuildSettings *settings, const Timber *left, const Timber *right);
 
+static WallOpeningValidation wall_opening_validation(
+    WallOpeningValidationCode code,
+    DomainId conflicting_opening_id
+)
+{
+    return (WallOpeningValidation){
+        .code = code,
+        .conflicting_opening_id = conflicting_opening_id
+    };
+}
+
+WallOpeningValidation wall_validate_opening(
+    const Wall *wall,
+    const BuildSettings *settings,
+    const WallOpeningProposal *proposal
+)
+{
+    if (wall == NULL ||
+        settings == NULL ||
+        proposal == NULL) {
+
+        return wall_opening_validation(
+            WALL_OPENING_INVALID_ARGUMENT,
+            DOMAIN_ID_INVALID
+        );
+    }
+
+    if (proposal->type != OPENING_DOOR &&
+        proposal->type != OPENING_WINDOW) {
+
+        return wall_opening_validation(
+            WALL_OPENING_INVALID_TYPE,
+            DOMAIN_ID_INVALID
+        );
+    }
+
+    if (proposal->frame_position < 0 ||
+        proposal->frame_bottom < 0 ||
+        proposal->width <= 0 ||
+        proposal->height <= 0) {
+
+        return wall_opening_validation(
+            WALL_OPENING_INVALID_DIMENSIONS,
+            DOMAIN_ID_INVALID
+        );
+    }
+
+    Opening opening = {
+        .type = proposal->type,
+        .frame_position = proposal->frame_position,
+        .frame_bottom = proposal->frame_bottom,
+        .width = proposal->width,
+        .height = proposal->height
+    };
+
+    int frame_width = opening_frame_width(&opening, settings);
+    int frame_height = opening_frame_height(&opening, settings);
+
+    if (frame_width <= 0 ||
+        frame_height <= 0) {
+
+        return wall_opening_validation(
+            WALL_OPENING_INVALID_DIMENSIONS,
+            DOMAIN_ID_INVALID
+        );
+    }
+
+    if (opening.frame_bottom + frame_height > settings->stud_height) {
+        return wall_opening_validation(
+            WALL_OPENING_INVALID_HEIGHT,
+            DOMAIN_ID_INVALID
+        );
+    }
+
+    int assembly_start = opening_assembly_start(&opening, settings);
+    int assembly_end = opening_assembly_end(&opening, settings);
+
+    if (assembly_start < settings->stud_width) {
+        return wall_opening_validation(
+            WALL_OPENING_TOO_CLOSE_TO_LEFT_END,
+            DOMAIN_ID_INVALID
+        );
+    }
+
+    if (assembly_end > wall->definition.length - settings->stud_width) {
+        return wall_opening_validation(
+            WALL_OPENING_TOO_CLOSE_TO_RIGHT_END,
+            DOMAIN_ID_INVALID
+        );
+    }
+
+    for (size_t i = 0; i < wall->definition.opening_count; i++) {
+        const Opening *existing = &wall->definition.openings[i];
+
+        if (openings_conflict(&opening, existing, settings)) {
+            return wall_opening_validation(
+                WALL_OPENING_OVERLAPS_OPENING,
+                existing->id
+            );
+        }
+    }
+
+    return wall_opening_validation(
+        WALL_OPENING_VALID,
+        DOMAIN_ID_INVALID
+    );
+}
+
 int opening_frame_width(
     const Opening *opening,
     const BuildSettings *settings
@@ -65,19 +173,7 @@ int wall_add_opening(
         return 0;
     }
 
-    if (type != OPENING_DOOR &&
-        type != OPENING_WINDOW) {
-        return 0;
-    }
-
     if (opening_id == DOMAIN_ID_INVALID) {
-        return 0;
-    }
-
-    if (frame_position < 0 ||
-        frame_bottom < 0 ||
-        width <= 0 ||
-        height <= 0) {
         return 0;
     }
 
@@ -93,24 +189,19 @@ int wall_add_opening(
         .custom_allowance = false
     };
 
-    if (!wall_opening_fits(
+    WallOpeningProposal proposal = {
+        .type = type,
+        .frame_position = frame_position,
+        .frame_bottom = frame_bottom,
+        .width = width,
+        .height = height
+    };
+
+    if (wall_validate_opening(
             wall,
-            &opening,
-            settings)) {
+            settings,
+            &proposal).code != WALL_OPENING_VALID) {
         return 0;
-    }
-
-    for (size_t i = 0;
-        i < wall->definition.opening_count;
-        i++) {
-
-        if (openings_conflict(
-                &opening,
-                &wall->definition.openings[i],
-                settings)) {
-
-            return 0;
-        }
     }
 
     if (wall->definition.opening_count ==
@@ -196,90 +287,6 @@ const Opening *wall_find_opening_by_id_const(
     }
 
     return NULL;
-}
-
-int wall_opening_fits(
-    const Wall *wall,
-    const Opening *opening,
-    const BuildSettings *settings
-)
-{
-    if (wall == NULL ||
-        opening == NULL ||
-        settings == NULL) {
-        return 0;
-    }
-
-    int frame_width =
-        opening_frame_width(
-            opening,
-            settings
-        );
-
-    int frame_height =
-        opening_frame_height(
-            opening,
-            settings
-        );
-
-    if (frame_width <= 0 ||
-        frame_height <= 0) {
-        return 0;
-    }
-
-    /*
-     * Clear framed opening must fit
-     * vertically.
-     */
-    if (opening->frame_bottom < 0 ||
-        opening->frame_bottom +
-        frame_height >
-        settings->stud_height) {
-
-        return 0;
-    }
-
-    /*
-     * Entire opening assembly:
-     *
-     * KING | TRIMMER | OPENING |
-     * TRIMMER | KING
-     */
-    int assembly_start =
-        opening_assembly_start(
-            opening,
-            settings
-        );
-
-    int assembly_end =
-        opening_assembly_end(
-            opening,
-            settings
-        );
-
-    /*
-     * Preserve left wall-end stud.
-     */
-    if (assembly_start <
-        settings->stud_width) {
-
-        return 0;
-    }
-
-    /*
-     * Preserve right wall-end stud.
-     */
-    int right_end_stud =
-        wall->definition.length -
-        settings->stud_width;
-
-    if (assembly_end >
-        right_end_stud) {
-
-        return 0;
-    }
-
-    return 1;
 }
 
 int wall_apply_openings(

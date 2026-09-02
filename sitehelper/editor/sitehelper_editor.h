@@ -89,6 +89,7 @@ void sitehelper_editor_update_snap(
 void sitehelper_editor_pointer_move(
     SiteHelperEditor *editor,
     const Wall *wall,
+    const BuildSettings *settings,
     Vec2 world_position
 );
 

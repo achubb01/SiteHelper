@@ -3,242 +3,79 @@
 
 #include "opening_placement.h"
 
-static void test_opening_can_span_multiple_bays(void)
+static OpeningTool test_tool(void)
 {
-    Timber studs[] = {
-        {
-            .position = {0, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        },
-        {
-            .position = {600, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        },
-        {
-            .position = {1200, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        },
-        {
-            .position = {1800, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        }
-    };
-
-    Wall wall = {
-        .framing.studs = studs,
-        .framing.stud_count = 4
-    };
-
     OpeningTool tool;
 
-    opening_tool_init(
+    opening_tool_init(&tool);
+    tool.width = 1200;
+
+    return tool;
+}
+
+static void test_finds_candidate_geometry(void)
+{
+    OpeningTool tool = test_tool();
+
+    OpeningPlacement placement = opening_find_placement(
+        (Vec2){300.0, 1000.0},
         &tool
     );
 
-    tool.width = 1200;
-
-    OpeningPlacement placement =
-        opening_find_placement(
-            &wall,
-            (Vec2){300.0, 1000.0},
-            &tool
-        );
-
-    assert(placement.valid == 1);
-
+    assert(placement.has_candidate);
     assert(placement.left == 300.0);
     assert(placement.bottom == 900.0);
-
     assert(placement.width == 1200);
     assert(placement.height == 1200);
-
-    assert(
-        placement.start_bay_index == 0
-    );
-
-    assert(
-        placement.end_bay_index == 2
-    );
 }
 
-static void test_opening_past_wall_end_is_invalid(void)
+static void test_candidate_past_wall_end_is_preserved(void)
 {
-    Timber studs[] = {
-        {
-            .position = {0, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        },
-        {
-            .position = {600, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        },
-        {
-            .position = {1200, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        },
-        {
-            .position = {1800, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        }
-    };
+    OpeningTool tool = test_tool();
 
-    Wall wall = {
-        .framing.studs = studs,
-        .framing.stud_count = 4
-    };
-
-    OpeningTool tool;
-
-    opening_tool_init(
+    OpeningPlacement placement = opening_find_placement(
+        (Vec2){1000.0, 1000.0},
         &tool
     );
 
-    tool.width = 1200;
-
-    OpeningPlacement placement =
-        opening_find_placement(
-            &wall,
-            (Vec2){1000.0, 1000.0},
-            &tool
-        );
-
-    assert(placement.valid == 0);
+    assert(placement.has_candidate);
+    assert(placement.left == 1000.0);
 }
 
-static void test_internal_studs_do_not_make_placement_invalid(void)
+static void test_candidate_before_wall_start_is_preserved(void)
 {
-    Timber studs[] = {
-        {
-            .position = {0, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        },
-        {
-            .position = {600, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        },
-        {
-            .position = {1200, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        },
-        {
-            .position = {1800, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        }
-    };
+    OpeningTool tool = test_tool();
 
-    Wall wall = {
-        .framing.studs = studs,
-        .framing.stud_count = 4
-    };
-
-    OpeningTool tool;
-
-    opening_tool_init(
+    OpeningPlacement placement = opening_find_placement(
+        (Vec2){-100.0, 1000.0},
         &tool
     );
 
-    tool.width = 900;
-
-    OpeningPlacement placement =
-        opening_find_placement(
-            &wall,
-            (Vec2){400.0, 1000.0},
-            &tool
-        );
-
-    assert(placement.valid == 1);
-
-    /*
-     * The span crosses the stud at x = 600,
-     * but that is fine. Framing logic can
-     * remove/replace internal studs later.
-     */
-    assert(placement.left == 400.0);
-    assert(placement.bottom == 900.0);
-    assert(placement.width == 900);
-    assert(placement.height == 1200);
+    assert(placement.has_candidate);
+    assert(placement.left == -100.0);
 }
 
-static void test_opening_before_wall_start_is_invalid(void)
+static void test_unusable_tool_has_no_candidate(void)
 {
-    Timber studs[] = {
-        {
-            .position = {0, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        },
-        {
-            .position = {600, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        },
-        {
-            .position = {1200, 0},
-            .width = 35,
-            .length = 2400,
-            .type = TIMBER_STUD
-        }
-    };
+    OpeningTool tool = test_tool();
+    tool.width = 0;
 
-    Wall wall = {
-        .framing.studs = studs,
-        .framing.stud_count = 3
-    };
-
-    OpeningTool tool;
-
-    opening_tool_init(
+    OpeningPlacement placement = opening_find_placement(
+        (Vec2){300.0, 1000.0},
         &tool
     );
 
-    tool.width = 900;
-
-    OpeningPlacement placement =
-        opening_find_placement(
-            &wall,
-            (Vec2){-100.0, 1000.0},
-            &tool
-        );
-
-    assert(placement.valid == 0);
+    assert(!placement.has_candidate);
+    assert(!opening_placement_is_valid(&placement));
 }
 
 int main(void)
 {
-    test_opening_can_span_multiple_bays();
-    test_opening_past_wall_end_is_invalid();
-    test_internal_studs_do_not_make_placement_invalid();
-    test_opening_before_wall_start_is_invalid();
+    test_finds_candidate_geometry();
+    test_candidate_past_wall_end_is_preserved();
+    test_candidate_before_wall_start_is_preserved();
+    test_unusable_tool_has_no_candidate();
 
-    printf(
-        "All opening placement tests passed.\n"
-    );
-
+    puts("opening placement tests passed");
     return 0;
 }
