@@ -58,6 +58,26 @@ static void test_project_init_initialises_domain_ids(void)
     );
 }
 
+static void test_add_wall_rejects_missing_room_without_consuming_identity(void)
+{
+    SiteHelperProject project;
+
+    sitehelper_project_init(&project);
+
+    DomainId next_before = project.domain_ids.next;
+
+    assert(
+        sitehelper_project_add_wall(&project, 999)
+        == DOMAIN_ID_INVALID
+    );
+
+    assert(project.domain_ids.next == next_before);
+    assert(project.structure.wall_count == 0);
+    assert(project.structure.room_count == 0);
+
+    sitehelper_project_destroy(&project);
+}
+
 static void test_project_destroy_releases_structure(void)
 {
     SiteHelperProject project;
@@ -158,6 +178,8 @@ int main(void)
     test_project_init_sets_defaults();
 
     test_project_init_initialises_domain_ids();
+
+    test_add_wall_rejects_missing_room_without_consuming_identity();
 
     test_project_destroy_releases_structure();
 

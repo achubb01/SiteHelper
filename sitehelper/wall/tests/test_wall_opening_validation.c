@@ -140,6 +140,45 @@ static void test_reports_conflicting_opening_identity(void)
     assert(validation.conflicting_opening_id == 42);
 }
 
+static void test_add_opening_definition_rejects_duplicate_identity_without_mutation(void)
+{
+    Wall wall = {
+        .definition.length = 5000
+    };
+    BuildSettings settings = test_settings();
+    Opening first = {
+        .id = 42,
+        .type = OPENING_WINDOW,
+        .frame_position = 1000,
+        .frame_bottom = 800,
+        .width = 800,
+        .height = 1000
+    };
+    Opening duplicate_id = {
+        .id = 42,
+        .type = OPENING_WINDOW,
+        .frame_position = 3000,
+        .frame_bottom = 800,
+        .width = 800,
+        .height = 1000
+    };
+
+    assert(wall_add_opening_definition(&wall, &settings, &first));
+    assert(wall.definition.opening_count == 1);
+
+    assert(!wall_add_opening_definition(
+        &wall,
+        &settings,
+        &duplicate_id
+    ));
+
+    assert(wall.definition.opening_count == 1);
+    assert(wall.definition.openings[0].id == 42);
+    assert(wall.definition.openings[0].frame_position == 1000);
+
+    wall_destroy(&wall);
+}
+
 static void test_add_opening_definition_preserves_custom_allowances(void)
 {
     Wall wall = {
@@ -180,6 +219,7 @@ int main(void)
     test_rejects_opening_that_exceeds_wall_height();
     test_rejects_openings_too_close_to_wall_ends();
     test_reports_conflicting_opening_identity();
+    test_add_opening_definition_rejects_duplicate_identity_without_mutation();
     test_add_opening_definition_preserves_custom_allowances();
 
     puts("wall opening validation tests passed");

@@ -1582,6 +1582,47 @@ static void test_editor_applies_opening_width_allowance_during_validation(void)
     assert(!sitehelper_editor_create_opening_command(&editor, &command));
 }
 
+static void test_opening_tool_does_not_mutate_wall_before_command_execution(void)
+{
+    Wall wall = {
+        .id = 20,
+        .definition = {
+            .origin = { .x = 5000, .y = 3000 },
+            .length = 4200
+        }
+    };
+    BuildSettings settings = opening_test_settings();
+    SiteHelperEditor editor = opening_test_editor();
+    EditorAction action;
+
+    sitehelper_editor_pointer_move(
+        &editor,
+        &wall,
+        &settings,
+        (Vec2){ .x = 5600.0, .y = 4000.0 }
+    );
+
+    assert(sitehelper_editor_primary_action(
+        &editor,
+        &wall,
+        (Vec2){ .x = 5600.0, .y = 4000.0 },
+        &action
+    ));
+
+    assert(action.kind == EDITOR_ACTION_COMMAND);
+    assert(action.command.type == SITEHELPER_COMMAND_ADD_OPENING);
+
+    /* Previewing and producing a command are editor-only operations. */
+    assert(wall.id == 20);
+    assert(wall.definition.origin.x == 5000);
+    assert(wall.definition.origin.y == 3000);
+    assert(wall.definition.length == 4200);
+    assert(wall.definition.openings == NULL);
+    assert(wall.definition.opening_count == 0);
+    assert(wall.framing.studs == NULL);
+    assert(wall.framing.stud_count == 0);
+}
+
 static void test_editor_rejects_command_without_candidate(void)
 {
     SiteHelperEditor editor = opening_test_editor();
@@ -1640,6 +1681,7 @@ int main(void)
     test_editor_keeps_height_rejected_candidate();
     test_editor_keeps_overlapping_candidate();
     test_editor_applies_opening_width_allowance_during_validation();
+    test_opening_tool_does_not_mutate_wall_before_command_execution();
     test_editor_rejects_command_without_candidate();
 
     printf(

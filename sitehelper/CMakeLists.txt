@@ -194,6 +194,19 @@ target_link_libraries(sitehelper_app_core
         sitehelper_wall
 )
 
+add_library(sitehelper_test_support INTERFACE)
+
+target_include_directories(sitehelper_test_support
+    INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+
+target_link_libraries(sitehelper_test_support
+    INTERFACE
+        sitehelper_project
+        sitehelper_wall
+)
+
 add_executable(test_sitehelper
     tests/test_sitehelper.c
 )
@@ -204,6 +217,21 @@ target_link_libraries(test_sitehelper
 )
 
 add_test(NAME sitehelper_tests COMMAND test_sitehelper)
+
+add_executable(test_wall_generation_invariants
+    wall/tests/test_wall_generation_invariants.c
+)
+
+target_link_libraries(test_wall_generation_invariants
+    PRIVATE
+        sitehelper_wall
+        sitehelper_test_support
+)
+
+add_test(
+    NAME wall_generation_invariant_tests
+    COMMAND test_wall_generation_invariants
+)
 
 add_executable(test_wall_render
     wall/tests/test_wall_render.c
@@ -522,6 +550,19 @@ add_test(
     NAME sitehelper_command_tests
     COMMAND sitehelper_command_tests
 )
+
+add_executable(command_invariant_tests
+    command/tests/test_command_invariants.c
+)
+
+target_link_libraries(command_invariant_tests
+    PRIVATE
+        sitehelper_command
+        sitehelper_wall
+        sitehelper_test_support
+)
+
+add_test(NAME command_invariant_tests COMMAND command_invariant_tests)
 
 add_executable(command_history_tests
     command/tests/test_command_history.c

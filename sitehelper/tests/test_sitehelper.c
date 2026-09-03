@@ -527,6 +527,22 @@ static void test_property_single_opening_geometry(void)
     }
 }
 
+static void test_wall_length_rejects_nonpositive_values_without_mutation(void)
+{
+    Wall wall = {0};
+
+    assert(wall_set_length(&wall, 4200));
+    assert(wall.definition.length == 4200);
+
+    assert(!wall_set_length(&wall, 0));
+    assert(wall.definition.length == 4200);
+
+    assert(!wall_set_length(&wall, -1));
+    assert(wall.definition.length == 4200);
+
+    assert(!wall_set_length(NULL, 4200));
+}
+
 static void test_wall_generates_complete_plates(void)
 {
     Wall wall = {0};
@@ -2966,6 +2982,7 @@ test_failed_wall_regeneration_preserves_existing_framing(void)
 
 int main(void)
 {
+    test_wall_length_rejects_nonpositive_values_without_mutation();
     test_wall_generates_complete_plates();
     test_maximise_spacing();
     test_even_spacing();
