@@ -377,6 +377,23 @@ target_link_libraries(test_appstate
 
 add_test(NAME appstate_tests COMMAND test_appstate)
 
+add_executable(test_viewport_input
+    app/tests/test_viewport_input.c
+    app/viewport_input.c
+)
+
+target_include_directories(test_viewport_input
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/app
+)
+
+target_link_libraries(test_viewport_input
+    PRIVATE
+        sitehelper_gui
+)
+
+add_test(NAME viewport_input_tests COMMAND test_viewport_input)
+
 add_executable(test_sitehelper_project
     project/tests/test_sitehelper_project.c
 )
@@ -469,6 +486,7 @@ target_link_libraries(sitehelper
 
 add_executable(sitehelper_sdl
     app/sitehelper_sdl.c
+    app/viewport_input.c
 )
 
 target_link_libraries(sitehelper_sdl

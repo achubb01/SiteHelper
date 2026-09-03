@@ -3,6 +3,7 @@
 #include "sitehelper_project.h"
 #include "sitehelper_editor.h"
 #include "appstate.h"
+#include "viewport_input.h"
 
 #include "domain_id.h"
 
@@ -67,6 +68,8 @@ typedef struct
     ];
 
     GuiToolbar toolbar;
+
+    ViewportInput viewport_input;
 
     int running;
 } SiteHelperApp;
@@ -272,9 +275,13 @@ static int sitehelper_app_init(
         &app->editor
     );
 
+    sitehelper_app_layout_gui(app);
+
     sitehelper_command_history_init(
         &app->history
     );
+
+    viewport_input_init(&app->viewport_input);
 
     sitehelper_app_set_active_tool(
         app,
@@ -613,8 +620,13 @@ static void sitehelper_app_process_events(
                 };
 
                 if (
-                    event.data.mouse_motion.held_buttons
-                    & PLATFORM_MOUSE_BUTTON_STATE_MIDDLE
+                    viewport_input_allows_pan(
+                        &app->viewport_input
+                    )
+                    && (
+                        event.data.mouse_motion.held_buttons
+                        & PLATFORM_MOUSE_BUTTON_STATE_MIDDLE
+                    )
                 ) {
                     Camera2D camera = renderer2d_get_camera(
                         app->renderer
@@ -654,16 +666,20 @@ static void sitehelper_app_process_events(
                     .y = event.data.mouse_wheel.mouse_y
                 };
 
-                double zoom_factor =
-                    event.data.mouse_wheel.delta_y > 0.0
-                    ? 1.1
-                    : 1.0 / 1.1;
+                if (viewport_input_allows_wheel(
+                        &app->gui_layout,
+                        screen_position)) {
+                    double zoom_factor =
+                        event.data.mouse_wheel.delta_y > 0.0
+                        ? 1.1
+                        : 1.0 / 1.1;
 
-                renderer2d_zoom_at_screen_point(
-                    app->renderer,
-                    zoom_factor,
-                    screen_position
-                );
+                    renderer2d_zoom_at_screen_point(
+                        app->renderer,
+                        zoom_factor,
+                        screen_position
+                    );
+                }
                 break;
             }
 
@@ -672,8 +688,21 @@ static void sitehelper_app_process_events(
                     event.data.mouse_button.button
                     == PLATFORM_MOUSE_BUTTON_PRIMARY
                 ) {
-                    gui_toolbar_mouse_press(
+                    (void)gui_toolbar_mouse_press(
                         &app->toolbar,
+                        (Vec2){
+                            .x = event.data.mouse_button.x,
+                            .y = event.data.mouse_button.y
+                        }
+                    );
+                }
+                else if (
+                    event.data.mouse_button.button
+                    == PLATFORM_MOUSE_BUTTON_MIDDLE
+                ) {
+                    viewport_input_begin_middle_drag(
+                        &app->viewport_input,
+                        &app->gui_layout,
                         (Vec2){
                             .x = event.data.mouse_button.x,
                             .y = event.data.mouse_button.y
@@ -692,16 +721,17 @@ static void sitehelper_app_process_events(
                         .y = event.data.mouse_button.y
                     };
 
-                    GuiButtonId clicked_button = gui_toolbar_mouse_release(
+                    GuiToolbarResult toolbar_result =
+                        gui_toolbar_mouse_release(
                         &app->toolbar,
                         screen_position
                     );
 
-                    if (clicked_button != GUI_BUTTON_ID_NONE) {
+                    if (toolbar_result.handled) {
                         EditorTool tool;
 
                         if (sitehelper_app_toolbar_action_tool(
-                                clicked_button,
+                                toolbar_result.action_id,
                                 &tool)) {
                             sitehelper_app_set_active_tool(app, tool);
                         }
@@ -749,6 +779,14 @@ static void sitehelper_app_process_events(
                             }
                         }
                     }
+                }
+                else if (
+                    event.data.mouse_button.button
+                    == PLATFORM_MOUSE_BUTTON_MIDDLE
+                ) {
+                    viewport_input_end_middle_drag(
+                        &app->viewport_input
+                    );
                 }
                 break;
 

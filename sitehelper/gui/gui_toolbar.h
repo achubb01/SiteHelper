@@ -10,6 +10,7 @@ typedef struct
     GuiButton *buttons;
     const GuiButtonId *button_ids;
     size_t button_count;
+    int primary_press_handled;
 
     Rect2 bounds;
 
@@ -17,6 +18,12 @@ typedef struct
     double button_size;
     double spacing;
 } GuiToolbar;
+
+typedef struct
+{
+    int handled;
+    GuiButtonId action_id;
+} GuiToolbarResult;
 
 void gui_toolbar_init(
     GuiToolbar *toolbar,
@@ -45,12 +52,12 @@ void gui_toolbar_mouse_move(
     Vec2 mouse_position
 );
 
-void gui_toolbar_mouse_press(
+GuiToolbarResult gui_toolbar_mouse_press(
     GuiToolbar *toolbar,
     Vec2 mouse_position
 );
 
-GuiButtonId gui_toolbar_mouse_release(
+GuiToolbarResult gui_toolbar_mouse_release(
     GuiToolbar *toolbar,
     Vec2 mouse_position
 );

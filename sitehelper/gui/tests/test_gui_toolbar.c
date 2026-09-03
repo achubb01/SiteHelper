@@ -51,6 +51,10 @@ static void test_toolbar_lays_out_buttons_vertically(void)
         buttons[0].bounds.height
         == 48.0
     );
+
+    assert(buttons[0].id == 10);
+    assert(buttons[1].id == 20);
+    assert(buttons[2].id == 30);
 }
 
 static void test_toolbar_button_returns_requested_button(void)
@@ -196,10 +200,13 @@ static void test_mouse_press_presses_matching_button(void)
         }
     );
 
-    gui_toolbar_mouse_press(
+    GuiToolbarResult result = gui_toolbar_mouse_press(
         &toolbar,
         (Vec2){20.0, 76.0}
     );
+
+    assert(result.handled);
+    assert(result.action_id == GUI_BUTTON_ID_NONE);
 
     assert(
         buttons[1].state
@@ -230,18 +237,19 @@ static void test_mouse_release_returns_clicked_button_id(void)
         }
     );
 
-    gui_toolbar_mouse_press(
+    (void)gui_toolbar_mouse_press(
         &toolbar,
         (Vec2){20.0, 132.0}
     );
 
-    GuiButtonId clicked =
+    GuiToolbarResult result =
         gui_toolbar_mouse_release(
             &toolbar,
             (Vec2){20.0, 132.0}
         );
 
-    assert(clicked == 20);
+    assert(result.handled);
+    assert(result.action_id == 20);
 
     assert(
         buttons[2].state
@@ -267,18 +275,85 @@ static void test_release_outside_pressed_button_returns_no_click(void)
         }
     );
 
-    gui_toolbar_mouse_press(
+    (void)gui_toolbar_mouse_press(
         &toolbar,
         (Vec2){20.0, 20.0}
     );
 
-    GuiButtonId clicked =
+    toolbar.bounds.position = (Vec2){20.0, 30.0};
+    gui_toolbar_layout(&toolbar);
+
+    assert(buttons[0].state == GUI_BUTTON_PRESSED);
+
+    GuiToolbarResult result =
         gui_toolbar_mouse_release(
             &toolbar,
             (Vec2){200.0, 200.0}
         );
 
-    assert(clicked == GUI_BUTTON_ID_NONE);
+    assert(result.handled);
+    assert(result.action_id == GUI_BUTTON_ID_NONE);
+}
+
+static void test_mouse_press_outside_toolbar_is_not_handled(void)
+{
+    GuiButton buttons[1];
+    GuiButtonId button_ids[] = {10};
+    GuiToolbar toolbar;
+
+    gui_toolbar_init(
+        &toolbar,
+        buttons,
+        button_ids,
+        1,
+        (Rect2){
+            .position = {0.0, 0.0},
+            .width = 64.0,
+            .height = 600.0
+        }
+    );
+
+    GuiToolbarResult result = gui_toolbar_mouse_press(
+        &toolbar,
+        (Vec2){200.0, 200.0}
+    );
+
+    assert(!result.handled);
+    assert(result.action_id == GUI_BUTTON_ID_NONE);
+}
+
+static void test_relayout_preserves_button_state(void)
+{
+    GuiButton buttons[2];
+    GuiButtonId button_ids[] = {30, 10};
+    GuiToolbar toolbar;
+
+    gui_toolbar_init(
+        &toolbar,
+        buttons,
+        button_ids,
+        2,
+        (Rect2){
+            .position = {0.0, 0.0},
+            .width = 64.0,
+            .height = 600.0
+        }
+    );
+
+    gui_button_set_active(&buttons[0], 1);
+    gui_button_set_enabled(&buttons[1], 0);
+    gui_toolbar_mouse_move(&toolbar, (Vec2){20.0, 20.0});
+
+    toolbar.bounds.position = (Vec2){20.0, 30.0};
+    gui_toolbar_layout(&toolbar);
+
+    assert(buttons[0].id == 30);
+    assert(buttons[1].id == 10);
+    assert(buttons[0].active);
+    assert(!buttons[1].enabled);
+    assert(buttons[0].state == GUI_BUTTON_HOVERED);
+    assert(buttons[0].bounds.position.x == 28.0);
+    assert(buttons[0].bounds.position.y == 38.0);
 }
 
 int main(void)
@@ -291,6 +366,8 @@ int main(void)
     test_mouse_press_presses_matching_button();
     test_mouse_release_returns_clicked_button_id();
     test_release_outside_pressed_button_returns_no_click();
+    test_mouse_press_outside_toolbar_is_not_handled();
+    test_relayout_preserves_button_state();
 
     printf(
         "All GUI toolbar tests passed.\n"
