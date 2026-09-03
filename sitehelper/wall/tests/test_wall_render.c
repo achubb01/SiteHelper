@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 #include "wall_render.h"
-#include "../renderer2d/renderer2d_backend.h"
+#include "renderer2d_backend.h"
 
 typedef struct FakeBackendState {
     int fill_rect_called;

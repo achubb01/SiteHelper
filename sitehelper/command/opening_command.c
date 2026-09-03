@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
 #include "opening_command.h"
+#include "wall.h"
 
 static int opening_command_copy_wall_definition(
     const Wall *source,

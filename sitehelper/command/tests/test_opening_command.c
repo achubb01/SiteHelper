@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "opening_command.h"
+#include "wall.h"
 
 static const DomainId TEST_ROOM_ID = 10;
 static const DomainId TEST_WALL_ID = 20;

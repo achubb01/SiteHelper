@@ -2,8 +2,7 @@
 #define OPENING_COMMAND_H
 
 #include "sitehelper_project.h"
-#include "opening_placement.h"
-#include "wall.h"
+#include "opening.h"
 
 typedef struct
 {

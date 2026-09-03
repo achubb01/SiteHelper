@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "sitehelper_command.h"
+#include "wall.h"
 
 static void
 test_execute_dispatches_opening_command(void)

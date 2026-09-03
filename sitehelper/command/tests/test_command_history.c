@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "command_history.h"
+#include "wall.h"
 
 
 static Wall *
