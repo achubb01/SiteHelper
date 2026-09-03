@@ -140,6 +140,39 @@ static void test_reports_conflicting_opening_identity(void)
     assert(validation.conflicting_opening_id == 42);
 }
 
+static void test_add_opening_definition_preserves_custom_allowances(void)
+{
+    Wall wall = {
+        .definition.length = 4000
+    };
+    BuildSettings settings = test_settings();
+    Opening opening = {
+        .id = 42,
+        .type = OPENING_WINDOW,
+        .frame_position = 1600,
+        .frame_bottom = 800,
+        .width = 800,
+        .height = 1000,
+        .width_allowance = 25,
+        .height_allowance = 15,
+        .custom_allowance = true
+    };
+
+    assert(wall_add_opening_definition(
+        &wall,
+        &settings,
+        &opening
+    ));
+
+    assert(wall.definition.opening_count == 1);
+    assert(wall.definition.openings[0].id == 42);
+    assert(wall.definition.openings[0].custom_allowance);
+    assert(wall.definition.openings[0].width_allowance == 25);
+    assert(wall.definition.openings[0].height_allowance == 15);
+
+    wall_destroy(&wall);
+}
+
 int main(void)
 {
     test_accepts_a_valid_opening();
@@ -147,6 +180,7 @@ int main(void)
     test_rejects_opening_that_exceeds_wall_height();
     test_rejects_openings_too_close_to_wall_ends();
     test_reports_conflicting_opening_identity();
+    test_add_opening_definition_preserves_custom_allowances();
 
     puts("wall opening validation tests passed");
     return 0;

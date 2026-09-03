@@ -66,7 +66,10 @@ WallOpeningValidation wall_validate_opening(
         .frame_position = proposal->frame_position,
         .frame_bottom = proposal->frame_bottom,
         .width = proposal->width,
-        .height = proposal->height
+        .height = proposal->height,
+        .width_allowance = proposal->width_allowance,
+        .height_allowance = proposal->height_allowance,
+        .custom_allowance = proposal->custom_allowance
     };
 
     int frame_width = opening_frame_width(&opening, settings);
@@ -158,43 +161,33 @@ int opening_frame_height(
     return opening->height + allowance;
 }
 
-int wall_add_opening(
+int wall_add_opening_definition(
     Wall *wall,
     const BuildSettings *settings,
-    DomainId opening_id,
-    OpeningType type,
-    int frame_position,
-    int frame_bottom,
-    int width,
-    int height
+    const Opening *opening
 )
 {
-    if (wall == NULL || settings == NULL) {
+    if (wall == NULL || settings == NULL || opening == NULL) {
         return 0;
     }
 
-    if (opening_id == DOMAIN_ID_INVALID) {
+    if (opening->id == DOMAIN_ID_INVALID) {
         return 0;
     }
 
-    Opening opening = {
-        .id = opening_id,
-        .type = type,
-        .frame_position = frame_position,
-        .frame_bottom = frame_bottom,
-        .width = width,
-        .height = height,
-        .width_allowance = 0,
-        .height_allowance = 0,
-        .custom_allowance = false
-    };
+    if (wall_find_opening_by_id(wall, opening->id) != NULL) {
+        return 0;
+    }
 
     WallOpeningProposal proposal = {
-        .type = type,
-        .frame_position = frame_position,
-        .frame_bottom = frame_bottom,
-        .width = width,
-        .height = height
+        .type = opening->type,
+        .frame_position = opening->frame_position,
+        .frame_bottom = opening->frame_bottom,
+        .width = opening->width,
+        .height = opening->height,
+        .width_allowance = opening->width_allowance,
+        .height_allowance = opening->height_allowance,
+        .custom_allowance = opening->custom_allowance
     };
 
     if (wall_validate_opening(
@@ -230,11 +223,41 @@ int wall_add_opening(
 
     wall->definition.openings[
         wall->definition.opening_count
-    ] = opening;
+    ] = *opening;
 
     wall->definition.opening_count++;
 
     return 1;
+}
+
+int wall_add_opening(
+    Wall *wall,
+    const BuildSettings *settings,
+    DomainId opening_id,
+    OpeningType type,
+    int frame_position,
+    int frame_bottom,
+    int width,
+    int height
+)
+{
+    Opening opening = {
+        .id = opening_id,
+        .type = type,
+        .frame_position = frame_position,
+        .frame_bottom = frame_bottom,
+        .width = width,
+        .height = height,
+        .width_allowance = 0,
+        .height_allowance = 0,
+        .custom_allowance = false
+    };
+
+    return wall_add_opening_definition(
+        wall,
+        settings,
+        &opening
+    );
 }
 
 Opening *wall_find_opening_by_id(

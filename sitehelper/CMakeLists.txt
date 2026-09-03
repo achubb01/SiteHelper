@@ -47,6 +47,22 @@ target_link_libraries(sitehelper_project
         sitehelper_wall
 )
 
+add_library(sitehelper_persistence
+    persistence/sitehelper_persistence.c
+)
+
+target_include_directories(sitehelper_persistence
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/persistence
+)
+
+target_link_libraries(sitehelper_persistence
+    PUBLIC
+        sitehelper_project
+    PRIVATE
+        sitehelper_wall
+)
+
 add_library(sitehelper_command
     command/opening_command.c
     command/sitehelper_command.c
@@ -405,6 +421,21 @@ target_link_libraries(test_sitehelper_project
 )
 
 add_test(NAME sitehelper_project_tests COMMAND test_sitehelper_project)
+
+add_executable(test_sitehelper_persistence
+    persistence/tests/test_sitehelper_persistence.c
+)
+
+target_link_libraries(test_sitehelper_persistence
+    PRIVATE
+        sitehelper_persistence
+        sitehelper_wall
+)
+
+add_test(
+    NAME sitehelper_persistence_tests
+    COMMAND test_sitehelper_persistence
+)
 
 add_executable(test_sitehelper_editor
     editor/tests/test_sitehelper_editor.c

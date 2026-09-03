@@ -12,6 +12,10 @@ typedef struct
 
     int width;
     int height;
+
+    int width_allowance;
+    int height_allowance;
+    bool custom_allowance;
 } WallOpeningProposal;
 
 typedef enum
@@ -56,6 +60,12 @@ int wall_add_noggin(Wall *wall, const BuildSettings *settings, size_t bay, int v
 int wall_generate(Wall *wall, const BuildSettings *settings);
 int opening_frame_width(const Opening *opening, const BuildSettings *settings);
 int opening_frame_height(const Opening *opening, const BuildSettings *setting);
+/* Adds a complete authoritative opening after normal opening validation. */
+int wall_add_opening_definition(
+    Wall *wall,
+    const BuildSettings *settings,
+    const Opening *opening
+);
 int wall_add_opening(Wall *wall, const BuildSettings *settings, DomainId opening_id, OpeningType type, int frame_position, int frame_bottom, int width, int height);
 Opening *wall_find_opening_by_id(Wall *wall, DomainId opening_id);
 const Opening *wall_find_opening_by_id_const(const Wall *wall, DomainId opening_id);

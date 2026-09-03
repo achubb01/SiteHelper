@@ -1,0 +1,1025 @@
+#include "sitehelper_persistence.h"
+
+#include <ctype.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <limits.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "wall.h"
+
+enum
+{
+    SITEHELPER_PROJECT_FORMAT_VERSION = 1,
+    PERSISTENCE_TOKEN_CAPACITY = 64
+};
+
+typedef enum
+{
+    PERSISTENCE_TOKEN_EOF,
+    PERSISTENCE_TOKEN_OK,
+    PERSISTENCE_TOKEN_TOO_LONG
+} PersistenceTokenResult;
+
+static PersistenceTokenResult read_token(
+    FILE *file,
+    char token[PERSISTENCE_TOKEN_CAPACITY]
+);
+
+static SiteHelperPersistenceResult expect_token(
+    FILE *file,
+    const char *expected
+);
+
+static SiteHelperPersistenceResult read_required_token(
+    FILE *file,
+    char token[PERSISTENCE_TOKEN_CAPACITY]
+);
+
+static int parse_int_token(const char *token, int *value);
+static int parse_size_token(const char *token, size_t *value);
+static int parse_domain_id_token(const char *token, DomainId *value);
+static int parse_stud_spacing_mode(
+    const char *token,
+    StudSpacingMode *mode
+);
+static int parse_opening_type(
+    const char *token,
+    OpeningType *type
+);
+static int parse_bool_token(const char *token, bool *value);
+
+static const char *stud_spacing_mode_token(StudSpacingMode mode);
+static const char *opening_type_token(OpeningType type);
+
+static int build_settings_valid(const BuildSettings *settings);
+static int project_contains_id(
+    const SiteHelperProject *project,
+    DomainId id
+);
+static size_t project_id_occurrence_count(
+    const SiteHelperProject *project,
+    DomainId id
+);
+static int project_ids_valid(const SiteHelperProject *project);
+static SiteHelperPersistenceResult project_validate_for_save(
+    const SiteHelperProject *project
+);
+static SiteHelperPersistenceResult parse_project(
+    FILE *file,
+    SiteHelperProject *project
+);
+static SiteHelperPersistenceResult parse_settings(
+    FILE *file,
+    BuildSettings *settings
+);
+static SiteHelperPersistenceResult parse_room(
+    FILE *file,
+    SiteHelperProject *project
+);
+static SiteHelperPersistenceResult parse_wall(
+    FILE *file,
+    SiteHelperProject *project,
+    Room *room
+);
+static SiteHelperPersistenceResult parse_opening(
+    FILE *file,
+    SiteHelperProject *project,
+    Wall *wall
+);
+static SiteHelperPersistenceResult regenerate_project(
+    SiteHelperProject *project
+);
+
+static int write_project(
+    FILE *file,
+    const SiteHelperProject *project
+);
+
+static PersistenceTokenResult read_token(
+    FILE *file,
+    char token[PERSISTENCE_TOKEN_CAPACITY]
+)
+{
+    if (file == NULL || token == NULL) {
+        return PERSISTENCE_TOKEN_TOO_LONG;
+    }
+
+    int character;
+
+    do {
+        character = fgetc(file);
+    } while (character != EOF && isspace((unsigned char)character));
+
+    if (character == EOF) {
+        return PERSISTENCE_TOKEN_EOF;
+    }
+
+    size_t length = 0;
+    int too_long = 0;
+
+    while (character != EOF && !isspace((unsigned char)character)) {
+        if (length + 1 < PERSISTENCE_TOKEN_CAPACITY) {
+            token[length++] = (char)character;
+        }
+        else {
+            too_long = 1;
+        }
+
+        character = fgetc(file);
+    }
+
+    token[length] = '\0';
+
+    return too_long
+        ? PERSISTENCE_TOKEN_TOO_LONG
+        : PERSISTENCE_TOKEN_OK;
+}
+
+static SiteHelperPersistenceResult read_required_token(
+    FILE *file,
+    char token[PERSISTENCE_TOKEN_CAPACITY]
+)
+{
+    return read_token(file, token) == PERSISTENCE_TOKEN_OK
+        ? SITEHELPER_PERSISTENCE_SUCCESS
+        : SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+}
+
+static SiteHelperPersistenceResult expect_token(
+    FILE *file,
+    const char *expected
+)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+
+    if (read_required_token(file, token) !=
+        SITEHELPER_PERSISTENCE_SUCCESS) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    return strcmp(token, expected) == 0
+        ? SITEHELPER_PERSISTENCE_SUCCESS
+        : SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+}
+
+static int parse_int_token(const char *token, int *value)
+{
+    if (token == NULL || value == NULL || token[0] == '\0') {
+        return 0;
+    }
+
+    errno = 0;
+    char *end = NULL;
+    intmax_t parsed = strtoimax(token, &end, 10);
+
+    if (errno == ERANGE || end == token || *end != '\0' ||
+        parsed < INT_MIN || parsed > INT_MAX) {
+
+        return 0;
+    }
+
+    *value = (int)parsed;
+    return 1;
+}
+
+static int parse_size_token(const char *token, size_t *value)
+{
+    if (token == NULL || value == NULL || token[0] == '\0' ||
+        token[0] == '-') {
+
+        return 0;
+    }
+
+    errno = 0;
+    char *end = NULL;
+    uintmax_t parsed = strtoumax(token, &end, 10);
+
+    if (errno == ERANGE || end == token || *end != '\0' ||
+        parsed > SIZE_MAX) {
+
+        return 0;
+    }
+
+    *value = (size_t)parsed;
+    return 1;
+}
+
+static int parse_domain_id_token(const char *token, DomainId *value)
+{
+    if (token == NULL || value == NULL || token[0] == '\0' ||
+        token[0] == '-') {
+
+        return 0;
+    }
+
+    errno = 0;
+    char *end = NULL;
+    uintmax_t parsed = strtoumax(token, &end, 10);
+
+    if (errno == ERANGE || end == token || *end != '\0' ||
+        parsed > UINT64_MAX) {
+
+        return 0;
+    }
+
+    *value = (DomainId)parsed;
+    return 1;
+}
+
+static int parse_stud_spacing_mode(
+    const char *token,
+    StudSpacingMode *mode
+)
+{
+    if (token == NULL || mode == NULL) {
+        return 0;
+    }
+
+    if (strcmp(token, "even") == 0) {
+        *mode = STUD_SPACING_EVEN;
+        return 1;
+    }
+
+    if (strcmp(token, "maximise") == 0) {
+        *mode = STUD_SPACING_MAXIMISE;
+        return 1;
+    }
+
+    return 0;
+}
+
+static int parse_opening_type(
+    const char *token,
+    OpeningType *type
+)
+{
+    if (token == NULL || type == NULL) {
+        return 0;
+    }
+
+    if (strcmp(token, "door") == 0) {
+        *type = OPENING_DOOR;
+        return 1;
+    }
+
+    if (strcmp(token, "window") == 0) {
+        *type = OPENING_WINDOW;
+        return 1;
+    }
+
+    return 0;
+}
+
+static int parse_bool_token(const char *token, bool *value)
+{
+    if (token == NULL || value == NULL) {
+        return 0;
+    }
+
+    if (strcmp(token, "false") == 0) {
+        *value = false;
+        return 1;
+    }
+
+    if (strcmp(token, "true") == 0) {
+        *value = true;
+        return 1;
+    }
+
+    return 0;
+}
+
+static const char *stud_spacing_mode_token(StudSpacingMode mode)
+{
+    switch (mode) {
+        case STUD_SPACING_EVEN:
+            return "even";
+
+        case STUD_SPACING_MAXIMISE:
+            return "maximise";
+
+        default:
+            return NULL;
+    }
+}
+
+static const char *opening_type_token(OpeningType type)
+{
+    switch (type) {
+        case OPENING_DOOR:
+            return "door";
+
+        case OPENING_WINDOW:
+            return "window";
+
+        default:
+            return NULL;
+    }
+}
+
+static int build_settings_valid(const BuildSettings *settings)
+{
+    if (settings == NULL || settings->stud_height <= 0 ||
+        settings->stud_depth <= 0 || settings->stud_width <= 0 ||
+        settings->stud_spacing <= 0 || settings->nog_spacing <= 0) {
+
+        return 0;
+    }
+
+    return settings->stud_spacing_mode == STUD_SPACING_EVEN ||
+        settings->stud_spacing_mode == STUD_SPACING_MAXIMISE;
+}
+
+static int project_contains_id(
+    const SiteHelperProject *project,
+    DomainId id
+)
+{
+    if (project == NULL || id == DOMAIN_ID_INVALID) {
+        return 0;
+    }
+
+    for (size_t room_index = 0;
+         room_index < project->structure.room_count;
+         room_index++) {
+
+        const Room *room = &project->structure.rooms[room_index];
+
+        if (room->id == id) {
+            return 1;
+        }
+
+        for (size_t wall_index = 0;
+             wall_index < room->wall_count;
+             wall_index++) {
+
+            const Wall *wall = &room->walls[wall_index];
+
+            if (wall->id == id) {
+                return 1;
+            }
+
+            for (size_t opening_index = 0;
+                 opening_index < wall->definition.opening_count;
+                 opening_index++) {
+
+                if (wall->definition.openings[opening_index].id == id) {
+                    return 1;
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+static size_t project_id_occurrence_count(
+    const SiteHelperProject *project,
+    DomainId id
+)
+{
+    if (project == NULL || id == DOMAIN_ID_INVALID) {
+        return 0;
+    }
+
+    size_t occurrences = 0;
+
+    for (size_t room_index = 0;
+         room_index < project->structure.room_count;
+         room_index++) {
+
+        const Room *room = &project->structure.rooms[room_index];
+
+        if (room->id == id) {
+            occurrences++;
+        }
+
+        for (size_t wall_index = 0;
+             wall_index < room->wall_count;
+             wall_index++) {
+
+            const Wall *wall = &room->walls[wall_index];
+
+            if (wall->id == id) {
+                occurrences++;
+            }
+
+            for (size_t opening_index = 0;
+                 opening_index < wall->definition.opening_count;
+                 opening_index++) {
+
+                if (wall->definition.openings[opening_index].id == id) {
+                    occurrences++;
+                }
+            }
+        }
+    }
+
+    return occurrences;
+}
+
+static int project_ids_valid(const SiteHelperProject *project)
+{
+    if (project == NULL || project->domain_ids.next == DOMAIN_ID_INVALID) {
+        return 0;
+    }
+
+    DomainId maximum_id = DOMAIN_ID_INVALID;
+
+    for (size_t room_index = 0;
+         room_index < project->structure.room_count;
+         room_index++) {
+
+        const Room *room = &project->structure.rooms[room_index];
+
+        if (room->id == DOMAIN_ID_INVALID ||
+            project_id_occurrence_count(project, room->id) != 1) {
+
+            return 0;
+        }
+
+        if (room->id > maximum_id) {
+            maximum_id = room->id;
+        }
+
+        for (size_t wall_index = 0;
+             wall_index < room->wall_count;
+             wall_index++) {
+
+            const Wall *wall = &room->walls[wall_index];
+
+            if (wall->id == DOMAIN_ID_INVALID ||
+                project_id_occurrence_count(project, wall->id) != 1) {
+                return 0;
+            }
+
+            if (wall->id > maximum_id) {
+                maximum_id = wall->id;
+            }
+
+            for (size_t opening_index = 0;
+                 opening_index < wall->definition.opening_count;
+                 opening_index++) {
+
+                DomainId opening_id =
+                    wall->definition.openings[opening_index].id;
+
+                if (opening_id == DOMAIN_ID_INVALID ||
+                    project_id_occurrence_count(project, opening_id) != 1) {
+                    return 0;
+                }
+
+                if (opening_id > maximum_id) {
+                    maximum_id = opening_id;
+                }
+            }
+        }
+    }
+
+    if (project->domain_ids.next <= maximum_id) {
+        return 0;
+    }
+
+    return 1;
+}
+
+static SiteHelperPersistenceResult project_validate_for_save(
+    const SiteHelperProject *project
+)
+{
+    if (project == NULL || !build_settings_valid(&project->settings)) {
+        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+    }
+
+    if ((project->structure.room_count != 0 &&
+         project->structure.rooms == NULL) ||
+        project->structure.room_count > project->structure.room_capacity) {
+
+        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+    }
+
+    for (size_t room_index = 0;
+         room_index < project->structure.room_count;
+         room_index++) {
+
+        const Room *room = &project->structure.rooms[room_index];
+
+        if ((room->wall_count != 0 && room->walls == NULL) ||
+            room->wall_count > room->wall_capacity) {
+
+            return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+
+        for (size_t wall_index = 0;
+             wall_index < room->wall_count;
+             wall_index++) {
+
+            const Wall *wall = &room->walls[wall_index];
+
+            if (wall->definition.length <= 0 ||
+                (wall->definition.opening_count != 0 &&
+                 wall->definition.openings == NULL) ||
+                wall->definition.opening_count >
+                    wall->definition.opening_capacity) {
+
+                return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+            }
+
+            Wall validation_wall = {
+                .definition.length = wall->definition.length
+            };
+
+            for (size_t opening_index = 0;
+                 opening_index < wall->definition.opening_count;
+                 opening_index++) {
+
+                if (!wall_add_opening_definition(
+                        &validation_wall,
+                        &project->settings,
+                        &wall->definition.openings[opening_index])) {
+
+                    wall_destroy(&validation_wall);
+                    return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+                }
+            }
+
+            wall_destroy(&validation_wall);
+        }
+    }
+
+    if (!project_ids_valid(project)) {
+        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+    }
+
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
+static SiteHelperPersistenceResult parse_settings(
+    FILE *file,
+    BuildSettings *settings
+)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+
+    if (expect_token(file, "settings") != SITEHELPER_PERSISTENCE_SUCCESS) {
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    int *integer_fields[] = {
+        &settings->stud_height,
+        &settings->stud_depth,
+        &settings->stud_width,
+        &settings->stud_spacing,
+        &settings->nog_spacing,
+        &settings->opening_width_allowance,
+        &settings->opening_height_allowance
+    };
+
+    for (size_t index = 0;
+         index < sizeof integer_fields / sizeof *integer_fields;
+         index++) {
+
+        if (read_required_token(file, token) !=
+                SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, integer_fields[index])) {
+
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+    }
+
+    if (read_required_token(file, token) !=
+            SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_stud_spacing_mode(token, &settings->stud_spacing_mode)) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    return build_settings_valid(settings)
+        ? SITEHELPER_PERSISTENCE_SUCCESS
+        : SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+}
+
+static SiteHelperPersistenceResult parse_opening(
+    FILE *file,
+    SiteHelperProject *project,
+    Wall *wall
+)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    Opening opening = {0};
+
+    if (expect_token(file, "opening") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_domain_id_token(token, &opening.id) ||
+        opening.id == DOMAIN_ID_INVALID ||
+        project_contains_id(project, opening.id) ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_opening_type(token, &opening.type)) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    int *integer_fields[] = {
+        &opening.frame_position,
+        &opening.frame_bottom,
+        &opening.width,
+        &opening.height,
+        &opening.width_allowance,
+        &opening.height_allowance
+    };
+
+    for (size_t index = 0;
+         index < sizeof integer_fields / sizeof *integer_fields;
+         index++) {
+
+        if (read_required_token(file, token) !=
+                SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, integer_fields[index])) {
+
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+    }
+
+    if (read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_bool_token(token, &opening.custom_allowance)) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    return wall_add_opening_definition(
+        wall,
+        &project->settings,
+        &opening
+    )
+        ? SITEHELPER_PERSISTENCE_SUCCESS
+        : SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+}
+
+static SiteHelperPersistenceResult parse_wall(
+    FILE *file,
+    SiteHelperProject *project,
+    Room *room
+)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    DomainId wall_id;
+    int length;
+    size_t opening_count;
+
+    if (expect_token(file, "wall") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_domain_id_token(token, &wall_id) ||
+        wall_id == DOMAIN_ID_INVALID || project_contains_id(project, wall_id) ||
+        expect_token(file, "length") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_int_token(token, &length) ||
+        expect_token(file, "openings") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token, &opening_count)) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    if (!room_add_wall(room, wall_id)) {
+        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+    }
+
+    Wall *wall = room_find_wall_by_id(room, wall_id);
+
+    if (wall == NULL || !wall_set_length(wall, length)) {
+        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+    }
+
+    for (size_t index = 0; index < opening_count; index++) {
+        SiteHelperPersistenceResult result = parse_opening(
+            file,
+            project,
+            wall
+        );
+
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
+            return result;
+        }
+    }
+
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
+static SiteHelperPersistenceResult parse_room(
+    FILE *file,
+    SiteHelperProject *project
+)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    DomainId room_id;
+    size_t wall_count;
+
+    if (expect_token(file, "room") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_domain_id_token(token, &room_id) ||
+        room_id == DOMAIN_ID_INVALID || project_contains_id(project, room_id) ||
+        expect_token(file, "walls") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token, &wall_count)) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    if (!build_add_room(&project->structure, room_id)) {
+        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+    }
+
+    Room *room = build_find_room_by_id(&project->structure, room_id);
+
+    if (room == NULL) {
+        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+    }
+
+    for (size_t index = 0; index < wall_count; index++) {
+        SiteHelperPersistenceResult result = parse_wall(
+            file,
+            project,
+            room
+        );
+
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
+            return result;
+        }
+    }
+
+    return expect_token(file, "end_room");
+}
+
+static SiteHelperPersistenceResult parse_project(
+    FILE *file,
+    SiteHelperProject *project
+)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    DomainId next;
+    size_t room_count;
+
+    if (expect_token(file, "sitehelper_project") !=
+            SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    uintmax_t version;
+    errno = 0;
+    char *end = NULL;
+    version = strtoumax(token, &end, 10);
+
+    if (token[0] == '-' || errno == ERANGE || end == token ||
+        *end != '\0') {
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    if (version != SITEHELPER_PROJECT_FORMAT_VERSION) {
+        return SITEHELPER_PERSISTENCE_UNSUPPORTED_VERSION;
+    }
+
+    if (expect_token(file, "domain_id_next") !=
+            SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_domain_id_token(token, &next) ||
+        next == DOMAIN_ID_INVALID) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    SiteHelperPersistenceResult result = parse_settings(
+        file,
+        &project->settings
+    );
+
+    if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
+        return result;
+    }
+
+    if (expect_token(file, "rooms") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token, &room_count)) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    for (size_t index = 0; index < room_count; index++) {
+        result = parse_room(file, project);
+
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
+            return result;
+        }
+    }
+
+    if (expect_token(file, "end_project") !=
+        SITEHELPER_PERSISTENCE_SUCCESS) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    if (read_token(file, token) != PERSISTENCE_TOKEN_EOF) {
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    project->domain_ids.next = next;
+
+    return project_ids_valid(project)
+        ? SITEHELPER_PERSISTENCE_SUCCESS
+        : SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+}
+
+static SiteHelperPersistenceResult regenerate_project(
+    SiteHelperProject *project
+)
+{
+    if (project == NULL) {
+        return SITEHELPER_PERSISTENCE_INVALID_ARGUMENT;
+    }
+
+    for (size_t room_index = 0;
+         room_index < project->structure.room_count;
+         room_index++) {
+
+        Room *room = &project->structure.rooms[room_index];
+
+        for (size_t wall_index = 0;
+             wall_index < room->wall_count;
+             wall_index++) {
+
+            if (!wall_generate(
+                    &room->walls[wall_index],
+                    &project->settings)) {
+
+                return SITEHELPER_PERSISTENCE_REGENERATION_FAILED;
+            }
+        }
+    }
+
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
+static int write_project(
+    FILE *file,
+    const SiteHelperProject *project
+)
+{
+    if (fprintf(file,
+            "sitehelper_project %d\n"
+            "domain_id_next %" PRIu64 "\n"
+            "settings %d %d %d %d %d %d %d %s\n"
+            "rooms %zu\n",
+            SITEHELPER_PROJECT_FORMAT_VERSION,
+            (uint64_t)project->domain_ids.next,
+            project->settings.stud_height,
+            project->settings.stud_depth,
+            project->settings.stud_width,
+            project->settings.stud_spacing,
+            project->settings.nog_spacing,
+            project->settings.opening_width_allowance,
+            project->settings.opening_height_allowance,
+            stud_spacing_mode_token(project->settings.stud_spacing_mode),
+            project->structure.room_count) < 0) {
+
+        return 0;
+    }
+
+    for (size_t room_index = 0;
+         room_index < project->structure.room_count;
+         room_index++) {
+
+        const Room *room = &project->structure.rooms[room_index];
+
+        if (fprintf(file,
+                "room %" PRIu64 " walls %zu\n",
+                (uint64_t)room->id,
+                room->wall_count) < 0) {
+
+            return 0;
+        }
+
+        for (size_t wall_index = 0;
+             wall_index < room->wall_count;
+             wall_index++) {
+
+            const Wall *wall = &room->walls[wall_index];
+
+            if (fprintf(file,
+                    "wall %" PRIu64 " length %d openings %zu\n",
+                    (uint64_t)wall->id,
+                    wall->definition.length,
+                    wall->definition.opening_count) < 0) {
+
+                return 0;
+            }
+
+            for (size_t opening_index = 0;
+                 opening_index < wall->definition.opening_count;
+                 opening_index++) {
+
+                const Opening *opening =
+                    &wall->definition.openings[opening_index];
+
+                if (fprintf(file,
+                        "opening %" PRIu64 " %s %d %d %d %d %d %d %s\n",
+                        (uint64_t)opening->id,
+                        opening_type_token(opening->type),
+                        opening->frame_position,
+                        opening->frame_bottom,
+                        opening->width,
+                        opening->height,
+                        opening->width_allowance,
+                        opening->height_allowance,
+                        opening->custom_allowance ? "true" : "false") < 0) {
+
+                    return 0;
+                }
+            }
+        }
+
+        if (fputs("end_room\n", file) == EOF) {
+            return 0;
+        }
+    }
+
+    return fputs("end_project\n", file) != EOF;
+}
+
+SiteHelperPersistenceResult sitehelper_project_save_file(
+    const SiteHelperProject *project,
+    const char *path
+)
+{
+    if (project == NULL || path == NULL || path[0] == '\0') {
+        return SITEHELPER_PERSISTENCE_INVALID_ARGUMENT;
+    }
+
+    SiteHelperPersistenceResult validation = project_validate_for_save(project);
+
+    if (validation != SITEHELPER_PERSISTENCE_SUCCESS) {
+        return validation;
+    }
+
+    FILE *file = fopen(path, "w");
+
+    if (file == NULL) {
+        return SITEHELPER_PERSISTENCE_IO_ERROR;
+    }
+
+    int written = write_project(file, project);
+    int close_result = fclose(file);
+
+    return written && close_result == 0
+        ? SITEHELPER_PERSISTENCE_SUCCESS
+        : SITEHELPER_PERSISTENCE_IO_ERROR;
+}
+
+SiteHelperPersistenceResult sitehelper_project_load_file(
+    SiteHelperProject *destination,
+    const char *path
+)
+{
+    if (destination == NULL || path == NULL || path[0] == '\0') {
+        return SITEHELPER_PERSISTENCE_INVALID_ARGUMENT;
+    }
+
+    FILE *file = fopen(path, "r");
+
+    if (file == NULL) {
+        return SITEHELPER_PERSISTENCE_IO_ERROR;
+    }
+
+    SiteHelperProject candidate;
+    sitehelper_project_init(&candidate);
+
+    SiteHelperPersistenceResult result = parse_project(file, &candidate);
+
+    if (ferror(file)) {
+        result = SITEHELPER_PERSISTENCE_IO_ERROR;
+    }
+
+    if (fclose(file) != 0 && result == SITEHELPER_PERSISTENCE_SUCCESS) {
+        result = SITEHELPER_PERSISTENCE_IO_ERROR;
+    }
+
+    if (result == SITEHELPER_PERSISTENCE_SUCCESS) {
+        result = regenerate_project(&candidate);
+    }
+
+    if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
+        sitehelper_project_destroy(&candidate);
+        return result;
+    }
+
+    SiteHelperProject previous = *destination;
+    *destination = candidate;
+    sitehelper_project_destroy(&previous);
+
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
