@@ -13,7 +13,7 @@
 
 enum
 {
-    SITEHELPER_PROJECT_FORMAT_VERSION = 2,
+    SITEHELPER_PROJECT_FORMAT_VERSION = 3,
     PERSISTENCE_TOKEN_CAPACITY = 64
 };
 
@@ -86,6 +86,11 @@ static SiteHelperPersistenceResult parse_wall(
     SiteHelperProject *project,
     Room *room,
     uintmax_t version
+);
+static SiteHelperPersistenceResult parse_wall_reference(
+    FILE *file,
+    Room *room,
+    const SiteHelperProject *project
 );
 static SiteHelperPersistenceResult parse_opening(
     FILE *file,
@@ -356,23 +361,23 @@ static int project_contains_id(
             return 1;
         }
 
-        for (size_t wall_index = 0;
-             wall_index < room->wall_count;
-             wall_index++) {
+    }
 
-            const Wall *wall = &room->walls[wall_index];
+    for (size_t wall_index = 0;
+         wall_index < project->structure.wall_count;
+         wall_index++) {
 
-            if (wall->id == id) {
+        const Wall *wall = &project->structure.walls[wall_index];
+        if (wall->id == id) {
+            return 1;
+        }
+
+        for (size_t opening_index = 0;
+             opening_index < wall->definition.opening_count;
+             opening_index++) {
+
+            if (wall->definition.openings[opening_index].id == id) {
                 return 1;
-            }
-
-            for (size_t opening_index = 0;
-                 opening_index < wall->definition.opening_count;
-                 opening_index++) {
-
-                if (wall->definition.openings[opening_index].id == id) {
-                    return 1;
-                }
             }
         }
     }
@@ -401,23 +406,23 @@ static size_t project_id_occurrence_count(
             occurrences++;
         }
 
-        for (size_t wall_index = 0;
-             wall_index < room->wall_count;
-             wall_index++) {
+    }
 
-            const Wall *wall = &room->walls[wall_index];
+    for (size_t wall_index = 0;
+         wall_index < project->structure.wall_count;
+         wall_index++) {
 
-            if (wall->id == id) {
+        const Wall *wall = &project->structure.walls[wall_index];
+        if (wall->id == id) {
+            occurrences++;
+        }
+
+        for (size_t opening_index = 0;
+             opening_index < wall->definition.opening_count;
+             opening_index++) {
+
+            if (wall->definition.openings[opening_index].id == id) {
                 occurrences++;
-            }
-
-            for (size_t opening_index = 0;
-                 opening_index < wall->definition.opening_count;
-                 opening_index++) {
-
-                if (wall->definition.openings[opening_index].id == id) {
-                    occurrences++;
-                }
             }
         }
     }
@@ -449,36 +454,34 @@ static int project_ids_valid(const SiteHelperProject *project)
             maximum_id = room->id;
         }
 
-        for (size_t wall_index = 0;
-             wall_index < room->wall_count;
-             wall_index++) {
+    }
 
-            const Wall *wall = &room->walls[wall_index];
+    for (size_t wall_index = 0;
+         wall_index < project->structure.wall_count;
+         wall_index++) {
 
-            if (wall->id == DOMAIN_ID_INVALID ||
-                project_id_occurrence_count(project, wall->id) != 1) {
+        const Wall *wall = &project->structure.walls[wall_index];
+        if (wall->id == DOMAIN_ID_INVALID ||
+            project_id_occurrence_count(project, wall->id) != 1) {
+            return 0;
+        }
+
+        if (wall->id > maximum_id) {
+            maximum_id = wall->id;
+        }
+
+        for (size_t opening_index = 0;
+             opening_index < wall->definition.opening_count;
+             opening_index++) {
+
+            DomainId opening_id = wall->definition.openings[opening_index].id;
+            if (opening_id == DOMAIN_ID_INVALID ||
+                project_id_occurrence_count(project, opening_id) != 1) {
                 return 0;
             }
 
-            if (wall->id > maximum_id) {
-                maximum_id = wall->id;
-            }
-
-            for (size_t opening_index = 0;
-                 opening_index < wall->definition.opening_count;
-                 opening_index++) {
-
-                DomainId opening_id =
-                    wall->definition.openings[opening_index].id;
-
-                if (opening_id == DOMAIN_ID_INVALID ||
-                    project_id_occurrence_count(project, opening_id) != 1) {
-                    return 0;
-                }
-
-                if (opening_id > maximum_id) {
-                    maximum_id = opening_id;
-                }
+            if (opening_id > maximum_id) {
+                maximum_id = opening_id;
             }
         }
     }
@@ -511,7 +514,7 @@ static SiteHelperPersistenceResult project_validate_for_save(
 
         const Room *room = &project->structure.rooms[room_index];
 
-        if ((room->wall_count != 0 && room->walls == NULL) ||
+        if ((room->wall_count != 0 && room->wall_ids == NULL) ||
             room->wall_count > room->wall_capacity) {
 
             return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
@@ -521,7 +524,33 @@ static SiteHelperPersistenceResult project_validate_for_save(
              wall_index < room->wall_count;
              wall_index++) {
 
-            const Wall *wall = &room->walls[wall_index];
+            if (build_find_wall_by_id_const(
+                    &project->structure,
+                    room->wall_ids[wall_index]) == NULL) {
+
+                return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+            }
+
+            for (size_t previous = 0; previous < wall_index; previous++) {
+                if (room->wall_ids[previous] == room->wall_ids[wall_index]) {
+                    return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+                }
+            }
+        }
+    }
+
+    if ((project->structure.wall_count != 0 &&
+         project->structure.walls == NULL) ||
+        project->structure.wall_count > project->structure.wall_capacity) {
+
+        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+    }
+
+    for (size_t wall_index = 0;
+         wall_index < project->structure.wall_count;
+         wall_index++) {
+
+            const Wall *wall = &project->structure.walls[wall_index];
 
             if (wall->definition.length <= 0 ||
                 (wall->definition.opening_count != 0 &&
@@ -551,7 +580,6 @@ static SiteHelperPersistenceResult project_validate_for_save(
             }
 
             wall_destroy(&validation_wall);
-        }
     }
 
     if (!project_ids_valid(project)) {
@@ -705,14 +733,21 @@ static SiteHelperPersistenceResult parse_wall(
         return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
     }
 
-    if (!room_add_wall(room, wall_id)) {
+    Wall candidate = { .id = wall_id };
+    if (!wall_set_origin(&candidate, origin) ||
+        !wall_set_length(&candidate, length) ||
+        !build_append_wall(&project->structure, &candidate)) {
+
+        wall_destroy(&candidate);
         return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
     }
 
-    Wall *wall = room_find_wall_by_id(room, wall_id);
+    Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
+    if (wall == NULL) {
+        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+    }
 
-    if (wall == NULL || !wall_set_origin(wall, origin) ||
-        !wall_set_length(wall, length)) {
+    if (room != NULL && !room_add_wall_reference(room, wall_id)) {
         return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
     }
 
@@ -726,6 +761,28 @@ static SiteHelperPersistenceResult parse_wall(
         if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
             return result;
         }
+    }
+
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
+static SiteHelperPersistenceResult parse_wall_reference(
+    FILE *file,
+    Room *room,
+    const SiteHelperProject *project
+)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    DomainId wall_id;
+
+    if (expect_token(file, "wall_ref") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_domain_id_token(token, &wall_id) ||
+        wall_id == DOMAIN_ID_INVALID ||
+        build_find_wall_by_id_const(&project->structure, wall_id) == NULL ||
+        !room_add_wall_reference(room, wall_id)) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
     }
 
     return SITEHELPER_PERSISTENCE_SUCCESS;
@@ -745,7 +802,8 @@ static SiteHelperPersistenceResult parse_room(
         read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
         !parse_domain_id_token(token, &room_id) ||
         room_id == DOMAIN_ID_INVALID || project_contains_id(project, room_id) ||
-        expect_token(file, "walls") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        expect_token(file, version >= 3 ? "wall_refs" : "walls") !=
+            SITEHELPER_PERSISTENCE_SUCCESS ||
         read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
         !parse_size_token(token, &wall_count)) {
 
@@ -763,12 +821,9 @@ static SiteHelperPersistenceResult parse_room(
     }
 
     for (size_t index = 0; index < wall_count; index++) {
-        SiteHelperPersistenceResult result = parse_wall(
-            file,
-            project,
-            room,
-            version
-        );
+        SiteHelperPersistenceResult result = version >= 3
+            ? parse_wall_reference(file, room, project)
+            : parse_wall(file, project, room, version);
 
         if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
             return result;
@@ -804,7 +859,7 @@ static SiteHelperPersistenceResult parse_project(
         return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
     }
 
-    if (version != 1 && version != SITEHELPER_PROJECT_FORMAT_VERSION) {
+    if (version < 1 || version > SITEHELPER_PROJECT_FORMAT_VERSION) {
         return SITEHELPER_PERSISTENCE_UNSUPPORTED_VERSION;
     }
 
@@ -824,6 +879,23 @@ static SiteHelperPersistenceResult parse_project(
 
     if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
         return result;
+    }
+
+    if (version >= 3) {
+        size_t wall_count;
+        if (expect_token(file, "walls") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_size_token(token, &wall_count)) {
+
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+
+        for (size_t index = 0; index < wall_count; index++) {
+            result = parse_wall(file, project, NULL, version);
+            if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
+                return result;
+            }
+        }
     }
 
     if (expect_token(file, "rooms") != SITEHELPER_PERSISTENCE_SUCCESS ||
@@ -866,22 +938,15 @@ static SiteHelperPersistenceResult regenerate_project(
         return SITEHELPER_PERSISTENCE_INVALID_ARGUMENT;
     }
 
-    for (size_t room_index = 0;
-         room_index < project->structure.room_count;
-         room_index++) {
+    for (size_t wall_index = 0;
+         wall_index < project->structure.wall_count;
+         wall_index++) {
 
-        Room *room = &project->structure.rooms[room_index];
+        if (!wall_generate(
+                &project->structure.walls[wall_index],
+                &project->settings)) {
 
-        for (size_t wall_index = 0;
-             wall_index < room->wall_count;
-             wall_index++) {
-
-            if (!wall_generate(
-                    &room->walls[wall_index],
-                    &project->settings)) {
-
-                return SITEHELPER_PERSISTENCE_REGENERATION_FAILED;
-            }
+            return SITEHELPER_PERSISTENCE_REGENERATION_FAILED;
         }
     }
 
@@ -897,7 +962,7 @@ static int write_project(
             "sitehelper_project %d\n"
             "domain_id_next %" PRIu64 "\n"
             "settings %d %d %d %d %d %d %d %s\n"
-            "rooms %zu\n",
+            "walls %zu\n",
             SITEHELPER_PROJECT_FORMAT_VERSION,
             (uint64_t)project->domain_ids.next,
             project->settings.stud_height,
@@ -908,30 +973,16 @@ static int write_project(
             project->settings.opening_width_allowance,
             project->settings.opening_height_allowance,
             stud_spacing_mode_token(project->settings.stud_spacing_mode),
-            project->structure.room_count) < 0) {
+            project->structure.wall_count) < 0) {
 
         return 0;
     }
 
-    for (size_t room_index = 0;
-         room_index < project->structure.room_count;
-         room_index++) {
+    for (size_t wall_index = 0;
+         wall_index < project->structure.wall_count;
+         wall_index++) {
 
-        const Room *room = &project->structure.rooms[room_index];
-
-        if (fprintf(file,
-                "room %" PRIu64 " walls %zu\n",
-                (uint64_t)room->id,
-                room->wall_count) < 0) {
-
-            return 0;
-        }
-
-        for (size_t wall_index = 0;
-             wall_index < room->wall_count;
-             wall_index++) {
-
-            const Wall *wall = &room->walls[wall_index];
+            const Wall *wall = &project->structure.walls[wall_index];
 
             if (fprintf(file,
                     "wall %" PRIu64 " origin %d %d length %d openings %zu\n",
@@ -965,6 +1016,34 @@ static int write_project(
 
                     return 0;
                 }
+            }
+    }
+
+    if (fprintf(file, "rooms %zu\n", project->structure.room_count) < 0) {
+        return 0;
+    }
+
+    for (size_t room_index = 0;
+         room_index < project->structure.room_count;
+         room_index++) {
+
+        const Room *room = &project->structure.rooms[room_index];
+        if (fprintf(file,
+                "room %" PRIu64 " wall_refs %zu\n",
+                (uint64_t)room->id,
+                room->wall_count) < 0) {
+
+            return 0;
+        }
+
+        for (size_t wall_index = 0;
+             wall_index < room->wall_count;
+             wall_index++) {
+
+            if (fprintf(file, "wall_ref %" PRIu64 "\n",
+                    (uint64_t)room->wall_ids[wall_index]) < 0) {
+
+                return 0;
             }
         }
 

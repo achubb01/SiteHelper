@@ -128,6 +128,7 @@ int sitehelper_editor_primary_action(
 
 int sitehelper_editor_primary_action_in_room(
     SiteHelperEditor *editor,
+    const BuildStructure *structure,
     const Room *room,
     Vec2 world_position,
     EditorAction *action

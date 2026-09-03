@@ -95,21 +95,26 @@ DomainId sitehelper_project_add_wall(
         return DOMAIN_ID_INVALID;
     }
 
-    DomainId wall_id =
-        domain_id_generate(
-            &project->domain_ids
-        );
+    DomainIdGenerator candidate_ids = project->domain_ids;
+    DomainId wall_id = domain_id_generate(&candidate_ids);
 
     if (wall_id == DOMAIN_ID_INVALID) {
         return DOMAIN_ID_INVALID;
     }
 
-    if (!room_add_wall(
-            room,
-            wall_id)) {
+    Wall wall = { .id = wall_id };
+
+    if (!room_add_wall_reference(room, wall_id)) {
+        return DOMAIN_ID_INVALID;
+    }
+
+    if (!build_append_wall(&project->structure, &wall)) {
+        (void)room_remove_wall_reference(room, wall_id);
 
         return DOMAIN_ID_INVALID;
     }
+
+    project->domain_ids = candidate_ids;
 
     return wall_id;
 }

@@ -6,6 +6,16 @@
 #include "appstate.h"
 #include "wall.h"
 
+static void add_wall_reference(
+    BuildStructure *structure,
+    Room *room,
+    DomainId wall_id
+)
+{
+    Wall wall = { .id = wall_id };
+    assert(room_add_wall_reference(room, wall_id));
+    assert(build_append_wall(structure, &wall));
+}
 
 static void test_current_room_resolves_selected_room_by_id(void)
 {
@@ -193,12 +203,7 @@ sitehelper_editor_init(
 
     assert(room != NULL);
 
-    assert(
-        room_add_wall(
-            room,
-            wall_id
-        )
-    );
+    add_wall_reference(&app.project.structure, room, wall_id);
 
     app.editor.current_room_id =
         room_id;
@@ -335,12 +340,7 @@ sitehelper_editor_init(
 
     assert(room != NULL);
 
-    assert(
-        room_add_wall(
-            room,
-            selected_wall_id
-        )
-    );
+    add_wall_reference(&app.project.structure, room, selected_wall_id);
 
     app.editor.current_wall_id =
         selected_wall_id;
@@ -350,26 +350,11 @@ sitehelper_editor_init(
      * reallocations after the selection
      * has already been stored.
      */
-    assert(
-        room_add_wall(
-            room,
-            30
-        )
-    );
+    add_wall_reference(&app.project.structure, room, 30);
 
-    assert(
-        room_add_wall(
-            room,
-            40
-        )
-    );
+    add_wall_reference(&app.project.structure, room, 40);
 
-    assert(
-        room_add_wall(
-            room,
-            50
-        )
-    );
+    add_wall_reference(&app.project.structure, room, 50);
 
     Wall *wall =
         app_current_wall(
@@ -434,12 +419,7 @@ sitehelper_editor_init(
 
     assert(room != NULL);
 
-    assert(
-        room_add_wall(
-            room,
-            selected_wall_id
-        )
-    );
+    add_wall_reference(&app.project.structure, room, selected_wall_id);
 
     app.editor.current_room_id =
         selected_room_id;

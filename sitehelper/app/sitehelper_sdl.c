@@ -358,7 +358,14 @@ static void sitehelper_app_render(
 
     if (room != NULL) {
         for (size_t index = 0; index < room->wall_count; index++) {
-            const Wall *wall = &room->walls[index];
+            const Wall *wall = build_find_wall_by_id_const(
+                &app->project.structure,
+                room->wall_ids[index]
+            );
+
+            if (wall == NULL) {
+                continue;
+            }
             const WallSelection *wall_selection =
                 editor_selection_get_wall_member(selection, wall->id);
             const Timber *selected = wall_selection_resolve(
@@ -689,8 +696,9 @@ static void sitehelper_app_process_events(
                         EditorAction action;
 
                         if (!sitehelper_editor_primary_action_in_room(
-                                &app->editor,
-                                room,
+                            &app->editor,
+                            &app->project.structure,
+                            room,
                                 world_position,
                                 &action)) {
                             continue;

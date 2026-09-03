@@ -455,10 +455,15 @@ void selectWall(void *context)
     size_t wall_index =
         (size_t)(selection - 1);
 
-    Wall *wall =
-        &room->walls[
-            wall_index
-        ];
+    Wall *wall = build_find_wall_by_id(
+        &app->project.structure,
+        room->wall_ids[wall_index]
+    );
+
+    if (wall == NULL) {
+        printf("Wall no longer exists.\n");
+        return;
+    }
 
     app->editor.current_wall_id =
         wall->id;
@@ -522,8 +527,14 @@ void describeBuild(void *context)
             wall_index < room->wall_count;
             wall_index++) {
 
-            Wall *wall =
-                &room->walls[wall_index];
+            Wall *wall = build_find_wall_by_id(
+                &app->project.structure,
+                room->wall_ids[wall_index]
+            );
+
+            if (wall == NULL) {
+                continue;
+            }
 
             printf(
                 "\n  Wall %zu\n",

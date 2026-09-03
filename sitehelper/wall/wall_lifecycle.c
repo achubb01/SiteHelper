@@ -42,16 +42,7 @@ void room_destroy(
         return;
     }
 
-    for (size_t i = 0;
-         i < room->wall_count;
-         i++) {
-
-        wall_destroy(
-            &room->walls[i]
-        );
-    }
-
-    free(room->walls);
+    free(room->wall_ids);
 
     *room = (Room){0};
 }
@@ -74,6 +65,15 @@ void build_destroy(
     }
 
     free(structure->rooms);
+
+    for (size_t i = 0;
+         i < structure->wall_count;
+         i++) {
+
+        wall_destroy(&structure->walls[i]);
+    }
+
+    free(structure->walls);
 
     *structure = (BuildStructure){0};
 }

@@ -53,10 +53,9 @@ Wall *app_current_wall(
         return NULL;
     }
 
-    return room_find_wall_by_id(
-        room,
-        editor->current_wall_id
-    );
+    return room_has_wall_id(room, editor->current_wall_id)
+        ? build_find_wall_by_id(&project->structure, editor->current_wall_id)
+        : NULL;
 }
 
 const Room *app_current_room_const(
@@ -101,8 +100,10 @@ const Wall *app_current_wall_const(
         return NULL;
     }
 
-    return room_find_wall_by_id_const(
-        room,
-        editor->current_wall_id
-    );
+    return room_has_wall_id(room, editor->current_wall_id)
+        ? build_find_wall_by_id_const(
+            &project->structure,
+            editor->current_wall_id
+        )
+        : NULL;
 }

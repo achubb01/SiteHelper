@@ -15,8 +15,10 @@ static Wall *add_wall(
 {
     Room *room = build_find_room_by_id(&project->structure, room_id);
     assert(room != NULL);
-    assert(room_add_wall(room, wall_id));
-    Wall *wall = room_find_wall_by_id(room, wall_id);
+    Wall candidate = { .id = wall_id };
+    assert(room_add_wall_reference(room, wall_id));
+    assert(build_append_wall(&project->structure, &candidate));
+    Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
     assert(wall_set_origin(wall, origin));
     assert(wall_set_length(wall, 4200));
     assert(wall_generate(wall, &project->settings));
@@ -38,13 +40,13 @@ static void test_positioned_walls_select_by_stable_identity(void)
     EditorAction action;
 
     assert(sitehelper_editor_primary_action_in_room(
-        &editor, room, (Vec2){ 10, 10 }, &action));
+        &editor, &project.structure, room, (Vec2){ 10, 10 }, &action));
     assert(editor.selection.wall_id == 20);
     assert(editor.current_wall_id == 20);
     assert(editor_selection_get_wall_member(&editor.selection, 30) == NULL);
 
     assert(sitehelper_editor_primary_action_in_room(
-        &editor, room, (Vec2){ 5010, 3010 }, &action));
+        &editor, &project.structure, room, (Vec2){ 5010, 3010 }, &action));
     assert(editor.selection.wall_id == 30);
     assert(editor.current_wall_id == 30);
     assert(editor_selection_get_wall_member(&editor.selection, 20) == NULL);
@@ -54,7 +56,8 @@ static void test_positioned_walls_select_by_stable_identity(void)
     }
 
     room = build_find_room_by_id(&project.structure, room_id);
-    assert(room_find_wall_by_id(room, editor.current_wall_id)->id == 30);
+    assert(build_find_wall_by_id(
+        &project.structure, editor.current_wall_id)->id == 30);
     assert(editor.selection.wall_id == 30);
 
     sitehelper_project_destroy(&project);
@@ -90,6 +93,7 @@ static void test_opening_path_uses_positioned_wall_local_coordinates(void)
     EditorAction action;
     assert(sitehelper_editor_primary_action_in_room(
         &editor,
+        &project.structure,
         build_find_room_by_id(&project.structure, room_id),
         (Vec2){ 6600, 3800 },
         &action
@@ -117,7 +121,8 @@ static void test_reconcile_clears_removed_wall_navigation_and_selection(void)
     assert(sitehelper_command_history_execute(&history, &project, &command, &result));
 
     Room *room = build_find_room_by_id(&project.structure, room_id);
-    Wall *wall = room_find_wall_by_id(room, result.data.add_wall.wall_id);
+    Wall *wall = build_find_wall_by_id(
+        &project.structure, result.data.add_wall.wall_id);
     sitehelper_editor_init(&editor);
     editor.current_room_id = room_id;
     editor.current_wall_id = wall->id;

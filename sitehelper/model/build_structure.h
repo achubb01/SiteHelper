@@ -43,7 +43,11 @@ typedef struct Room
 {
     DomainId id;
 
-    Wall *walls;
+    /*
+     * Unordered wall membership only.  These references do not describe a
+     * boundary, topology, orientation, or ownership of physical walls.
+     */
+    DomainId *wall_ids;
     size_t wall_count;
     size_t wall_capacity;
 } Room;
@@ -53,6 +57,11 @@ typedef struct
     Room *rooms;
     size_t room_count;
     size_t room_capacity;
+
+    /* BuildStructure is the sole owner of physical Wall objects. */
+    Wall *walls;
+    size_t wall_count;
+    size_t wall_capacity;
 } BuildStructure;
 
 void build_destroy(

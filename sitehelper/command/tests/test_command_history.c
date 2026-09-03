@@ -4,6 +4,18 @@
 #include "command_history.h"
 #include "wall.h"
 
+/* Remaining fixtures use a local project named project. */
+static Wall *find_project_wall(
+    SiteHelperProject *project,
+    Room *room,
+    DomainId wall_id
+)
+{
+    return room_has_wall_id(room, wall_id)
+        ? build_find_wall_by_id(&project->structure, wall_id)
+        : NULL;
+}
+
 
 static Wall *
 add_test_wall(
@@ -44,11 +56,8 @@ add_test_wall(
 
     assert(room != NULL);
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    assert(room_has_wall_id(room, wall_id));
+    Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
 
     assert(wall != NULL);
 
@@ -604,11 +613,7 @@ test_redo_moves_history_cursor_forward(void)
 
     assert(room != NULL);
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    Wall *wall = find_project_wall(&project, room, wall_id);
 
     assert(wall != NULL);
 
@@ -783,11 +788,7 @@ test_failed_redo_preserves_history_position(void)
 
     assert(room != NULL);
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    Wall *wall = find_project_wall(&project, room, wall_id);
 
     assert(wall != NULL);
 
@@ -996,11 +997,7 @@ test_execute_after_undo_discards_redo_branch(void)
 
     assert(room != NULL);
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    Wall *wall = find_project_wall(&project, room, wall_id);
 
     assert(wall != NULL);
 
@@ -1273,11 +1270,7 @@ test_failed_execute_after_undo_preserves_redo_branch(void)
 
     assert(room != NULL);
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    Wall *wall = find_project_wall(&project, room, wall_id);
 
     assert(wall != NULL);
 
@@ -1551,11 +1544,7 @@ test_multiple_commands_can_be_undone_and_redone_in_order(void)
 
     assert(room != NULL);
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    Wall *wall = find_project_wall(&project, room, wall_id);
 
     assert(wall != NULL);
 
@@ -1943,11 +1932,7 @@ test_undo_and_redo_reject_history_boundaries(void)
 
     assert(room != NULL);
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    Wall *wall = find_project_wall(&project, room, wall_id);
 
     assert(wall != NULL);
 

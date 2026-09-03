@@ -40,11 +40,8 @@ test_execute_dispatches_opening_command(void)
 
     assert(room != NULL);
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    assert(room_has_wall_id(room, wall_id));
+    Wall *wall = build_find_wall_by_id(&project.structure, wall_id);
 
     assert(wall != NULL);
 
@@ -233,11 +230,8 @@ test_failed_command_produces_no_result(void)
 
     assert(room != NULL);
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    assert(room_has_wall_id(room, wall_id));
+    Wall *wall = build_find_wall_by_id(&project.structure, wall_id);
 
     assert(wall != NULL);
 
@@ -358,11 +352,8 @@ test_undo_dispatches_opening_command(void)
 
     assert(room != NULL);
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    assert(room_has_wall_id(room, wall_id));
+    Wall *wall = build_find_wall_by_id(&project.structure, wall_id);
 
     assert(wall != NULL);
 
@@ -480,11 +471,8 @@ test_redo_dispatches_opening_command(void)
 
     assert(room != NULL);
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    assert(room_has_wall_id(room, wall_id));
+    Wall *wall = build_find_wall_by_id(&project.structure, wall_id);
 
     assert(wall != NULL);
 

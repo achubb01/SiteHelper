@@ -192,10 +192,13 @@ void sitehelper_editor_reconcile(
         return;
     }
 
-    const Wall *current_wall = room_find_wall_by_id_const(
+    const Wall *current_wall = room_has_wall_id(
         room,
         editor->current_wall_id
-    );
+    ) ? build_find_wall_by_id_const(
+        &project->structure,
+        editor->current_wall_id
+    ) : NULL;
 
     if (current_wall == NULL) {
         editor->current_wall_id = DOMAIN_ID_INVALID;
@@ -204,10 +207,13 @@ void sitehelper_editor_reconcile(
     const EditorSelection *selection = &editor->selection;
 
     if (selection->kind == EDITOR_SELECTION_WALL_MEMBER) {
-        const Wall *selected_wall = room_find_wall_by_id_const(
+        const Wall *selected_wall = room_has_wall_id(
             room,
             selection->wall_id
-        );
+        ) ? build_find_wall_by_id_const(
+            &project->structure,
+            selection->wall_id
+        ) : NULL;
 
         if (selected_wall == NULL) {
             sitehelper_editor_clear_selection(editor);
@@ -643,12 +649,13 @@ int sitehelper_editor_primary_action(
 
 int sitehelper_editor_primary_action_in_room(
     SiteHelperEditor *editor,
+    const BuildStructure *structure,
     const Room *room,
     Vec2 world_position,
     EditorAction *action
 )
 {
-    if (editor == NULL || action == NULL) {
+    if (editor == NULL || structure == NULL || action == NULL) {
         return 0;
     }
 
@@ -657,7 +664,14 @@ int sitehelper_editor_primary_action_in_room(
 
         /* Later appended walls win deterministic overlaps. */
         for (size_t index = room->wall_count; index > 0; index--) {
-            const Wall *wall = &room->walls[index - 1];
+            const Wall *wall = build_find_wall_by_id_const(
+                structure,
+                room->wall_ids[index - 1]
+            );
+
+            if (wall == NULL) {
+                continue;
+            }
             Position local = wall_world_to_local_position(
                 wall,
                 (Position){
@@ -683,9 +697,13 @@ int sitehelper_editor_primary_action_in_room(
         return 1;
     }
 
-    const Wall *wall = room == NULL
-        ? NULL
-        : room_find_wall_by_id_const(room, editor->current_wall_id);
+    const Wall *wall = room != NULL && room_has_wall_id(
+        room,
+        editor->current_wall_id
+    ) ? build_find_wall_by_id_const(
+        structure,
+        editor->current_wall_id
+    ) : NULL;
 
     return sitehelper_editor_primary_action(
         editor,

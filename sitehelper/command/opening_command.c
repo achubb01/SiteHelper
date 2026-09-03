@@ -142,11 +142,9 @@ int opening_command_execute(
         return 0;
     }
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            command->wall_id
-        );
+    Wall *wall = room_has_wall_id(room, command->wall_id)
+        ? build_find_wall_by_id(&project->structure, command->wall_id)
+        : NULL;
 
     if (wall == NULL) {
         return 0;
@@ -260,11 +258,9 @@ int opening_command_undo(
         return 0;
     }
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            command->wall_id
-        );
+    Wall *wall = room_has_wall_id(room, command->wall_id)
+        ? build_find_wall_by_id(&project->structure, command->wall_id)
+        : NULL;
 
     if (wall == NULL) {
         return 0;
@@ -337,11 +333,9 @@ int opening_command_redo(
         return 0;
     }
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            command->wall_id
-        );
+    Wall *wall = room_has_wall_id(room, command->wall_id)
+        ? build_find_wall_by_id(&project->structure, command->wall_id)
+        : NULL;
 
     if (wall == NULL) {
         return 0;

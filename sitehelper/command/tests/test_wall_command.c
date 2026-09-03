@@ -44,9 +44,11 @@ static void test_execute_undo_redo_preserves_identity(void)
     assert(sitehelper_command_execute(&project, &command, &result));
     assert(result.type == SITEHELPER_COMMAND_ADD_WALL);
     assert(result.data.add_wall.wall_id == next_before);
+    assert(project.structure.wall_count == 1);
 
     Room *room = build_find_room_by_id(&project.structure, room_id);
-    Wall *wall = room_find_wall_by_id(room, next_before);
+    assert(room_has_wall_id(room, next_before));
+    Wall *wall = build_find_wall_by_id(&project.structure, next_before);
     assert(wall != NULL);
     assert(wall->definition.origin.x == 5000);
     assert(wall->definition.origin.y == 3000);
@@ -55,10 +57,13 @@ static void test_execute_undo_redo_preserves_identity(void)
 
     DomainId next_after_execute = project.domain_ids.next;
     assert(sitehelper_command_undo(&project, &command, &result));
-    assert(room_find_wall_by_id(room, next_before) == NULL);
+    assert(project.structure.wall_count == 0);
+    assert(build_find_wall_by_id(&project.structure, next_before) == NULL);
+    assert(!room_has_wall_id(room, next_before));
     assert(sitehelper_command_redo(&project, &command, &result));
+    assert(project.structure.wall_count == 1);
     assert(project.domain_ids.next == next_after_execute);
-    assert(room_find_wall_by_id(room, next_before) != NULL);
+    assert(build_find_wall_by_id(&project.structure, next_before) != NULL);
 
     sitehelper_project_destroy(&project);
 }
@@ -91,7 +96,7 @@ static void test_failure_does_not_consume_identity(void)
     assert(project.domain_ids.next == next);
     Room *room = build_find_room_by_id(&project.structure, room_id);
     assert(room->wall_count == 1);
-    Wall *wall = room_find_wall_by_id(room, existing_wall_id);
+    Wall *wall = build_find_wall_by_id(&project.structure, existing_wall_id);
     assert(wall != NULL);
     assert(wall->definition.length == 4200);
     assert(wall->definition.origin.x == 0);
@@ -122,8 +127,10 @@ static void test_history_interleaving_keeps_wall_ids(void)
     assert(sitehelper_command_history_redo(&history, &project));
 
     Room *room = build_find_room_by_id(&project.structure, room_id);
-    assert(room_find_wall_by_id(room, first_result.data.add_wall.wall_id));
-    assert(room_find_wall_by_id(room, second_result.data.add_wall.wall_id));
+    assert(build_find_wall_by_id(
+        &project.structure, first_result.data.add_wall.wall_id));
+    assert(build_find_wall_by_id(
+        &project.structure, second_result.data.add_wall.wall_id));
 
     sitehelper_command_history_destroy(&history);
     sitehelper_project_destroy(&project);

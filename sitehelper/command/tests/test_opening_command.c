@@ -43,11 +43,8 @@ static Wall *add_test_wall(
 
     assert(room != NULL);
 
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    assert(room_has_wall_id(room, wall_id));
+    Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
 
     assert(wall != NULL);
 
@@ -613,20 +610,20 @@ test_create_rejects_invalid_target_ids(void)
         ));
 }
 
-static void relocate_room_wall_storage(
-    Room *room
+static void relocate_build_wall_storage(
+    BuildStructure *structure
 )
 {
-    assert(room != NULL);
-    assert(room->walls != NULL);
-    assert(room->wall_capacity > 0);
+    assert(structure != NULL);
+    assert(structure->walls != NULL);
+    assert(structure->wall_capacity > 0);
 
     Wall *old_walls =
-        room->walls;
+        structure->walls;
 
     Wall *new_walls =
         malloc(
-            room->wall_capacity
+            structure->wall_capacity
             * sizeof *new_walls
         );
 
@@ -634,7 +631,7 @@ static void relocate_room_wall_storage(
 
     for (
         size_t i = 0;
-        i < room->wall_count;
+        i < structure->wall_count;
         i++
     ) {
         new_walls[i] =
@@ -651,7 +648,7 @@ static void relocate_room_wall_storage(
         old_walls
     );
 
-    room->walls =
+    structure->walls =
         new_walls;
 }
 
@@ -709,15 +706,12 @@ test_execute_resolves_wall_after_storage_relocation(void)
     Wall *old_address =
         original_wall;
 
-    relocate_room_wall_storage(
-        room
+    relocate_build_wall_storage(
+        &project.structure
     );
 
     Wall *relocated_wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+        build_find_wall_by_id(&project.structure, wall_id);
 
     assert(relocated_wall != NULL);
 
@@ -760,11 +754,7 @@ test_execute_resolves_wall_after_storage_relocation(void)
     * The command itself must not depend on
     * any Wall pointer captured previously.
     */
-    relocated_wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
+    relocated_wall = build_find_wall_by_id(&project.structure, wall_id);
 
     assert(relocated_wall != NULL);
 

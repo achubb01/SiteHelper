@@ -1,318 +1,115 @@
 #include <assert.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 #include "wall.h"
 
+static Wall make_wall(DomainId id)
+{
+    return (Wall){ .id = id };
+}
 
-static void test_find_room_by_id(void)
+static void test_global_wall_lookup_survives_reallocation(void)
 {
     BuildStructure structure = {0};
+    Wall first = make_wall(10);
+    assert(build_append_wall(&structure, &first));
 
-    DomainId room_id = 42;
+    for (DomainId id = 11; id < 20; id++) {
+        Wall wall = make_wall(id);
+        assert(build_append_wall(&structure, &wall));
+    }
 
-    assert(
-        build_add_room(
-            &structure,
-            room_id
-        )
-    );
-
-    Room *room =
-        build_find_room_by_id(
-            &structure,
-            room_id
-        );
-
-    assert(room != NULL);
-
-    assert(
-        room->id ==
-        room_id
-    );
-
-    free(
-        structure.rooms
-    );
+    assert(build_find_wall_by_id(&structure, 10) != NULL);
+    assert(build_find_wall_by_id(&structure, 10)->id == 10);
+    build_destroy(&structure);
 }
 
-
-static void test_find_room_by_id_rejects_invalid_id(void)
+static void test_room_membership_is_id_based_and_shared(void)
 {
     BuildStructure structure = {0};
+    Wall wall = make_wall(30);
+    assert(build_append_wall(&structure, &wall));
+    assert(build_add_room(&structure, 1));
+    assert(build_add_room(&structure, 2));
 
-    assert(
-        build_find_room_by_id(
-            &structure,
-            DOMAIN_ID_INVALID
-        ) == NULL
-    );
+    Room *first = build_find_room_by_id(&structure, 1);
+    Room *second = build_find_room_by_id(&structure, 2);
+    assert(room_add_wall_reference(first, 30));
+    assert(room_add_wall_reference(second, 30));
+    assert(!room_add_wall_reference(first, 30));
+    assert(first->wall_count == 1 && second->wall_count == 1);
+    assert(first->wall_ids[0] == 30 && second->wall_ids[0] == 30);
+    assert(structure.wall_count == 1);
+    assert(build_find_wall_by_id(&structure, first->wall_ids[0]) ==
+        build_find_wall_by_id(&structure, second->wall_ids[0]));
+    build_destroy(&structure);
 }
 
-
-static void test_find_room_by_id_returns_null_when_missing(void)
+static void test_room_membership_survives_room_reallocation(void)
 {
     BuildStructure structure = {0};
-
-    assert(
-        build_find_room_by_id(
-            &structure,
-            999
-        ) == NULL
-    );
+    Wall wall = make_wall(40);
+    assert(build_append_wall(&structure, &wall));
+    assert(build_add_room(&structure, 1));
+    assert(room_add_wall_reference(
+        build_find_room_by_id(&structure, 1), 40));
+    for (DomainId id = 2; id < 10; id++) {
+        assert(build_add_room(&structure, id));
+    }
+    const Room *room = build_find_room_by_id_const(&structure, 1);
+    assert(room != NULL && room_has_wall_id(room, 40));
+    assert(build_find_wall_by_id(&structure, room->wall_ids[0])->id == 40);
+    build_destroy(&structure);
 }
 
-
-static void test_find_wall_by_id(void)
-{
-    Room room = {0};
-
-    DomainId wall_id = 84;
-
-    assert(
-        room_add_wall(
-            &room,
-            wall_id
-        )
-    );
-
-    Wall *wall =
-        room_find_wall_by_id(
-            &room,
-            wall_id
-        );
-
-    assert(wall != NULL);
-
-    assert(
-        wall->id ==
-        wall_id
-    );
-
-    free(
-        room.walls
-    );
-}
-
-
-static void test_find_wall_by_id_rejects_invalid_id(void)
-{
-    Room room = {0};
-
-    assert(
-        room_find_wall_by_id(
-            &room,
-            DOMAIN_ID_INVALID
-        ) == NULL
-    );
-}
-
-
-static void test_find_wall_by_id_returns_null_when_missing(void)
-{
-    Room room = {0};
-
-    assert(
-        room_find_wall_by_id(
-            &room,
-            999
-        ) == NULL
-    );
-}
-
-
-static void test_room_identity_survives_reallocation(void)
+static void test_removing_wall_clears_every_membership(void)
 {
     BuildStructure structure = {0};
-
-    DomainId first_room_id = 1;
-
-    assert(
-        build_add_room(
-            &structure,
-            first_room_id
-        )
-    );
-
-    /*
-     * Initial capacity is 1 and then doubles.
-     * Adding several rooms therefore forces
-     * the rooms array to reallocate.
-     */
-    assert(
-        build_add_room(
-            &structure,
-            2
-        )
-    );
-
-    assert(
-        build_add_room(
-            &structure,
-            3
-        )
-    );
-
-    assert(
-        build_add_room(
-            &structure,
-            4
-        )
-    );
-
-    Room *room =
-        build_find_room_by_id(
-            &structure,
-            first_room_id
-        );
-
-    assert(room != NULL);
-
-    assert(
-        room->id ==
-        first_room_id
-    );
-
-    free(
-        structure.rooms
-    );
+    Wall wall = make_wall(50);
+    assert(build_append_wall(&structure, &wall));
+    assert(build_add_room(&structure, 1));
+    assert(build_add_room(&structure, 2));
+    assert(room_add_wall_reference(build_find_room_by_id(&structure, 1), 50));
+    assert(room_add_wall_reference(build_find_room_by_id(&structure, 2), 50));
+    assert(build_remove_wall_by_id(&structure, 50));
+    assert(build_find_wall_by_id(&structure, 50) == NULL);
+    assert(!room_has_wall_id(build_find_room_by_id(&structure, 1), 50));
+    assert(!room_has_wall_id(build_find_room_by_id(&structure, 2), 50));
+    build_destroy(&structure);
 }
 
-
-static void test_wall_identity_survives_reallocation(void)
-{
-    Room room = {0};
-
-    DomainId first_wall_id = 1;
-
-    assert(
-        room_add_wall(
-            &room,
-            first_wall_id
-        )
-    );
-
-    /*
-     * Initial capacity is 1 and then doubles.
-     * Adding several walls therefore forces
-     * the walls array to reallocate.
-     */
-    assert(
-        room_add_wall(
-            &room,
-            2
-        )
-    );
-
-    assert(
-        room_add_wall(
-            &room,
-            3
-        )
-    );
-
-    assert(
-        room_add_wall(
-            &room,
-            4
-        )
-    );
-
-    Wall *wall =
-        room_find_wall_by_id(
-            &room,
-            first_wall_id
-        );
-
-    assert(wall != NULL);
-
-    assert(
-        wall->id ==
-        first_wall_id
-    );
-
-    free(
-        room.walls
-    );
-}
-
-static void test_build_add_room_rejects_duplicate_id(void)
+static void test_destroying_room_does_not_destroy_physical_wall(void)
 {
     BuildStructure structure = {0};
-
-    DomainId room_id = 1;
-
-    assert(
-        build_add_room(
-            &structure,
-            room_id
-        )
-    );
-
-    assert(
-        !build_add_room(
-            &structure,
-            room_id
-        )
-    );
-
-    assert(
-        structure.room_count == 1
-    );
-
-    free(
-        structure.rooms
-    );
+    Room room = { .id = 60 };
+    Wall wall = make_wall(61);
+    assert(build_append_wall(&structure, &wall));
+    assert(room_add_wall_reference(&room, 61));
+    room_destroy(&room);
+    assert(build_find_wall_by_id(&structure, 61) != NULL);
+    build_destroy(&structure);
 }
 
-static void test_room_add_wall_rejects_duplicate_id(void)
+static void test_global_entities_reject_duplicate_domain_ids(void)
 {
-    Room room = {0};
-
-    DomainId wall_id = 1;
-
-    assert(
-        room_add_wall(
-            &room,
-            wall_id
-        )
-    );
-
-    assert(
-        !room_add_wall(
-            &room,
-            wall_id
-        )
-    );
-
-    assert(
-        room.wall_count == 1
-    );
-
-    free(
-        room.walls
-    );
+    BuildStructure structure = {0};
+    Wall wall = make_wall(70);
+    assert(build_append_wall(&structure, &wall));
+    assert(!build_add_room(&structure, 70));
+    assert(build_add_room(&structure, 71));
+    wall = make_wall(71);
+    assert(!build_append_wall(&structure, &wall));
+    build_destroy(&structure);
 }
 
 int main(void)
 {
-    test_find_room_by_id();
-    test_find_room_by_id_rejects_invalid_id();
-    test_find_room_by_id_returns_null_when_missing();
-
-    test_find_wall_by_id();
-    test_find_wall_by_id_rejects_invalid_id();
-    test_find_wall_by_id_returns_null_when_missing();
-
-    test_room_identity_survives_reallocation();
-    test_wall_identity_survives_reallocation();
-
-    test_build_add_room_rejects_duplicate_id();
-    test_room_add_wall_rejects_duplicate_id();
-
-    printf(
-        "All build structure tests passed.\n"
-    );
-
+    test_global_wall_lookup_survives_reallocation();
+    test_room_membership_is_id_based_and_shared();
+    test_room_membership_survives_room_reallocation();
+    test_removing_wall_clears_every_membership();
+    test_destroying_room_does_not_destroy_physical_wall();
+    test_global_entities_reject_duplicate_domain_ids();
+    printf("All build structure tests passed.\n");
     return 0;
 }
