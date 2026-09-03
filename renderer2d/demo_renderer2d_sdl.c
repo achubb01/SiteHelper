@@ -2,6 +2,7 @@
 
 #include "renderer2d.h"
 #include "renderer2d_sdl.h"
+#include "platform_event_sdl.h"
 
 int main(void)
 {
@@ -66,61 +67,73 @@ int main(void)
     int running = 1;
 
     while (running) {
-        Renderer2DEvent event;
+        PlatformEvent event;
 
-        while (renderer2d_sdl_poll_event(&event)) {
-            if (event.quit_requested) {
+        while (platform_event_sdl_poll_event(&event)) {
+            if (event.type == PLATFORM_EVENT_QUIT) {
                 running = 0;
             }
 
-            if (event.viewport_resized) {
+            if (event.type == PLATFORM_EVENT_WINDOW_RESIZED) {
                 renderer2d_set_viewport(
                     renderer,
                     (Vec2){0.0, 0.0},
-                    event.viewport_width,
-                    event.viewport_height
+                    event.data.window_resized.width,
+                    event.data.window_resized.height
                 );
             }
 
             const double pan_amount = 50.0;
 
-            if (event.move_left) {
+            if (
+                event.type == PLATFORM_EVENT_KEY_DOWN
+                && event.data.key_down.key == PLATFORM_KEY_LEFT
+            ) {
                 renderer2d_move_camera(
                     renderer,
                     (Vec2){-pan_amount, 0.0}
                 );
             }
 
-            if (event.move_right) {
+            if (
+                event.type == PLATFORM_EVENT_KEY_DOWN
+                && event.data.key_down.key == PLATFORM_KEY_RIGHT
+            ) {
                 renderer2d_move_camera(
                     renderer,
                     (Vec2){pan_amount, 0.0}
                 );
             }
 
-            if (event.move_up) {
+            if (
+                event.type == PLATFORM_EVENT_KEY_DOWN
+                && event.data.key_down.key == PLATFORM_KEY_UP
+            ) {
                 renderer2d_move_camera(
                     renderer,
                     (Vec2){0.0, pan_amount}
                 );
             }
 
-            if (event.move_down) {
+            if (
+                event.type == PLATFORM_EVENT_KEY_DOWN
+                && event.data.key_down.key == PLATFORM_KEY_DOWN_ARROW
+            ) {
                 renderer2d_move_camera(
                     renderer,
                     (Vec2){0.0, -pan_amount}
                 );
             }
 
-            if (event.mouse_wheel) {
+            if (event.type == PLATFORM_EVENT_MOUSE_WHEEL) {
                 Vec2 mouse_position = {
-                    .x = event.mouse_x,
-                    .y = event.mouse_y
+                    .x = event.data.mouse_wheel.mouse_x,
+                    .y = event.data.mouse_wheel.mouse_y
                 };
 
                 double zoom_factor;
 
-                if (event.wheel_y > 0.0) {
+                if (event.data.mouse_wheel.delta_y > 0.0) {
                     zoom_factor = 1.1;
                 }
                 else {

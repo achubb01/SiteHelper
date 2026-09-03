@@ -6,35 +6,6 @@
 
 typedef struct Renderer2D Renderer2D;
 
-typedef struct Renderer2DEvent {
-    int quit_requested;
-    int viewport_resized;
-
-    double viewport_width;
-    double viewport_height;
-
-    int move_left;
-    int move_right;
-    int move_up;
-    int move_down;
-
-    int undo_requested;
-    int redo_requested;
-
-    int primary_mouse_pressed;   
-    int primary_mouse_released;
-    int pan_dragged;
-    double mouse_delta_x;
-    double mouse_delta_y;
-
-    int mouse_wheel;
-    double mouse_x;
-    double mouse_y;
-    double wheel_y;
-
-    int mouse_moved;
-} Renderer2DEvent;
-
 void renderer2d_draw_line(
     Renderer2D *renderer,
     Vec2 start,

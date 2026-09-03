@@ -20,5 +20,6 @@ add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
 # Our libraries/applications
 add_subdirectory(commandmenu)
 add_subdirectory(geometry)
+add_subdirectory(platform_event)
 add_subdirectory(renderer2d)
 add_subdirectory(sitehelper)

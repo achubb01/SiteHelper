@@ -476,6 +476,7 @@ target_link_libraries(sitehelper_sdl
         sitehelper_app_core
         sitehelper_render
         renderer2d_sdl
+        platform_event_sdl
 )
 
 if(WIN32)

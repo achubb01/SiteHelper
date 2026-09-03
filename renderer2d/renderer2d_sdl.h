@@ -15,10 +15,4 @@ void renderer2d_sdl_destroy_backend(
     RendererBackend *backend
 );
 
-int renderer2d_sdl_process_events(void);
-
-int renderer2d_sdl_poll_event(
-    Renderer2DEvent *event
-);
-
 #endif

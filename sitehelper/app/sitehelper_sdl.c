@@ -23,6 +23,7 @@
 
 #include "renderer2d.h"
 #include "renderer2d_sdl.h"
+#include "platform_event_sdl.h"
 
 typedef struct
 {
@@ -456,300 +457,298 @@ static void sitehelper_app_process_events(
         return;
     }
 
-    Renderer2DEvent event;
+    PlatformEvent event;
 
     const double pan_amount = 100.0;
 
-    while (renderer2d_sdl_poll_event(&event)) {
-        if (event.quit_requested) {
-            app->running = 0;
-        }
+    while (platform_event_sdl_poll_event(&event)) {
+        switch (event.type) {
+            case PLATFORM_EVENT_QUIT:
+                app->running = 0;
+                break;
 
-        if (event.primary_mouse_pressed) {
-            Vec2 screen_position = {
-                .x = event.mouse_x,
-                .y = event.mouse_y
-            };
+            case PLATFORM_EVENT_KEY_DOWN:
+            {
+                PlatformKey key = event.data.key_down.key;
+                int modifiers = event.data.key_down.modifiers;
 
-            gui_toolbar_mouse_press(
-                &app->toolbar,
-                screen_position
-            );
-        }
+                if (
+                    !event.data.key_down.repeat
+                    && (
+                        (
+                            key == PLATFORM_KEY_Y
+                            && (modifiers & PLATFORM_MODIFIER_CTRL)
+                        )
+                        ||
+                        (
+                            key == PLATFORM_KEY_Z
+                            && (modifiers & PLATFORM_MODIFIER_CTRL)
+                            && (modifiers & PLATFORM_MODIFIER_SHIFT)
+                        )
+                    )
+                ) {
+                    if (sitehelper_command_history_redo(
+                            &app->history,
+                            &app->project)) {
 
-        if (event.move_left) {
-            renderer2d_move_camera(
-                app->renderer,
-                (Vec2){
-                    .x = -pan_amount,
-                    .y = 0.0
-                }
-            );
-        }
+                        Wall *wall = sitehelper_app_current_wall(app);
 
-        if (event.move_right) {
-            renderer2d_move_camera(
-                app->renderer,
-                (Vec2){
-                    .x = pan_amount,
-                    .y = 0.0
-                }
-            );
-        }
+                        if (wall != NULL) {
+                            sitehelper_editor_reconcile_wall_selection(
+                                &app->editor,
+                                wall
+                            );
+                        }
+                        else {
+                            sitehelper_editor_clear_selection(
+                                &app->editor
+                            );
+                        }
 
-        if (event.move_up) {
-            renderer2d_move_camera(
-                app->renderer,
-                (Vec2){
-                    .x = 0.0,
-                    .y = pan_amount
-                }
-            );
-        }
+                        sitehelper_editor_invalidate_transient_state(
+                            &app->editor
+                        );
+                    }
 
-        if (event.move_down) {
-            renderer2d_move_camera(
-                app->renderer,
-                (Vec2){
-                    .x = 0.0,
-                    .y = -pan_amount
-                }
-            );
-        }
-
-        if (event.pan_dragged) {
-            Camera2D camera =
-                renderer2d_get_camera(
-                    app->renderer
-                );
-
-            Vec2 camera_delta = {
-                .x =
-                    -event.mouse_delta_x
-                    / camera.scale,
-
-                .y =
-                    event.mouse_delta_y
-                    / camera.scale
-            };
-
-            renderer2d_move_camera(
-                app->renderer,
-                camera_delta
-            );
-        }
-
-        if (event.undo_requested) {
-            if (sitehelper_command_history_undo(
-                    &app->history,
-                    &app->project)) {
-
-                Wall *wall =
-                    sitehelper_app_current_wall(
-                        app
-                    );
-
-                if (wall != NULL) {
-                    sitehelper_editor_reconcile_wall_selection(
-                        &app->editor,
-                        wall
-                    );
-                }
-                else {
-                    sitehelper_editor_clear_selection(
-                        &app->editor
-                    );
+                    continue;
                 }
 
-                sitehelper_editor_invalidate_transient_state(
-                    &app->editor
-                );
+                if (
+                    !event.data.key_down.repeat
+                    && key == PLATFORM_KEY_Z
+                    && (modifiers & PLATFORM_MODIFIER_CTRL)
+                ) {
+                    if (sitehelper_command_history_undo(
+                            &app->history,
+                            &app->project)) {
+
+                        Wall *wall = sitehelper_app_current_wall(app);
+
+                        if (wall != NULL) {
+                            sitehelper_editor_reconcile_wall_selection(
+                                &app->editor,
+                                wall
+                            );
+                        }
+                        else {
+                            sitehelper_editor_clear_selection(
+                                &app->editor
+                            );
+                        }
+
+                        sitehelper_editor_invalidate_transient_state(
+                            &app->editor
+                        );
+                    }
+
+                    continue;
+                }
+
+                switch (key) {
+                    case PLATFORM_KEY_LEFT:
+                        renderer2d_move_camera(
+                            app->renderer,
+                            (Vec2){-pan_amount, 0.0}
+                        );
+                        break;
+
+                    case PLATFORM_KEY_RIGHT:
+                        renderer2d_move_camera(
+                            app->renderer,
+                            (Vec2){pan_amount, 0.0}
+                        );
+                        break;
+
+                    case PLATFORM_KEY_UP:
+                        renderer2d_move_camera(
+                            app->renderer,
+                            (Vec2){0.0, pan_amount}
+                        );
+                        break;
+
+                    case PLATFORM_KEY_DOWN_ARROW:
+                        renderer2d_move_camera(
+                            app->renderer,
+                            (Vec2){0.0, -pan_amount}
+                        );
+                        break;
+
+                    default:
+                        break;
+                }
+
+                break;
             }
 
-            continue;
-        }
+            case PLATFORM_EVENT_MOUSE_MOTION:
+            {
+                Vec2 screen_position = {
+                    .x = event.data.mouse_motion.x,
+                    .y = event.data.mouse_motion.y
+                };
 
-        if (event.redo_requested) {
-            if (sitehelper_command_history_redo(
-                    &app->history,
-                    &app->project)) {
-
-                Wall *wall =
-                    sitehelper_app_current_wall(
-                        app
+                if (
+                    event.data.mouse_motion.held_buttons
+                    & PLATFORM_MOUSE_BUTTON_STATE_MIDDLE
+                ) {
+                    Camera2D camera = renderer2d_get_camera(
+                        app->renderer
                     );
 
-                if (wall != NULL) {
-                    sitehelper_editor_reconcile_wall_selection(
-                        &app->editor,
-                        wall
+                    Vec2 camera_delta = {
+                        .x =
+                            -event.data.mouse_motion.delta_x
+                            / camera.scale,
+                        .y =
+                            event.data.mouse_motion.delta_y
+                            / camera.scale
+                    };
+
+                    renderer2d_move_camera(
+                        app->renderer,
+                        camera_delta
                     );
                 }
-                else {
-                    sitehelper_editor_clear_selection(
-                        &app->editor
-                    );
-                }
 
-                sitehelper_editor_invalidate_transient_state(
-                    &app->editor
-                );
-            }
-
-            continue;
-        }
-
-        if (event.mouse_wheel) {
-            Vec2 screen_position = {
-                .x = event.mouse_x,
-                .y = event.mouse_y
-            };
-
-            double zoom_factor;
-
-            if (event.wheel_y > 0.0) {
-                zoom_factor = 1.1;
-            }
-            else {
-                zoom_factor = 1.0 / 1.1;
-            }
-
-            renderer2d_zoom_at_screen_point(
-                app->renderer,
-                zoom_factor,
-                screen_position
-            );
-        }
-
-        if (event.mouse_moved) {
-            Vec2 screen_position = {
-                .x = event.mouse_x,
-                .y = event.mouse_y
-            };
-
-            gui_toolbar_mouse_move(
-                &app->toolbar,
-                screen_position
-            );
-
-            sitehelper_app_update_editor_pointer(
-                app,
-                screen_position
-            );
-        }
-
-        if (event.primary_mouse_released) {
-            Vec2 screen_position = {
-                .x = event.mouse_x,
-                .y = event.mouse_y
-            };
-
-            int clicked_button =
-                gui_toolbar_mouse_release(
+                gui_toolbar_mouse_move(
                     &app->toolbar,
                     screen_position
                 );
 
-            if (clicked_button >= 0) {
-                sitehelper_app_set_active_tool(
+                sitehelper_app_update_editor_pointer(
                     app,
-                    (EditorTool)clicked_button
-                );
-            }
-            else if (
-                rect2_contains_point(
-                    app->gui_layout.viewport,
                     screen_position
-                )
-            ) {
-                Camera2D camera =
-                    renderer2d_get_camera(
-                        app->renderer
-                    );
+                );
+                break;
+            }
 
-                Viewport2D viewport =
-                    renderer2d_get_viewport(
-                        app->renderer
-                    );
+            case PLATFORM_EVENT_MOUSE_WHEEL:
+            {
+                Vec2 screen_position = {
+                    .x = event.data.mouse_wheel.mouse_x,
+                    .y = event.data.mouse_wheel.mouse_y
+                };
 
-                Vec2 world_position =
-                    camera_screen_to_world(
-                        &camera,
-                        viewport,
+                double zoom_factor =
+                    event.data.mouse_wheel.delta_y > 0.0
+                    ? 1.1
+                    : 1.0 / 1.1;
+
+                renderer2d_zoom_at_screen_point(
+                    app->renderer,
+                    zoom_factor,
+                    screen_position
+                );
+                break;
+            }
+
+            case PLATFORM_EVENT_MOUSE_BUTTON_DOWN:
+                if (
+                    event.data.mouse_button.button
+                    == PLATFORM_MOUSE_BUTTON_PRIMARY
+                ) {
+                    gui_toolbar_mouse_press(
+                        &app->toolbar,
+                        (Vec2){
+                            .x = event.data.mouse_button.x,
+                            .y = event.data.mouse_button.y
+                        }
+                    );
+                }
+                break;
+
+            case PLATFORM_EVENT_MOUSE_BUTTON_UP:
+                if (
+                    event.data.mouse_button.button
+                    == PLATFORM_MOUSE_BUTTON_PRIMARY
+                ) {
+                    Vec2 screen_position = {
+                        .x = event.data.mouse_button.x,
+                        .y = event.data.mouse_button.y
+                    };
+
+                    int clicked_button = gui_toolbar_mouse_release(
+                        &app->toolbar,
                         screen_position
                     );
 
-                Wall *wall =
-                    sitehelper_app_current_wall(
-                        app
-                    );
+                    if (clicked_button >= 0) {
+                        sitehelper_app_set_active_tool(
+                            app,
+                            (EditorTool)clicked_button
+                        );
+                    }
+                    else if (
+                        rect2_contains_point(
+                            app->gui_layout.viewport,
+                            screen_position
+                        )
+                    ) {
+                        Camera2D camera = renderer2d_get_camera(
+                            app->renderer
+                        );
+                        Viewport2D viewport = renderer2d_get_viewport(
+                            app->renderer
+                        );
+                        Vec2 world_position = camera_screen_to_world(
+                            &camera,
+                            viewport,
+                            screen_position
+                        );
+                        Wall *wall = sitehelper_app_current_wall(app);
+                        EditorAction action;
 
-                EditorAction action;
-
-                if (!sitehelper_editor_primary_action(
-                        &app->editor,
-                        wall,
-                        world_position,
-                        &action)) {
-                    continue;
-                }
-
-                switch (action.kind) {
-
-                    case EDITOR_ACTION_COMMAND:
-                    {
-                        SiteHelperCommandResult result;
-
-                        if (!sitehelper_command_history_execute(
-                                &app->history,
-                                &app->project,
-                                &action.command,
-                                &result)) {
-                            break;
+                        if (!sitehelper_editor_primary_action(
+                                &app->editor,
+                                wall,
+                                world_position,
+                                &action)) {
+                            continue;
                         }
 
-                        sitehelper_editor_complete_action(
-                            &app->editor,
-                            &action
-                        );
+                        if (action.kind == EDITOR_ACTION_COMMAND) {
+                            SiteHelperCommandResult result;
 
-                        break;
+                            if (sitehelper_command_history_execute(
+                                    &app->history,
+                                    &app->project,
+                                    &action.command,
+                                    &result)) {
+                                sitehelper_editor_complete_action(
+                                    &app->editor,
+                                    &action
+                                );
+                            }
+                        }
                     }
-
-                    case EDITOR_ACTION_NONE:
-                    default:
-                        break;
                 }
-            }
-        }
+                break;
 
-        if (event.viewport_resized) {
-            app->gui_layout =
-                gui_layout_create(
-                    event.viewport_width,
-                    event.viewport_height
+            case PLATFORM_EVENT_WINDOW_RESIZED:
+                app->gui_layout = gui_layout_create(
+                    event.data.window_resized.width,
+                    event.data.window_resized.height
                 );
 
-            renderer2d_set_viewport(
-                app->renderer,
-                app->gui_layout.viewport.position,
-                app->gui_layout.viewport.width,
-                app->gui_layout.viewport.height
-            );
+                renderer2d_set_viewport(
+                    app->renderer,
+                    app->gui_layout.viewport.position,
+                    app->gui_layout.viewport.width,
+                    app->gui_layout.viewport.height
+                );
 
-            app->toolbar.bounds =
-                app->gui_layout.toolbar;
+                app->toolbar.bounds = app->gui_layout.toolbar;
+                gui_toolbar_layout(&app->toolbar);
 
-            gui_toolbar_layout(
-                &app->toolbar
-            );
+                sitehelper_app_set_active_tool(
+                    app,
+                    sitehelper_editor_get_active_tool(&app->editor)
+                );
+                break;
 
-            sitehelper_app_set_active_tool(
-                app,
-                sitehelper_editor_get_active_tool(
-                    &app->editor
-                )
-            );
+            case PLATFORM_EVENT_NONE:
+            default:
+                break;
         }
     }
 }

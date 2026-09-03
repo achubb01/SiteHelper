@@ -60,6 +60,7 @@ add_executable(demo_renderer2d_sdl
 target_link_libraries(demo_renderer2d_sdl
     PRIVATE
         renderer2d_sdl
+        platform_event_sdl
 )
 
 if(WIN32)
