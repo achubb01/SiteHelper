@@ -25,6 +25,26 @@
 #include "renderer2d_sdl.h"
 #include "platform_event_sdl.h"
 
+typedef enum
+{
+    SITEHELPER_TOOLBAR_ACTION_SELECT = 10,
+    SITEHELPER_TOOLBAR_ACTION_OPENING = 20,
+    SITEHELPER_TOOLBAR_ACTION_WALL = 30
+} SiteHelperToolbarAction;
+
+enum
+{
+    SITEHELPER_TOOLBAR_BUTTON_COUNT = 3
+};
+
+static const GuiButtonId sitehelper_toolbar_button_ids[
+    SITEHELPER_TOOLBAR_BUTTON_COUNT
+] = {
+    SITEHELPER_TOOLBAR_ACTION_SELECT,
+    SITEHELPER_TOOLBAR_ACTION_OPENING,
+    SITEHELPER_TOOLBAR_ACTION_WALL
+};
+
 typedef struct
 {
     Renderer2D *renderer;
@@ -43,7 +63,7 @@ typedef struct
     GuiRenderStyle gui_style;
 
     GuiButton toolbar_buttons[
-        EDITOR_TOOL_COUNT
+        SITEHELPER_TOOLBAR_BUTTON_COUNT
     ];
 
     GuiToolbar toolbar;
@@ -83,6 +103,11 @@ static void sitehelper_app_layout_gui(
 static void sitehelper_app_set_active_tool(
     SiteHelperApp *app,
     EditorTool tool
+);
+
+static int sitehelper_app_toolbar_action_tool(
+    GuiButtonId action,
+    EditorTool *tool
 );
 
 static Wall *sitehelper_app_current_wall(
@@ -667,16 +692,19 @@ static void sitehelper_app_process_events(
                         .y = event.data.mouse_button.y
                     };
 
-                    int clicked_button = gui_toolbar_mouse_release(
+                    GuiButtonId clicked_button = gui_toolbar_mouse_release(
                         &app->toolbar,
                         screen_position
                     );
 
-                    if (clicked_button >= 0) {
-                        sitehelper_app_set_active_tool(
-                            app,
-                            (EditorTool)clicked_button
-                        );
+                    if (clicked_button != GUI_BUTTON_ID_NONE) {
+                        EditorTool tool;
+
+                        if (sitehelper_app_toolbar_action_tool(
+                                clicked_button,
+                                &tool)) {
+                            sitehelper_app_set_active_tool(app, tool);
+                        }
                     }
                     else if (
                         rect2_contains_point(
@@ -936,7 +964,8 @@ static void sitehelper_app_layout_gui(
     gui_toolbar_init(
         &app->toolbar,
         app->toolbar_buttons,
-        EDITOR_TOOL_COUNT,
+        sitehelper_toolbar_button_ids,
+        SITEHELPER_TOOLBAR_BUTTON_COUNT,
         app->gui_layout.toolbar
     );
 }
@@ -961,10 +990,43 @@ static void sitehelper_app_set_active_tool(
         i < app->toolbar.button_count;
         i++
     ) {
+        EditorTool button_tool;
+
         gui_button_set_active(
             &app->toolbar.buttons[i],
-            i == (size_t)tool
+            sitehelper_app_toolbar_action_tool(
+                app->toolbar.buttons[i].id,
+                &button_tool
+            )
+            && button_tool == tool
         );
+    }
+}
+
+static int sitehelper_app_toolbar_action_tool(
+    GuiButtonId action,
+    EditorTool *tool
+)
+{
+    if (tool == NULL) {
+        return 0;
+    }
+
+    switch (action) {
+        case SITEHELPER_TOOLBAR_ACTION_SELECT:
+            *tool = EDITOR_TOOL_SELECT;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_OPENING:
+            *tool = EDITOR_TOOL_OPENING;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_WALL:
+            *tool = EDITOR_TOOL_WALL;
+            return 1;
+
+        default:
+            return 0;
     }
 }
 

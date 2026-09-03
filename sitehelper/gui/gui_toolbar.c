@@ -4,6 +4,7 @@
 void gui_toolbar_init(
     GuiToolbar *toolbar,
     GuiButton *buttons,
+    const GuiButtonId *button_ids,
     size_t button_count,
     Rect2 bounds
 )
@@ -14,6 +15,7 @@ void gui_toolbar_init(
 
     *toolbar = (GuiToolbar){
         .buttons = buttons,
+        .button_ids = button_ids,
         .button_count = button_count,
         .bounds = bounds,
         .padding = 8.0,
@@ -31,6 +33,7 @@ void gui_toolbar_layout(
     if (
         toolbar == NULL
         || toolbar->buttons == NULL
+        || toolbar->button_ids == NULL
     ) {
         return;
     }
@@ -59,6 +62,9 @@ void gui_toolbar_layout(
                 .height = toolbar->button_size
             }
         );
+
+        toolbar->buttons[i].id =
+            toolbar->button_ids[i];
 
         y +=
             toolbar->button_size
@@ -146,7 +152,7 @@ void gui_toolbar_mouse_press(
     }
 }
 
-int gui_toolbar_mouse_release(
+GuiButtonId gui_toolbar_mouse_release(
     GuiToolbar *toolbar,
     Vec2 mouse_position
 )
@@ -155,7 +161,7 @@ int gui_toolbar_mouse_release(
         toolbar == NULL
         || toolbar->buttons == NULL
     ) {
-        return -1;
+        return GUI_BUTTON_ID_NONE;
     }
 
     for (
@@ -166,9 +172,9 @@ int gui_toolbar_mouse_release(
         if (gui_button_release(
                 &toolbar->buttons[i],
                 mouse_position)) {
-            return (int)i;
+            return toolbar->buttons[i].id;
         }
     }
 
-    return -1;
+    return GUI_BUTTON_ID_NONE;
 }

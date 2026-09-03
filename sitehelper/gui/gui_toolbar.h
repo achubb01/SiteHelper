@@ -8,6 +8,7 @@
 typedef struct
 {
     GuiButton *buttons;
+    const GuiButtonId *button_ids;
     size_t button_count;
 
     Rect2 bounds;
@@ -20,6 +21,7 @@ typedef struct
 void gui_toolbar_init(
     GuiToolbar *toolbar,
     GuiButton *buttons,
+    const GuiButtonId *button_ids,
     size_t button_count,
     Rect2 bounds
 );
@@ -48,7 +50,7 @@ void gui_toolbar_mouse_press(
     Vec2 mouse_position
 );
 
-int gui_toolbar_mouse_release(
+GuiButtonId gui_toolbar_mouse_release(
     GuiToolbar *toolbar,
     Vec2 mouse_position
 );

@@ -6,12 +6,14 @@
 static void test_toolbar_lays_out_buttons_vertically(void)
 {
     GuiButton buttons[3];
+    GuiButtonId button_ids[] = {10, 20, 30};
 
     GuiToolbar toolbar;
 
     gui_toolbar_init(
         &toolbar,
         buttons,
+        button_ids,
         3,
         (Rect2){
             .position = {0.0, 0.0},
@@ -54,12 +56,14 @@ static void test_toolbar_lays_out_buttons_vertically(void)
 static void test_toolbar_button_returns_requested_button(void)
 {
     GuiButton buttons[2];
+    GuiButtonId button_ids[] = {10, 20};
 
     GuiToolbar toolbar;
 
     gui_toolbar_init(
         &toolbar,
         buttons,
+        button_ids,
         2,
         (Rect2){
             .position = {0.0, 0.0},
@@ -86,12 +90,14 @@ static void test_toolbar_button_returns_requested_button(void)
 static void test_toolbar_button_rejects_invalid_index(void)
 {
     GuiButton buttons[2];
+    GuiButtonId button_ids[] = {10, 20};
 
     GuiToolbar toolbar;
 
     gui_toolbar_init(
         &toolbar,
         buttons,
+        button_ids,
         2,
         (Rect2){
             .position = {0.0, 0.0},
@@ -111,12 +117,14 @@ static void test_toolbar_button_rejects_invalid_index(void)
 static void test_toolbar_respects_nonzero_origin(void)
 {
     GuiButton buttons[1];
+    GuiButtonId button_ids[] = {10};
 
     GuiToolbar toolbar;
 
     gui_toolbar_init(
         &toolbar,
         buttons,
+        button_ids,
         1,
         (Rect2){
             .position = {20.0, 30.0},
@@ -139,11 +147,13 @@ static void test_toolbar_respects_nonzero_origin(void)
 static void test_mouse_move_updates_hovered_button(void)
 {
     GuiButton buttons[3];
+    GuiButtonId button_ids[] = {10, 20, 30};
     GuiToolbar toolbar;
 
     gui_toolbar_init(
         &toolbar,
         buttons,
+        button_ids,
         3,
         (Rect2){
             .position = {0.0, 0.0},
@@ -171,11 +181,13 @@ static void test_mouse_move_updates_hovered_button(void)
 static void test_mouse_press_presses_matching_button(void)
 {
     GuiButton buttons[3];
+    GuiButtonId button_ids[] = {10, 20, 30};
     GuiToolbar toolbar;
 
     gui_toolbar_init(
         &toolbar,
         buttons,
+        button_ids,
         3,
         (Rect2){
             .position = {0.0, 0.0},
@@ -200,14 +212,16 @@ static void test_mouse_press_presses_matching_button(void)
     );
 }
 
-static void test_mouse_release_returns_clicked_button_index(void)
+static void test_mouse_release_returns_clicked_button_id(void)
 {
     GuiButton buttons[3];
+    GuiButtonId button_ids[] = {30, 10, 20};
     GuiToolbar toolbar;
 
     gui_toolbar_init(
         &toolbar,
         buttons,
+        button_ids,
         3,
         (Rect2){
             .position = {0.0, 0.0},
@@ -221,13 +235,13 @@ static void test_mouse_release_returns_clicked_button_index(void)
         (Vec2){20.0, 132.0}
     );
 
-    int clicked =
+    GuiButtonId clicked =
         gui_toolbar_mouse_release(
             &toolbar,
             (Vec2){20.0, 132.0}
         );
 
-    assert(clicked == 2);
+    assert(clicked == 20);
 
     assert(
         buttons[2].state
@@ -238,11 +252,13 @@ static void test_mouse_release_returns_clicked_button_index(void)
 static void test_release_outside_pressed_button_returns_no_click(void)
 {
     GuiButton buttons[3];
+    GuiButtonId button_ids[] = {10, 20, 30};
     GuiToolbar toolbar;
 
     gui_toolbar_init(
         &toolbar,
         buttons,
+        button_ids,
         3,
         (Rect2){
             .position = {0.0, 0.0},
@@ -256,13 +272,13 @@ static void test_release_outside_pressed_button_returns_no_click(void)
         (Vec2){20.0, 20.0}
     );
 
-    int clicked =
+    GuiButtonId clicked =
         gui_toolbar_mouse_release(
             &toolbar,
             (Vec2){200.0, 200.0}
         );
 
-    assert(clicked == -1);
+    assert(clicked == GUI_BUTTON_ID_NONE);
 }
 
 int main(void)
@@ -273,7 +289,7 @@ int main(void)
     test_toolbar_respects_nonzero_origin();
     test_mouse_move_updates_hovered_button();
     test_mouse_press_presses_matching_button();
-    test_mouse_release_returns_clicked_button_index();
+    test_mouse_release_returns_clicked_button_id();
     test_release_outside_pressed_button_returns_no_click();
 
     printf(

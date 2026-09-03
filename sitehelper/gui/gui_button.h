@@ -10,6 +10,13 @@ typedef enum
     GUI_BUTTON_PRESSED
 } GuiButtonState;
 
+typedef int GuiButtonId;
+
+enum
+{
+    GUI_BUTTON_ID_NONE = -1
+};
+
 typedef struct
 {
     Rect2 bounds;
@@ -18,6 +25,7 @@ typedef struct
 
     int active;
     int enabled;
+    GuiButtonId id;
 } GuiButton;
 
 void gui_button_init(

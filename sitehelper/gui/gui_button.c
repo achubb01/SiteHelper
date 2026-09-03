@@ -15,7 +15,8 @@ void gui_button_init(
         .bounds = bounds,
         .state = GUI_BUTTON_IDLE,
         .active = 0,
-        .enabled = 1
+        .enabled = 1,
+        .id = GUI_BUTTON_ID_NONE
     };
 }
 
