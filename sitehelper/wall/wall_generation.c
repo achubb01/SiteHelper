@@ -30,6 +30,16 @@ int wall_set_length(Wall *wall, int length)
     return 1;
 }
 
+int wall_set_origin(Wall *wall, Position origin)
+{
+    if (wall == NULL) {
+        return 0;
+    }
+
+    wall->definition.origin = origin;
+    return 1;
+}
+
 static int wall_generate_plates(
     Wall *wall,
     const BuildSettings *settings
@@ -220,7 +230,6 @@ static int wall_generate_studs(
         &context
     );
 }
-
 
 
 

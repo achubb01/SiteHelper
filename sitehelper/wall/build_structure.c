@@ -100,6 +100,65 @@ int room_add_wall(
     return 1;
 }
 
+int room_append_wall(Room *room, Wall *wall)
+{
+    if (room == NULL || wall == NULL ||
+        wall->id == DOMAIN_ID_INVALID ||
+        room_find_wall_by_id(room, wall->id) != NULL) {
+
+        return 0;
+    }
+
+    if (room->wall_count == room->wall_capacity) {
+        size_t new_capacity = room->wall_capacity == 0
+            ? 1
+            : room->wall_capacity * 2;
+
+        Wall *new_walls = realloc(
+            room->walls,
+            new_capacity * sizeof *new_walls
+        );
+
+        if (new_walls == NULL) {
+            return 0;
+        }
+
+        room->walls = new_walls;
+        room->wall_capacity = new_capacity;
+    }
+
+    room->walls[room->wall_count] = *wall;
+    room->wall_count++;
+    *wall = (Wall){0};
+
+    return 1;
+}
+
+int room_remove_wall_by_id(Room *room, DomainId wall_id)
+{
+    if (room == NULL || wall_id == DOMAIN_ID_INVALID) {
+        return 0;
+    }
+
+    for (size_t index = 0; index < room->wall_count; index++) {
+        if (room->walls[index].id != wall_id) {
+            continue;
+        }
+
+        wall_destroy(&room->walls[index]);
+
+        for (size_t next = index + 1; next < room->wall_count; next++) {
+            room->walls[next - 1] = room->walls[next];
+        }
+
+        room->wall_count--;
+        room->walls[room->wall_count] = (Wall){0};
+        return 1;
+    }
+
+    return 0;
+}
+
 Room *build_find_room_by_id(
     BuildStructure *structure,
     DomainId room_id

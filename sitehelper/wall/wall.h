@@ -48,12 +48,15 @@ WallOpeningValidation wall_validate_opening(
 
 int build_add_room(BuildStructure *structure, DomainId room_id);
 int room_add_wall(Room *room, DomainId wall_id);
+int room_append_wall(Room *room, Wall *wall);
+int room_remove_wall_by_id(Room *room, DomainId wall_id);
 Room *build_find_room_by_id(BuildStructure *structure, DomainId room_id);
 const Room *build_find_room_by_id_const(const BuildStructure *structure, DomainId room_id);
 Wall *room_find_wall_by_id(Room *room, DomainId wall_id);
 const Wall *room_find_wall_by_id_const(const Room *room, DomainId wall_id);
 int build_set_stud_spacing(BuildSettings *settings, int spacing);
 int wall_set_length(Wall *wall, int length);
+int wall_set_origin(Wall *wall, Position origin);
 int wall_set_stud_spacing(Wall *wall, int length);
 int wall_add_stud(Wall *wall, const BuildSettings *settings, int position, StudType type);
 int wall_add_noggin(Wall *wall, const BuildSettings *settings, size_t bay, int vertical_position);

@@ -121,6 +121,10 @@ static void make_non_trivial_project(SiteHelperProject *project)
             room_id,
             7000 + room_number * 100
         );
+        assert(wall_set_origin(first_wall, (Position){
+            .x = room_number * 10000,
+            .y = room_number * 3000
+        }));
 
         add_opening(
             project,
@@ -153,6 +157,10 @@ static void make_non_trivial_project(SiteHelperProject *project)
             room_id,
             4600 + room_number * 100
         );
+        assert(wall_set_origin(second_wall, (Position){
+            .x = room_number * 10000 + 5000,
+            .y = room_number * 3000 + 1500
+        }));
 
         add_opening(
             project,
@@ -261,6 +269,10 @@ static void assert_project_equal(
             const Wall *actual_wall = &actual_room->walls[wall_index];
 
             assert(expected_wall->id == actual_wall->id);
+            assert(expected_wall->definition.origin.x ==
+                actual_wall->definition.origin.x);
+            assert(expected_wall->definition.origin.y ==
+                actual_wall->definition.origin.y);
             assert(expected_wall->definition.length ==
                 actual_wall->definition.length);
             assert(expected_wall->definition.opening_count ==
@@ -369,7 +381,7 @@ static void test_unsupported_version_is_rejected(void)
     sitehelper_project_init(&destination);
 
     write_text_file(unsupported_path,
-        "sitehelper_project 2\n");
+        "sitehelper_project 3\n");
 
     assert(sitehelper_project_load_file(&destination, unsupported_path) ==
         SITEHELPER_PERSISTENCE_UNSUPPORTED_VERSION);
@@ -499,6 +511,63 @@ static void test_minimal_project_round_trips(void)
     remove(round_trip_path);
 }
 
+static void test_version_one_wall_defaults_origin_to_zero(void)
+{
+    SiteHelperProject destination;
+    sitehelper_project_init(&destination);
+
+    write_text_file(round_trip_path,
+        "sitehelper_project 1\n"
+        "domain_id_next 3\n"
+        "settings 2400 90 35 600 1200 0 0 maximise\n"
+        "rooms 1\n"
+        "room 1 walls 1\n"
+        "wall 2 length 4200 openings 0\n"
+        "end_room\n"
+        "end_project\n");
+
+    assert(sitehelper_project_load_file(&destination, round_trip_path) ==
+        SITEHELPER_PERSISTENCE_SUCCESS);
+
+    const Room *room = build_find_room_by_id_const(
+        &destination.structure,
+        1
+    );
+    const Wall *wall = room_find_wall_by_id_const(room, 2);
+    assert(wall != NULL);
+    assert(wall->definition.origin.x == 0);
+    assert(wall->definition.origin.y == 0);
+
+    sitehelper_project_destroy(&destination);
+    remove(round_trip_path);
+}
+
+static void test_malformed_version_two_origin_is_transactional(void)
+{
+    SiteHelperProject destination;
+    SiteHelperProject expected;
+    make_non_trivial_project(&destination);
+    make_non_trivial_project(&expected);
+
+    write_text_file(malformed_path,
+        "sitehelper_project 2\n"
+        "domain_id_next 3\n"
+        "settings 2400 90 35 600 1200 0 0 maximise\n"
+        "rooms 1\n"
+        "room 1 walls 1\n"
+        "wall 2 origin invalid 3000 length 4200 openings 0\n"
+        "end_room\n"
+        "end_project\n");
+
+    assert(sitehelper_project_load_file(&destination, malformed_path) ==
+        SITEHELPER_PERSISTENCE_MALFORMED_DATA);
+    assert_project_equal(&expected, &destination);
+
+    sitehelper_project_destroy(&expected);
+    sitehelper_project_destroy(&destination);
+    remove(malformed_path);
+}
+
 int main(void)
 {
     test_round_trip_rebuilds_framing_and_preserves_identity();
@@ -508,6 +577,8 @@ int main(void)
     test_invalid_identity_data_is_rejected();
     test_invalid_domain_data_is_rejected();
     test_minimal_project_round_trips();
+    test_version_one_wall_defaults_origin_to_zero();
+    test_malformed_version_two_origin_is_transactional();
 
     puts("sitehelper persistence tests passed");
     return 0;

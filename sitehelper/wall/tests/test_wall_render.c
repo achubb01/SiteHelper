@@ -463,10 +463,50 @@ static void test_wall_render_uses_selected_colour_for_selected_timber(void)
     );
 }
 
+static void test_wall_render_applies_origin_without_mutating_local_framing(void)
+{
+    Renderer2D *renderer = renderer2d_create();
+    assert(renderer != NULL);
+
+    FakeBackendState state = {0};
+    renderer2d_set_backend(renderer, (RendererBackend){
+        .context = &state,
+        .fill_rect = fake_fill_rect
+    });
+    renderer2d_set_viewport(renderer, (Vec2){0.0, 0.0}, 800.0, 600.0);
+    renderer2d_set_camera(renderer, (Camera2D){
+        .position = {0.0, 0.0}, .scale = 1.0
+    });
+
+    Wall first = {
+        .definition.origin = {0, 0},
+        .framing.bottomplate = {
+            .length = 100, .width = 10, .position = {10, 20},
+            .type = TIMBER_PLATE
+        }
+    };
+    Wall second = first;
+    second.definition.origin = (Position){500, 300};
+    WallRenderStyle style = { .timber_colour = {1, 1, 1, 255} };
+
+    wall_render(renderer, &first, NULL, &style);
+    wall_render(renderer, &second, NULL, &style);
+
+    assert(first.framing.bottomplate.position.x == 10);
+    assert(first.framing.bottomplate.position.y == 20);
+    assert(second.framing.bottomplate.position.x == 10);
+    assert(second.framing.bottomplate.position.y == 20);
+    assert(!nearly_equal(state.rects[0].position.x, state.rects[2].position.x));
+    assert(!nearly_equal(state.rects[0].position.y, state.rects[2].position.y));
+
+    renderer2d_destroy(renderer);
+}
+
 int main(void)
 {
     test_wall_render_draws_bottom_and_top_plate_and_studs();
     test_wall_render_uses_selected_colour_for_selected_timber();
+    test_wall_render_applies_origin_without_mutating_local_framing();
 
     printf("wall render tests passed\n");
 

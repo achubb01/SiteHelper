@@ -23,6 +23,23 @@ int sitehelper_command_from_opening(
     return 1;
 }
 
+int sitehelper_command_from_wall(
+    const WallCommand *wall,
+    SiteHelperCommand *command
+)
+{
+    if (wall == NULL || command == NULL) {
+        return 0;
+    }
+
+    *command = (SiteHelperCommand){
+        .type = SITEHELPER_COMMAND_ADD_WALL,
+        .data.wall = *wall
+    };
+
+    return 1;
+}
+
 int sitehelper_command_execute(
     SiteHelperProject *project,
     const SiteHelperCommand *command,
@@ -82,6 +99,29 @@ int sitehelper_command_execute(
             return 1;
         }
 
+        case SITEHELPER_COMMAND_ADD_WALL:
+        {
+            DomainId wall_id = DOMAIN_ID_INVALID;
+
+            if (!wall_command_execute(
+                    project,
+                    &command->data.wall,
+                    &wall_id)) {
+
+                return 0;
+            }
+
+            *result = (SiteHelperCommandResult){
+                .type = SITEHELPER_COMMAND_ADD_WALL,
+                .data.add_wall = {
+                    .room_id = command->data.wall.room_id,
+                    .wall_id = wall_id
+                }
+            };
+
+            return 1;
+        }
+
         case SITEHELPER_COMMAND_NONE:
         case SITEHELPER_COMMAND_COUNT:
         default:
@@ -120,6 +160,13 @@ int sitehelper_command_undo(
                 result->data.add_opening.opening_id
             );
 
+        case SITEHELPER_COMMAND_ADD_WALL:
+            return wall_command_undo(
+                project,
+                &command->data.wall,
+                result->data.add_wall.wall_id
+            );
+
         case SITEHELPER_COMMAND_NONE:
         case SITEHELPER_COMMAND_COUNT:
         default:
@@ -156,6 +203,13 @@ int sitehelper_command_redo(
                 project,
                 &command->data.opening,
                 result->data.add_opening.opening_id
+            );
+
+        case SITEHELPER_COMMAND_ADD_WALL:
+            return wall_command_redo(
+                project,
+                &command->data.wall,
+                result->data.add_wall.wall_id
             );
 
         case SITEHELPER_COMMAND_NONE:

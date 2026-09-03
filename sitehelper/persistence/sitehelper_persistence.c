@@ -13,7 +13,7 @@
 
 enum
 {
-    SITEHELPER_PROJECT_FORMAT_VERSION = 1,
+    SITEHELPER_PROJECT_FORMAT_VERSION = 2,
     PERSISTENCE_TOKEN_CAPACITY = 64
 };
 
@@ -78,12 +78,14 @@ static SiteHelperPersistenceResult parse_settings(
 );
 static SiteHelperPersistenceResult parse_room(
     FILE *file,
-    SiteHelperProject *project
+    SiteHelperProject *project,
+    uintmax_t version
 );
 static SiteHelperPersistenceResult parse_wall(
     FILE *file,
     SiteHelperProject *project,
-    Room *room
+    Room *room,
+    uintmax_t version
 );
 static SiteHelperPersistenceResult parse_opening(
     FILE *file,
@@ -663,18 +665,36 @@ static SiteHelperPersistenceResult parse_opening(
 static SiteHelperPersistenceResult parse_wall(
     FILE *file,
     SiteHelperProject *project,
-    Room *room
+    Room *room,
+    uintmax_t version
 )
 {
     char token[PERSISTENCE_TOKEN_CAPACITY];
     DomainId wall_id;
+    Position origin = {0};
     int length;
     size_t opening_count;
 
     if (expect_token(file, "wall") != SITEHELPER_PERSISTENCE_SUCCESS ||
         read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
         !parse_domain_id_token(token, &wall_id) ||
-        wall_id == DOMAIN_ID_INVALID || project_contains_id(project, wall_id) ||
+        wall_id == DOMAIN_ID_INVALID || project_contains_id(project, wall_id)) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    if (version >= 2) {
+        if (expect_token(file, "origin") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &origin.x) ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &origin.y)) {
+
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+    }
+
+    if (
         expect_token(file, "length") != SITEHELPER_PERSISTENCE_SUCCESS ||
         read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
         !parse_int_token(token, &length) ||
@@ -691,7 +711,8 @@ static SiteHelperPersistenceResult parse_wall(
 
     Wall *wall = room_find_wall_by_id(room, wall_id);
 
-    if (wall == NULL || !wall_set_length(wall, length)) {
+    if (wall == NULL || !wall_set_origin(wall, origin) ||
+        !wall_set_length(wall, length)) {
         return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
     }
 
@@ -712,7 +733,8 @@ static SiteHelperPersistenceResult parse_wall(
 
 static SiteHelperPersistenceResult parse_room(
     FILE *file,
-    SiteHelperProject *project
+    SiteHelperProject *project,
+    uintmax_t version
 )
 {
     char token[PERSISTENCE_TOKEN_CAPACITY];
@@ -744,7 +766,8 @@ static SiteHelperPersistenceResult parse_room(
         SiteHelperPersistenceResult result = parse_wall(
             file,
             project,
-            room
+            room,
+            version
         );
 
         if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
@@ -781,7 +804,7 @@ static SiteHelperPersistenceResult parse_project(
         return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
     }
 
-    if (version != SITEHELPER_PROJECT_FORMAT_VERSION) {
+    if (version != 1 && version != SITEHELPER_PROJECT_FORMAT_VERSION) {
         return SITEHELPER_PERSISTENCE_UNSUPPORTED_VERSION;
     }
 
@@ -811,7 +834,7 @@ static SiteHelperPersistenceResult parse_project(
     }
 
     for (size_t index = 0; index < room_count; index++) {
-        result = parse_room(file, project);
+        result = parse_room(file, project, version);
 
         if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
             return result;
@@ -911,8 +934,10 @@ static int write_project(
             const Wall *wall = &room->walls[wall_index];
 
             if (fprintf(file,
-                    "wall %" PRIu64 " length %d openings %zu\n",
+                    "wall %" PRIu64 " origin %d %d length %d openings %zu\n",
                     (uint64_t)wall->id,
+                    wall->definition.origin.x,
+                    wall->definition.origin.y,
                     wall->definition.length,
                     wall->definition.opening_count) < 0) {
 

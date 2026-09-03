@@ -7,6 +7,7 @@
 #include "timber.h"
 
 typedef struct WallDefinition {
+    Position origin;
     int length;
 
     Opening *openings;

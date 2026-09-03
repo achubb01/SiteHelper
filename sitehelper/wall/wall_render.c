@@ -17,6 +17,7 @@ static Colour timber_render_colour(
 
 static void draw_vertical_timber(
     Renderer2D *renderer,
+    const Wall *wall,
     const Timber *timber,
     const Timber *selected,
     const WallRenderStyle *style
@@ -31,8 +32,8 @@ static void draw_vertical_timber(
 
     Rect2 rect = {
         .position = {
-            .x = (double)timber->position.x,
-            .y = (double)timber->position.y
+            .x = (double)wall->definition.origin.x + timber->position.x,
+            .y = (double)wall->definition.origin.y + timber->position.y
         },
 
         .width =
@@ -52,6 +53,7 @@ static void draw_vertical_timber(
 
 static void draw_horizontal_timber(
     Renderer2D *renderer,
+    const Wall *wall,
     const Timber *timber,
     const Timber *selected,
     const WallRenderStyle *style
@@ -66,8 +68,8 @@ static void draw_horizontal_timber(
 
     Rect2 rect = {
         .position = {
-            .x = (double)timber->position.x,
-            .y = (double)timber->position.y
+            .x = (double)wall->definition.origin.x + timber->position.x,
+            .y = (double)wall->definition.origin.y + timber->position.y
         },
 
         .width =
@@ -87,6 +89,7 @@ static void draw_horizontal_timber(
 
 static void draw_timber_array(
     Renderer2D *renderer,
+    const Wall *wall,
     const Timber *timbers,
     size_t count,
     bool vertical,
@@ -106,6 +109,7 @@ static void draw_timber_array(
 
             draw_vertical_timber(
                 renderer,
+                wall,
                 &timbers[i],
                 selected,
                 style
@@ -115,6 +119,7 @@ static void draw_timber_array(
 
             draw_horizontal_timber(
                 renderer,
+                wall,
                 &timbers[i],
                 selected,
                 style
@@ -140,6 +145,7 @@ void wall_render(
 
     draw_horizontal_timber(
         renderer,
+        wall,
         &wall->framing.bottomplate,
         selected,
         style
@@ -147,6 +153,7 @@ void wall_render(
 
     draw_horizontal_timber(
         renderer,
+        wall,
         &wall->framing.topplate,
         selected,
         style
@@ -154,6 +161,7 @@ void wall_render(
 
     draw_timber_array(
         renderer,
+        wall,
         wall->framing.studs,
         wall->framing.stud_count,
         true,
@@ -163,6 +171,7 @@ void wall_render(
 
     draw_timber_array(
         renderer,
+        wall,
         wall->framing.nogs,
         wall->framing.nog_count,
         false,
@@ -172,6 +181,7 @@ void wall_render(
 
     draw_timber_array(
         renderer,
+        wall,
         wall->framing.members,
         wall->framing.member_count,
         false,

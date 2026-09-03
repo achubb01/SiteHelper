@@ -300,60 +300,10 @@ static int sitehelper_app_init(
         return 0;
     }
 
-    Room *room =
-        build_find_room_by_id(
-            &app->project.structure,
-            room_id
-        );
-
-    if (room == NULL) {
-        sitehelper_app_destroy(app);
-        return 0;
-    }
-
-    DomainId wall_id =
-        sitehelper_project_add_wall(
-            &app->project,
-            room_id
-        );
-
-    if (wall_id == DOMAIN_ID_INVALID) {
-        sitehelper_app_destroy(app);
-        return 0;
-    }
-
-    Wall *wall =
-        room_find_wall_by_id(
-            room,
-            wall_id
-        );
-
-    if (wall == NULL) {
-        sitehelper_app_destroy(app);
-        return 0;
-    }
-
     app->editor.current_room_id =
         room_id;
 
-    app->editor.current_wall_id =
-        wall_id;
-
-    if (!wall_set_length(
-            wall,
-            4200)) {
-
-        sitehelper_app_destroy(app);
-        return 0;
-    }
-
-    if (!wall_generate(
-            wall,
-            &app->project.settings)) {
-
-        sitehelper_app_destroy(app);
-        return 0;
-    }
+    app->editor.current_wall_id = DOMAIN_ID_INVALID;
 
     app->wall_style = (WallRenderStyle){
         .timber_colour = {
@@ -401,36 +351,23 @@ static void sitehelper_app_render(
         &app->grid_style
     );
 
-    const Wall *wall =
-        app_current_wall_const(
-            &app->project,
-            &app->editor
-        );
+    const Room *room = app_current_room_const(&app->project, &app->editor);
+    const EditorSelection *selection = sitehelper_editor_get_selection(
+        &app->editor
+    );
 
-    if (wall != NULL) {
-        const EditorSelection *selection =
-            sitehelper_editor_get_selection(
-                &app->editor
-            );
-
-        const WallSelection *wall_selection =
-            editor_selection_get_wall_member(
-                selection,
-                wall->id
-            );
-
-        const Timber *selected =
-            wall_selection_resolve(
+    if (room != NULL) {
+        for (size_t index = 0; index < room->wall_count; index++) {
+            const Wall *wall = &room->walls[index];
+            const WallSelection *wall_selection =
+                editor_selection_get_wall_member(selection, wall->id);
+            const Timber *selected = wall_selection_resolve(
                 wall_selection,
                 wall
             );
 
-        wall_render(
-            app->renderer,
-            wall,
-            selected,
-            &app->wall_style
-        );
+            wall_render(app->renderer, wall, selected, &app->wall_style);
+        }
     }
 
     Rect2 preview_rect;
@@ -441,6 +378,16 @@ static void sitehelper_app_render(
             &preview_rect
         )
     ) {
+        const Wall *wall = app_current_wall_const(
+            &app->project,
+            &app->editor
+        );
+
+        if (wall != NULL) {
+            preview_rect.position.x += wall->definition.origin.x;
+            preview_rect.position.y += wall->definition.origin.y;
+        }
+
         renderer2d_draw_rect(
             app->renderer,
             preview_rect,
@@ -450,6 +397,14 @@ static void sitehelper_app_render(
                 .b = 255,
                 .a = 255
             }
+        );
+    }
+
+    if (sitehelper_editor_get_wall_preview_rect(&app->editor, &preview_rect)) {
+        renderer2d_draw_rect(
+            app->renderer,
+            preview_rect,
+            (Colour){ .r = 100, .g = 220, .b = 150, .a = 255 }
         );
     }
 
@@ -523,22 +478,9 @@ static void sitehelper_app_process_events(
                             &app->history,
                             &app->project)) {
 
-                        Wall *wall = sitehelper_app_current_wall(app);
-
-                        if (wall != NULL) {
-                            sitehelper_editor_reconcile_wall_selection(
-                                &app->editor,
-                                wall
-                            );
-                        }
-                        else {
-                            sitehelper_editor_clear_selection(
-                                &app->editor
-                            );
-                        }
-
-                        sitehelper_editor_invalidate_transient_state(
-                            &app->editor
+                        sitehelper_editor_reconcile(
+                            &app->editor,
+                            &app->project
                         );
                     }
 
@@ -554,22 +496,9 @@ static void sitehelper_app_process_events(
                             &app->history,
                             &app->project)) {
 
-                        Wall *wall = sitehelper_app_current_wall(app);
-
-                        if (wall != NULL) {
-                            sitehelper_editor_reconcile_wall_selection(
-                                &app->editor,
-                                wall
-                            );
-                        }
-                        else {
-                            sitehelper_editor_clear_selection(
-                                &app->editor
-                            );
-                        }
-
-                        sitehelper_editor_invalidate_transient_state(
-                            &app->editor
+                        sitehelper_editor_reconcile(
+                            &app->editor,
+                            &app->project
                         );
                     }
 
@@ -753,12 +682,15 @@ static void sitehelper_app_process_events(
                             viewport,
                             screen_position
                         );
-                        Wall *wall = sitehelper_app_current_wall(app);
+                        Room *room = app_current_room(
+                            &app->project,
+                            &app->editor
+                        );
                         EditorAction action;
 
-                        if (!sitehelper_editor_primary_action(
+                        if (!sitehelper_editor_primary_action_in_room(
                                 &app->editor,
-                                wall,
+                                room,
                                 world_position,
                                 &action)) {
                             continue;
@@ -774,7 +706,8 @@ static void sitehelper_app_process_events(
                                     &result)) {
                                 sitehelper_editor_complete_action(
                                     &app->editor,
-                                    &action
+                                    &action,
+                                    &result
                                 );
                             }
                         }
@@ -963,6 +896,19 @@ static void sitehelper_app_render_snap_cursor(
 
     Vec2 position =
         snap_result->position;
+
+    const Wall *wall = app_current_wall_const(
+        &app->project,
+        &app->editor
+    );
+
+    if (wall != NULL &&
+        sitehelper_editor_get_active_tool(&app->editor) ==
+            EDITOR_TOOL_OPENING) {
+
+        position.x += wall->definition.origin.x;
+        position.y += wall->definition.origin.y;
+    }
 
     renderer2d_draw_line(
         app->renderer,

@@ -1294,10 +1294,14 @@ test_editor_complete_action_clears_opening_placement(void)
                 SITEHELPER_COMMAND_ADD_OPENING
         }
     };
+    SiteHelperCommandResult result = {
+        .type = SITEHELPER_COMMAND_ADD_OPENING
+    };
 
     sitehelper_editor_complete_action(
         &editor,
-        &action
+        &action,
+        &result
     );
 
     assert(
@@ -1316,11 +1320,13 @@ test_editor_complete_action_accepts_null(void)
 
     sitehelper_editor_complete_action(
         NULL,
+        NULL,
         NULL
     );
 
     sitehelper_editor_complete_action(
         &editor,
+        NULL,
         NULL
     );
 }

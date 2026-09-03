@@ -2,6 +2,7 @@
 #include "sitehelper_editor.h"
 #include "wall_query.h"
 #include "wall_snap.h"
+#include "wall_coordinates.h"
 
 int sitehelper_editor_set_active_tool(
     SiteHelperEditor *editor,
@@ -22,12 +23,16 @@ int sitehelper_editor_set_active_tool(
         );
     }
     else {
-        opening_tool_cancel(
-            &editor->opening_tool
-        );
+        opening_tool_cancel(&editor->opening_tool);
+        editor->opening_placement = (OpeningPlacement){0};
+    }
 
-        editor->opening_placement =
-            (OpeningPlacement){0};
+    if (tool == EDITOR_TOOL_WALL) {
+        wall_tool_activate(&editor->wall_tool);
+    }
+    else {
+        wall_tool_cancel(&editor->wall_tool);
+        editor->wall_tool.active = 0;
     }
 
     editor->active_tool = tool;
@@ -60,6 +65,8 @@ void sitehelper_editor_init(
     opening_tool_init(
         &editor->opening_tool
     );
+
+    wall_tool_init(&editor->wall_tool);
 
     editor->opening_placement =
         (OpeningPlacement){0};
@@ -153,6 +160,71 @@ void sitehelper_editor_reconcile_wall_selection(
             &editor->selection
         );
     }
+}
+
+void sitehelper_editor_reconcile(
+    SiteHelperEditor *editor,
+    const SiteHelperProject *project
+)
+{
+    if (editor == NULL) {
+        return;
+    }
+
+    if (project == NULL || editor->current_room_id == DOMAIN_ID_INVALID) {
+        editor->current_room_id = DOMAIN_ID_INVALID;
+        editor->current_wall_id = DOMAIN_ID_INVALID;
+        sitehelper_editor_clear_selection(editor);
+        sitehelper_editor_invalidate_transient_state(editor);
+        return;
+    }
+
+    const Room *room = build_find_room_by_id_const(
+        &project->structure,
+        editor->current_room_id
+    );
+
+    if (room == NULL) {
+        editor->current_room_id = DOMAIN_ID_INVALID;
+        editor->current_wall_id = DOMAIN_ID_INVALID;
+        sitehelper_editor_clear_selection(editor);
+        sitehelper_editor_invalidate_transient_state(editor);
+        return;
+    }
+
+    const Wall *current_wall = room_find_wall_by_id_const(
+        room,
+        editor->current_wall_id
+    );
+
+    if (current_wall == NULL) {
+        editor->current_wall_id = DOMAIN_ID_INVALID;
+    }
+
+    const EditorSelection *selection = &editor->selection;
+
+    if (selection->kind == EDITOR_SELECTION_WALL_MEMBER) {
+        const Wall *selected_wall = room_find_wall_by_id_const(
+            room,
+            selection->wall_id
+        );
+
+        if (selected_wall == NULL) {
+            sitehelper_editor_clear_selection(editor);
+        }
+        else {
+            wall_selection_reconcile(
+                &editor->selection.wall_member,
+                selected_wall
+            );
+
+            if (wall_selection_is_empty(&editor->selection.wall_member)) {
+                sitehelper_editor_clear_selection(editor);
+            }
+        }
+    }
+
+    sitehelper_editor_invalidate_transient_state(editor);
 }
 
 const EditorSelection *
@@ -303,10 +375,38 @@ void sitehelper_editor_pointer_move(
         return;
     }
 
+    if (editor->active_tool == EDITOR_TOOL_WALL) {
+        sitehelper_editor_update_snap(editor, NULL, world_position);
+
+        const SnapResult *snap_result = editor_snap_state_get_result(
+            &editor->snap
+        );
+
+        if (snap_result != NULL && snap_result->type != SNAP_NONE) {
+            wall_tool_update(&editor->wall_tool, snap_result->position);
+        }
+
+        editor->opening_placement = (OpeningPlacement){0};
+        return;
+    }
+
+    Position world_pointer = {
+        .x = (int)world_position.x,
+        .y = (int)world_position.y
+    };
+    Position local_pointer = wall_world_to_local_position(
+        wall,
+        world_pointer
+    );
+    Vec2 local_position = {
+        .x = local_pointer.x,
+        .y = local_pointer.y
+    };
+
     sitehelper_editor_update_snap(
         editor,
         wall,
-        world_position
+        local_position
     );
 
     switch (editor->active_tool) {
@@ -364,7 +464,6 @@ void sitehelper_editor_pointer_move(
         }
 
         case EDITOR_TOOL_SELECT:
-        case EDITOR_TOOL_WALL:
         default:
             editor->opening_placement =
                 (OpeningPlacement){0};
@@ -463,10 +562,10 @@ int sitehelper_editor_primary_action(
                 return 1;
             }
 
-            Position position = {
+            Position position = wall_world_to_local_position(wall, (Position){
                 .x = (int)world_position.x,
                 .y = (int)world_position.y
-            };
+            });
 
             sitehelper_editor_select_wall_member_at_position(
                 editor,
@@ -500,9 +599,100 @@ int sitehelper_editor_primary_action(
         }
         
         case EDITOR_TOOL_WALL:
+        {
+            const SnapResult *snap_result = editor_snap_state_get_result(
+                &editor->snap
+            );
+
+            Vec2 position = snap_result != NULL && snap_result->type != SNAP_NONE
+                ? snap_result->position
+                : world_position;
+
+            if (!editor->wall_tool.has_start) {
+                return wall_tool_begin(&editor->wall_tool, position);
+            }
+
+            Position origin;
+            int length;
+            WallCommand wall_command;
+
+            if (!wall_tool_command_data(
+                    &editor->wall_tool,
+                    &origin,
+                    &length) ||
+                !wall_command_create(
+                    editor->current_room_id,
+                    origin,
+                    length,
+                    &wall_command) ||
+                !sitehelper_command_from_wall(
+                    &wall_command,
+                    &action->command)) {
+
+                return 0;
+            }
+
+            action->kind = EDITOR_ACTION_COMMAND;
+            return 1;
+        }
+
         default:
             return 1;
     }
+}
+
+int sitehelper_editor_primary_action_in_room(
+    SiteHelperEditor *editor,
+    const Room *room,
+    Vec2 world_position,
+    EditorAction *action
+)
+{
+    if (editor == NULL || action == NULL) {
+        return 0;
+    }
+
+    if (editor->active_tool == EDITOR_TOOL_SELECT && room != NULL) {
+        *action = (EditorAction){ .kind = EDITOR_ACTION_NONE };
+
+        /* Later appended walls win deterministic overlaps. */
+        for (size_t index = room->wall_count; index > 0; index--) {
+            const Wall *wall = &room->walls[index - 1];
+            Position local = wall_world_to_local_position(
+                wall,
+                (Position){
+                    .x = (int)world_position.x,
+                    .y = (int)world_position.y
+                }
+            );
+            WallMemberHit hit = wall_find_member_at_position(wall, local);
+
+            if (hit.kind != WALL_MEMBER_NONE) {
+                editor_selection_set_wall_member(
+                    &editor->selection,
+                    wall->id,
+                    hit.kind,
+                    hit.timber
+                );
+                editor->current_wall_id = wall->id;
+                return 1;
+            }
+        }
+
+        sitehelper_editor_clear_selection(editor);
+        return 1;
+    }
+
+    const Wall *wall = room == NULL
+        ? NULL
+        : room_find_wall_by_id_const(room, editor->current_wall_id);
+
+    return sitehelper_editor_primary_action(
+        editor,
+        wall,
+        world_position,
+        action
+    );
 }
 
 int sitehelper_editor_has_opening_preview(
@@ -552,12 +742,15 @@ int sitehelper_editor_get_opening_preview_rect(
 
 void sitehelper_editor_complete_action(
     SiteHelperEditor *editor,
-    const EditorAction *action
+    const EditorAction *action,
+    const SiteHelperCommandResult *result
 )
 {
     if (
         editor == NULL
         || action == NULL
+        || result == NULL
+        || action->command.type != result->type
     ) {
         return;
     }
@@ -577,6 +770,12 @@ void sitehelper_editor_complete_action(
                 editor
             );
 
+            break;
+
+        case SITEHELPER_COMMAND_ADD_WALL:
+            editor->current_room_id = result->data.add_wall.room_id;
+            editor->current_wall_id = result->data.add_wall.wall_id;
+            wall_tool_cancel(&editor->wall_tool);
             break;
 
         case SITEHELPER_COMMAND_NONE:
@@ -600,4 +799,21 @@ void sitehelper_editor_invalidate_transient_state(
 
     editor->opening_placement =
         (OpeningPlacement){0};
+
+    wall_tool_cancel(&editor->wall_tool);
+}
+
+int sitehelper_editor_has_wall_preview(const SiteHelperEditor *editor)
+{
+    return editor != NULL && editor->active_tool == EDITOR_TOOL_WALL &&
+        editor->wall_tool.has_start;
+}
+
+int sitehelper_editor_get_wall_preview_rect(
+    const SiteHelperEditor *editor,
+    Rect2 *rect
+)
+{
+    return editor != NULL &&
+        wall_tool_preview_rect(&editor->wall_tool, rect);
 }

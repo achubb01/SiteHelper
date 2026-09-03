@@ -2,6 +2,7 @@
 #define SITEHELPER_COMMAND_H
 
 #include "opening_command.h"
+#include "wall_command.h"
 #include "sitehelper_project.h"
 
 typedef enum
@@ -9,6 +10,7 @@ typedef enum
     SITEHELPER_COMMAND_NONE = 0,
 
     SITEHELPER_COMMAND_ADD_OPENING,
+    SITEHELPER_COMMAND_ADD_WALL,
 
     SITEHELPER_COMMAND_COUNT
 } SiteHelperCommandType;
@@ -20,6 +22,7 @@ typedef struct
     union
     {
         OpeningCommand opening;
+        WallCommand wall;
     } data;
 } SiteHelperCommand;
 
@@ -36,12 +39,23 @@ typedef struct
             DomainId opening_id;
         } add_opening;
 
+        struct
+        {
+            DomainId room_id;
+            DomainId wall_id;
+        } add_wall;
+
     } data;
 
 } SiteHelperCommandResult;
 
 int sitehelper_command_from_opening(
     const OpeningCommand *opening,
+    SiteHelperCommand *command
+);
+
+int sitehelper_command_from_wall(
+    const WallCommand *wall,
     SiteHelperCommand *command
 );
 

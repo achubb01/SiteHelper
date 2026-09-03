@@ -19,6 +19,7 @@ add_library(sitehelper_wall
     wall/wall_openings.c
     wall/wall_query.c
     wall/wall_selection.c
+    wall/wall_coordinates.c
 )
 
 target_include_directories(sitehelper_wall
@@ -65,6 +66,7 @@ target_link_libraries(sitehelper_persistence
 
 add_library(sitehelper_command
     command/opening_command.c
+    command/wall_command.c
     command/sitehelper_command.c
     command/command_history.c
 )
@@ -109,6 +111,7 @@ add_library(sitehelper_editor
     editor/snap.c
     editor/opening_tool.c
     editor/opening_placement.c
+    editor/wall_tool.c
     editor/editor_action.c
 
     wall/wall_snap.c
@@ -337,6 +340,29 @@ target_link_libraries(test_opening_tool
 
 add_test(NAME opening_tool_tests COMMAND test_opening_tool)
 
+add_executable(test_wall_tool
+    editor/tests/test_wall_tool.c
+)
+
+target_link_libraries(test_wall_tool
+    PRIVATE
+        sitehelper_editor
+)
+
+add_test(NAME wall_tool_tests COMMAND test_wall_tool)
+
+add_executable(test_multiwall_editor
+    editor/tests/test_multiwall_editor.c
+)
+
+target_link_libraries(test_multiwall_editor
+    PRIVATE
+        sitehelper_editor
+        sitehelper_wall
+)
+
+add_test(NAME multiwall_editor_tests COMMAND test_multiwall_editor)
+
 add_executable(test_opening_placement
     editor/tests/test_opening_placement.c
 )
@@ -359,6 +385,18 @@ target_link_libraries(test_opening_command
 )
 
 add_test(NAME opening_command_tests COMMAND test_opening_command)
+
+add_executable(test_wall_command
+    command/tests/test_wall_command.c
+)
+
+target_link_libraries(test_wall_command
+    PRIVATE
+        sitehelper_command
+        sitehelper_wall
+)
+
+add_test(NAME wall_command_tests COMMAND test_wall_command)
 
 add_executable(test_domain_id
     domain/tests/test_domain_id.c

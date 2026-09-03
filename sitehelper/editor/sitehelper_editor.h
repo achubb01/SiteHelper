@@ -7,8 +7,10 @@
 #include "editor_snap_state.h"
 #include "opening_tool.h"
 #include "opening_placement.h"
+#include "wall_tool.h"
 #include "opening_command.h"
 #include "editor_action.h"
+#include "sitehelper_project.h"
 
 typedef struct
 {
@@ -22,6 +24,7 @@ typedef struct
 
     OpeningTool opening_tool;
     OpeningPlacement opening_placement;
+    WallTool wall_tool;
 } SiteHelperEditor;
 
 void sitehelper_editor_init(
@@ -50,6 +53,11 @@ void sitehelper_editor_select_wall_member_at_position(
 void sitehelper_editor_reconcile_wall_selection(
     SiteHelperEditor *editor,
     const Wall *wall
+);
+
+void sitehelper_editor_reconcile(
+    SiteHelperEditor *editor,
+    const SiteHelperProject *project
 );
 
 const EditorSelection *
@@ -118,6 +126,13 @@ int sitehelper_editor_primary_action(
     EditorAction *action
 );
 
+int sitehelper_editor_primary_action_in_room(
+    SiteHelperEditor *editor,
+    const Room *room,
+    Vec2 world_position,
+    EditorAction *action
+);
+
 int sitehelper_editor_has_opening_preview(
     const SiteHelperEditor *editor
 );
@@ -129,7 +144,14 @@ int sitehelper_editor_get_opening_preview_rect(
 
 void sitehelper_editor_complete_action(
     SiteHelperEditor *editor,
-    const EditorAction *action
+    const EditorAction *action,
+    const SiteHelperCommandResult *result
+);
+
+int sitehelper_editor_has_wall_preview(const SiteHelperEditor *editor);
+int sitehelper_editor_get_wall_preview_rect(
+    const SiteHelperEditor *editor,
+    Rect2 *rect
 );
 
 void sitehelper_editor_invalidate_transient_state(
