@@ -1,5 +1,10 @@
 #include "wall_render.h"
 
+/*
+ * Temporary elevation layout compatibility: segment start X/Y is reused as a
+ * drawing offset for local U/Z before camera projection. These Rect2 positions
+ * are render coordinates, not physical plan positions (plan Y is not height).
+ */
 
 static Colour timber_render_colour(
     const Timber *timber,
@@ -32,8 +37,8 @@ static void draw_vertical_timber(
 
     Rect2 rect = {
         .position = {
-            .x = (double)wall->definition.origin.x + timber->position.x,
-            .y = (double)wall->definition.origin.y + timber->position.y
+            .x = (double)wall->definition.segment.start.x + timber->position.u,
+            .y = (double)wall->definition.segment.start.y + timber->position.z
         },
 
         .width =
@@ -68,8 +73,8 @@ static void draw_horizontal_timber(
 
     Rect2 rect = {
         .position = {
-            .x = (double)wall->definition.origin.x + timber->position.x,
-            .y = (double)wall->definition.origin.y + timber->position.y
+            .x = (double)wall->definition.segment.start.x + timber->position.u,
+            .y = (double)wall->definition.segment.start.y + timber->position.z
         },
 
         .width =

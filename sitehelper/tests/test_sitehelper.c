@@ -20,11 +20,11 @@ static int bay_is_opening(
     assert(right != NULL);
 
     int bay_left =
-        left->position.x +
+        left->position.u +
         settings->stud_width;
 
     int bay_right =
-        right->position.x;
+        right->position.u;
 
     for (size_t i = 0;
          i < wall->definition.opening_count;
@@ -46,8 +46,8 @@ static int bay_is_opening(
         /*
          * Temporary diagnostics.
          */
-        // if (right->position.x -
-        //         left->position.x >
+        // if (right->position.u -
+        //         left->position.u >
         //     settings->stud_spacing) {
 
         //     fprintf(
@@ -102,8 +102,8 @@ static void assert_valid_vertical_member_spacing(
             &wall->framing.studs[i];
 
         int spacing =
-            right->position.x -
-            left->position.x;
+            right->position.u -
+            left->position.u;
 
         /*
          * Negative means the array isn't
@@ -150,11 +150,11 @@ static void assert_valid_vertical_member_spacing(
                 "bay right: %d\n"
                 "left type: %d\n"
                 "right type:%d\n",
-                left->position.x,
-                right->position.x,
-                left->position.x +
+                left->position.u,
+                right->position.u,
+                left->position.u +
                     settings->stud_width,
-                right->position.x,
+                right->position.u,
                 (int)left->details.stud.type,
                 (int)right->details.stud.type
             );
@@ -179,8 +179,8 @@ static void assert_studs_inside_wall(
         const Timber *stud =
             &wall->framing.studs[i];
 
-        assert(stud->position.x >= 0);
-        assert(stud->position.y >= 0);
+        assert(stud->position.u >= 0);
+        assert(stud->position.z >= 0);
 
         assert(
         stud->width ==
@@ -193,13 +193,13 @@ static void assert_studs_inside_wall(
     );
 
     assert(
-        stud->position.x +
+        stud->position.u +
         stud->width
         <= wall->framing.bottomplate.length
     );
 
         assert(
-            stud->position.y +
+            stud->position.z +
             stud->length
             <= settings->stud_height
         );
@@ -214,7 +214,7 @@ static void assert_wall_end_studs(
     assert(wall->framing.stud_count > 0);
 
     assert(
-        wall->framing.studs[0].position.x == 0
+        wall->framing.studs[0].position.u == 0
     );
 
     const Timber *last =
@@ -223,7 +223,7 @@ static void assert_wall_end_studs(
         ];
 
     assert(
-        last->position.x +
+        last->position.u +
         last->width ==
         wall->framing.bottomplate.length
     );
@@ -248,11 +248,11 @@ static void assert_valid_cripples(
 
         assert(stud->length > 0);
 
-        assert(stud->position.x >= 0);
-        assert(stud->position.y >= 0);
+        assert(stud->position.u >= 0);
+        assert(stud->position.z >= 0);
 
         assert(
-            stud->position.y +
+            stud->position.z +
             stud->length
             <= settings->stud_height
         );
@@ -303,13 +303,13 @@ static void assert_valid_plates(
         settings->stud_depth
     );
 
-    assert(bottom->position.x == 0);
-    assert(bottom->position.y == 0);
+    assert(bottom->position.u == 0);
+    assert(bottom->position.z == 0);
 
-    assert(top->position.x == 0);
+    assert(top->position.u == 0);
 
     assert(
-        top->position.y ==
+        top->position.z ==
         settings->stud_height
     );
 }
@@ -462,10 +462,7 @@ static void test_property_single_opening_geometry(void)
                             };
 
                             assert(
-                                wall_set_length(
-                                    &wall,
-                                    wall_lengths[wall_index]
-                                )
+                                wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = wall_lengths[wall_index] } })
                             );
 
                             int added =
@@ -527,20 +524,22 @@ static void test_property_single_opening_geometry(void)
     }
 }
 
-static void test_wall_length_rejects_nonpositive_values_without_mutation(void)
+static void test_wall_segment_rejects_zero_length_without_mutation(void)
 {
     Wall wall = {0};
 
-    assert(wall_set_length(&wall, 4200));
-    assert(wall.definition.length == 4200);
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
+    assert(wall_length_mm(&wall) == 4200);
 
-    assert(!wall_set_length(&wall, 0));
-    assert(wall.definition.length == 4200);
+    assert(!wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 0 } }));
+    assert(wall_length_mm(&wall) == 4200);
 
-    assert(!wall_set_length(&wall, -1));
-    assert(wall.definition.length == 4200);
+    assert(!wall_set_plan_segment(&wall, (WallPlanSegment){
+        .start = {-1, 0}, .end = {-1, 0}
+    }));
+    assert(wall_length_mm(&wall) == 4200);
 
-    assert(!wall_set_length(NULL, 4200));
+    assert(!wall_set_plan_segment(NULL, (WallPlanSegment){ .end = { .x = 4200 } }));
 }
 
 static void test_wall_generates_complete_plates(void)
@@ -558,10 +557,7 @@ static void test_wall_generates_complete_plates(void)
     };
 
     assert(
-        wall_set_length(
-            &wall,
-            4200
-        )
+        wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     assert(
@@ -596,12 +592,12 @@ static void test_wall_generates_complete_plates(void)
     );
 
     assert(
-        wall.framing.bottomplate.position.x ==
+        wall.framing.bottomplate.position.u ==
         0
     );
 
     assert(
-        wall.framing.bottomplate.position.y ==
+        wall.framing.bottomplate.position.z ==
         0
     );
 
@@ -630,12 +626,12 @@ static void test_wall_generates_complete_plates(void)
     );
 
     assert(
-        wall.framing.topplate.position.x ==
+        wall.framing.topplate.position.u ==
         0
     );
 
     assert(
-        wall.framing.topplate.position.y ==
+        wall.framing.topplate.position.z ==
         2400
     );
 
@@ -655,7 +651,7 @@ static void test_maximise_spacing(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(wall_generate(
         &wall,
@@ -663,11 +659,11 @@ static void test_maximise_spacing(void)
     ));
 
     /*
-     * First stud must start at the wall origin.
+     * First stud must start at wall-local U = 0.
      */
     assert(
         wall.framing.studs[0]
-            .position.x == 0
+            .position.u == 0
     );
 
     /*
@@ -677,7 +673,7 @@ static void test_maximise_spacing(void)
      */
     assert(
         wall.framing.studs[wall.framing.stud_count - 1]
-            .position.x
+            .position.u
         ==
         4200 - 35
     );
@@ -691,11 +687,11 @@ static void test_maximise_spacing(void)
 
         int previous =
             wall.framing.studs[i - 1]
-                .position.x;
+                .position.u;
 
         int current =
             wall.framing.studs[i]
-                .position.x;
+                .position.u;
 
         int spacing =
             current - previous;
@@ -720,7 +716,7 @@ static void test_even_spacing(void)
         .stud_spacing_mode = STUD_SPACING_EVEN
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(wall_generate(
         &wall,
@@ -729,12 +725,12 @@ static void test_even_spacing(void)
 
     assert(
         wall.framing.studs[0]
-            .position.x == 0
+            .position.u == 0
     );
 
     assert(
         wall.framing.studs[wall.framing.stud_count - 1]
-            .position.x
+            .position.u
         ==
         4200 - 35
     );
@@ -745,10 +741,10 @@ static void test_even_spacing(void)
 
         int spacing =
             wall.framing.studs[i]
-                .position.x
+                .position.u
             -
             wall.framing.studs[i - 1]
-                .position.x;
+                .position.u;
 
         assert(spacing <= settings.stud_spacing);
         assert(spacing > 0);
@@ -770,7 +766,7 @@ static void test_noggins(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(wall_generate(
         &wall,
@@ -795,11 +791,11 @@ static void test_noggins(void)
         );
 
         assert(
-            noggin->position.y > 0
+            noggin->position.z > 0
         );
 
         assert(
-            noggin->position.y
+            noggin->position.z
             <
             settings.stud_height
         );
@@ -821,7 +817,7 @@ static void test_maximise_uses_standard_spacing(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(wall_generate(
         &wall,
@@ -836,10 +832,10 @@ static void test_maximise_uses_standard_spacing(void)
 
         int spacing =
             wall.framing.studs[i]
-                .position.x
+                .position.u
             -
             wall.framing.studs[i - 1]
-                .position.x;
+                .position.u;
 
         if (spacing == settings.stud_spacing) {
             max_gap_count++;
@@ -865,10 +861,7 @@ static void test_wall_regeneration(void)
     };
 
     assert(
-        wall_set_length(
-            &wall,
-            4200
-        )
+        wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     assert(
@@ -919,7 +912,7 @@ static void test_add_opening(void)
         .opening_height_allowance = 20
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         wall_add_opening(
@@ -972,7 +965,7 @@ static void test_reject_opening_outside_wall(void)
         .opening_height_allowance = 20
     };
 
-    assert(wall_set_length(&wall, 3000));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 3000 } }));
 
     assert(
         !wall_add_opening(
@@ -1003,7 +996,7 @@ static void test_reject_opening_too_tall(void)
         .opening_height_allowance = 20
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         !wall_add_opening(
@@ -1038,7 +1031,7 @@ static void test_opening_removes_interfering_studs(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         wall_add_opening(
@@ -1091,7 +1084,7 @@ static void test_opening_removes_interfering_studs(void)
         }
 
         int stud_start =
-            stud->position.x;
+            stud->position.u;
 
         int stud_end =
             stud_start +
@@ -1132,7 +1125,7 @@ static void test_opening_places_king_studs(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         wall_add_opening(
@@ -1198,7 +1191,7 @@ static void test_opening_places_king_studs(void)
         }
 
         int position =
-            stud->position.x;
+            stud->position.u;
 
         if (position == expected_left_king) {
             found_left_king = true;
@@ -1232,7 +1225,7 @@ static void test_opening_clear_width_matches_frame_width(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         wall_add_opening(
@@ -1283,11 +1276,11 @@ static void test_opening_clear_width_matches_frame_width(void)
     assert(right_trimmer != NULL);
 
     int left_inside_face =
-        left_trimmer->position.x
+        left_trimmer->position.u
         + settings.stud_width;
 
     int right_inside_face =
-        right_trimmer->position.x;
+        right_trimmer->position.u;
 
     int actual_clear_width =
         right_inside_face -
@@ -1324,7 +1317,7 @@ static void test_window_blocks_only_intersecting_noggins(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         wall_add_opening(
@@ -1386,14 +1379,14 @@ static void test_window_blocks_only_intersecting_noggins(void)
             &wall.framing.studs[bay + 1];
 
         int noggin_left =
-            left->position.x +
+            left->position.u +
             settings.stud_width;
 
         int noggin_right =
-            right->position.x;
+            right->position.u;
 
         int y =
-            noggin->position.y;
+            noggin->position.z;
 
         int horizontal_overlap =
             noggin_left < opening_right &&
@@ -1429,7 +1422,7 @@ static void test_door_places_trimmer_studs(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         wall_add_opening(
@@ -1494,13 +1487,13 @@ static void test_door_places_trimmer_studs(void)
 
         assert(stud->length == expected_length);
 
-        if (stud->position.x ==
+        if (stud->position.u ==
             expected_left_trimmer) {
 
             found_left = true;
         }
 
-        if (stud->position.x ==
+        if (stud->position.u ==
             expected_right_trimmer) {
 
             found_right = true;
@@ -1526,7 +1519,7 @@ static void test_noggin_coordinates(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
     assert(wall_generate(&wall, &settings));
 
     for (size_t i = 0;
@@ -1550,8 +1543,8 @@ static void test_noggin_coordinates(void)
          * the left stud.
          */
         assert(
-            noggin->position.x ==
-            left->position.x +
+            noggin->position.u ==
+            left->position.u +
             settings.stud_width
         );
 
@@ -1560,18 +1553,18 @@ static void test_noggin_coordinates(void)
          * to the next stud.
          */
         assert(
-            noggin->position.x +
+            noggin->position.u +
             noggin->length ==
-            right->position.x
+            right->position.u
         );
 
         /*
          * Noggins must exist somewhere
          * above the bottom and below the top.
          */
-        assert(noggin->position.y > 0);
+        assert(noggin->position.z > 0);
         assert(
-            noggin->position.y <
+            noggin->position.z <
             settings.stud_height
         );
     }
@@ -1596,7 +1589,7 @@ static void test_door_does_not_generate_header(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         wall_add_opening(
@@ -1655,7 +1648,7 @@ static void test_window_places_header_and_sill(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         wall_add_opening(
@@ -1745,12 +1738,12 @@ static void test_window_places_header_and_sill(void)
             found_header = true;
 
             assert(
-                member->position.x ==
+                member->position.u ==
                 expected_header_x
             );
 
             assert(
-                member->position.y ==
+                member->position.z ==
                 expected_header_y
             );
 
@@ -1766,12 +1759,12 @@ static void test_window_places_header_and_sill(void)
             found_sill = true;
 
             assert(
-                member->position.x ==
+                member->position.u ==
                 expected_sill_x
             );
 
             assert(
-                member->position.y ==
+                member->position.z ==
                 expected_sill_y
             );
 
@@ -1808,7 +1801,7 @@ static void test_window_places_lower_cripples(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         wall_add_opening(
@@ -1852,7 +1845,7 @@ static void test_window_places_lower_cripples(void)
          * about cripples beginning at the
          * bottom framing reference.
          */
-        if (stud->position.y != 0) {
+        if (stud->position.z != 0) {
             continue;
         }
 
@@ -1890,7 +1883,7 @@ static void test_window_lower_cripple_spacing(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         wall_add_opening(
@@ -1946,7 +1939,7 @@ static void test_window_lower_cripple_spacing(void)
          * For now we're testing lower
          * cripples only.
          */
-        if (stud->position.y != 0) {
+        if (stud->position.z != 0) {
             continue;
         }
 
@@ -1966,8 +1959,8 @@ static void test_window_lower_cripple_spacing(void)
         if (previous_cripple != NULL) {
 
             int spacing =
-                stud->position.x
-                - previous_cripple->position.x;
+                stud->position.u
+                - previous_cripple->position.u;
 
             assert(spacing > 0);
 
@@ -1993,12 +1986,12 @@ static void test_window_lower_cripple_spacing(void)
      * both ends.
      */
     assert(
-        first_cripple->position.x ==
+        first_cripple->position.u ==
         expected_first_position
     );
 
     assert(
-        last_cripple->position.x ==
+        last_cripple->position.u ==
         expected_last_position
     );
 
@@ -2022,7 +2015,7 @@ static void test_window_places_upper_cripples(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         wall_add_opening(
@@ -2079,14 +2072,14 @@ static void test_window_places_upper_cripples(void)
         /*
          * Ignore lower cripples.
          */
-        if (stud->position.y == 0) {
+        if (stud->position.z == 0) {
             continue;
         }
 
         found_upper_cripple = true;
 
         assert(
-            stud->position.y ==
+            stud->position.z ==
             expected_y
         );
 
@@ -2118,7 +2111,7 @@ static void test_window_upper_and_lower_cripples_align(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 4200));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(
         wall_add_opening(
@@ -2158,7 +2151,7 @@ static void test_window_upper_and_lower_cripples_align(void)
         /*
          * Only inspect lower cripples.
          */
-        if (lower->position.y != 0) {
+        if (lower->position.z != 0) {
             continue;
         }
 
@@ -2178,12 +2171,12 @@ static void test_window_upper_and_lower_cripples_align(void)
                 continue;
             }
 
-            if (upper->position.y == 0) {
+            if (upper->position.z == 0) {
                 continue;
             }
 
-            if (upper->position.x ==
-                lower->position.x) {
+            if (upper->position.u ==
+                lower->position.u) {
 
                 found_matching_upper = true;
                 break;
@@ -2205,7 +2198,7 @@ static void test_window_upper_and_lower_cripples_align(void)
 
         if (stud->details.stud.type ==
                 STUD_CRIPPLE &&
-            stud->position.y != 0) {
+            stud->position.z != 0) {
 
             upper_count++;
         }
@@ -2242,10 +2235,7 @@ static void test_reject_overlapping_opening_assemblies(void)
     };
 
     assert(
-        wall_set_length(
-            &wall,
-            5000
-        )
+        wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 5000 } })
     );
 
     /*
@@ -2312,10 +2302,7 @@ static void test_accept_separated_openings(void)
     };
 
     assert(
-        wall_set_length(
-            &wall,
-            6000
-        )
+        wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 6000 } })
     );
 
     assert(
@@ -2373,7 +2360,7 @@ static void test_opening_does_not_break_max_stud_spacing(void)
         .stud_spacing_mode = STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 5000));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 5000 } }));
 
     assert(
         wall_add_opening(
@@ -2421,7 +2408,7 @@ static void test_all_vertical_member_spacing_with_openings(void)
             STUD_SPACING_MAXIMISE
     };
 
-    assert(wall_set_length(&wall, 6000));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 6000 } }));
 
     assert(
         wall_add_opening(
@@ -2487,10 +2474,7 @@ static void test_opening_positions_preserve_spacing(void)
         Wall wall = {0};
 
         assert(
-            wall_set_length(
-                &wall,
-                5000
-            )
+            wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 5000 } })
         );
 
         if (!wall_add_opening(
@@ -2542,10 +2526,7 @@ static void test_repairs_spacing_after_opening(void)
     };
 
     assert(
-        wall_set_length(
-            &wall,
-            6000
-        )
+        wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 6000 } })
     );
 
     /*
@@ -2597,10 +2578,7 @@ static void test_wall_destroy_resets_generated_wall(void)
 
     Wall wall = {0};
 
-    assert(wall_set_length(
-        &wall,
-        4200
-    ));
+    assert(wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } }));
 
     assert(wall_generate(
         &wall,
@@ -2661,10 +2639,7 @@ test_wall_definition_survives_framing_destroy(void)
     };
 
     assert(
-        wall_set_length(
-            &wall,
-            4200
-        )
+        wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     assert(
@@ -2688,7 +2663,7 @@ test_wall_definition_survives_framing_destroy(void)
     );
 
     assert(
-        wall.definition.length ==
+        wall_length_mm(&wall) ==
         4200
     );
 
@@ -2712,7 +2687,7 @@ test_wall_definition_survives_framing_destroy(void)
      * Authoritative state survives.
      */
     assert(
-        wall.definition.length ==
+        wall_length_mm(&wall) ==
         4200
     );
 
@@ -2798,7 +2773,7 @@ test_wall_definition_survives_framing_destroy(void)
     );
 
     assert(
-        wall.definition.length ==
+        wall_length_mm(&wall) ==
         4200
     );
 
@@ -2835,10 +2810,7 @@ test_failed_wall_regeneration_preserves_existing_framing(void)
     };
 
     assert(
-        wall_set_length(
-            &wall,
-            4200
-        )
+        wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     /*
@@ -2961,8 +2933,8 @@ test_failed_wall_regeneration_preserves_existing_framing(void)
     );
 
     assert(
-        wall.framing.bottomplate.position.y ==
-        bottomplate_before.position.y
+        wall.framing.bottomplate.position.z ==
+        bottomplate_before.position.z
     );
 
     assert(
@@ -2971,8 +2943,8 @@ test_failed_wall_regeneration_preserves_existing_framing(void)
     );
 
     assert(
-        wall.framing.topplate.position.y ==
-        topplate_before.position.y
+        wall.framing.topplate.position.z ==
+        topplate_before.position.z
     );
 
     wall_destroy(
@@ -2982,7 +2954,7 @@ test_failed_wall_regeneration_preserves_existing_framing(void)
 
 int main(void)
 {
-    test_wall_length_rejects_nonpositive_values_without_mutation();
+    test_wall_segment_rejects_zero_length_without_mutation();
     test_wall_generates_complete_plates();
     test_maximise_spacing();
     test_even_spacing();

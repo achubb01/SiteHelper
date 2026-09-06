@@ -52,7 +52,7 @@ typedef struct Timber
     int depth;
     int width;
 
-    Position position;
+    WallLocalPosition position;
     TimberType type;
 
     union

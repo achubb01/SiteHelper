@@ -26,10 +26,7 @@ static Wall *add_test_wall(
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(
-            project,
-            room_id
-        );
+        sitehelper_project_add_wall(project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id != DOMAIN_ID_INVALID
@@ -49,10 +46,7 @@ static Wall *add_test_wall(
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            length
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = length } })
     );
 
     assert(

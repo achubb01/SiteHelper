@@ -20,8 +20,8 @@ static inline int test_timber_equal_value(
     if (expected->length != actual->length ||
         expected->depth != actual->depth ||
         expected->width != actual->width ||
-        expected->position.x != actual->position.x ||
-        expected->position.y != actual->position.y ||
+        expected->position.u != actual->position.u ||
+        expected->position.z != actual->position.z ||
         expected->type != actual->type) {
         return 0;
     }
@@ -180,9 +180,10 @@ static inline void test_assert_wall_definition_equal(
     assert(actual != NULL);
 
     assert(expected->id == actual->id);
-    assert(expected->definition.origin.x == actual->definition.origin.x);
-    assert(expected->definition.origin.y == actual->definition.origin.y);
-    assert(expected->definition.length == actual->definition.length);
+    assert(expected->definition.segment.start.x == actual->definition.segment.start.x);
+    assert(expected->definition.segment.start.y == actual->definition.segment.start.y);
+    assert(expected->definition.segment.end.x == actual->definition.segment.end.x);
+    assert(expected->definition.segment.end.y == actual->definition.segment.end.y);
     assert(expected->definition.opening_count == actual->definition.opening_count);
 
     for (size_t i = 0; i < expected->definition.opening_count; i++) {
@@ -256,8 +257,7 @@ static inline void test_clone_wall_definition(
     *destination = (Wall){
         .id = source->id,
         .definition = {
-            .origin = source->definition.origin,
-            .length = source->definition.length
+            .segment = source->definition.segment
         }
     };
 

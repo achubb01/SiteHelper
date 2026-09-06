@@ -23,8 +23,8 @@ int wall_add_stud(
 int wall_add_custom_stud(
     Wall *wall,
     const BuildSettings *settings,
-    int x, 
-    int y,
+    int u,
+    int z,
     int length,
     StudType type
 )
@@ -33,7 +33,7 @@ int wall_add_custom_stud(
         return 0;
     }
 
-    if (x < 0 || y < 0 || length <= 0) {
+    if (u < 0 || z < 0 || length <= 0) {
         return 0;
     }
 
@@ -65,8 +65,8 @@ int wall_add_custom_stud(
         .width = settings->stud_width,
 
         .position = {
-            .x = x,
-            .y = y
+            .u = u,
+            .z = z
         },
 
         .type = TIMBER_STUD,
@@ -124,8 +124,8 @@ int wall_compare_stud_position(
     const Timber *stud_b = b;
 
     return
-        stud_a->position.x -
-        stud_b->position.x;
+        stud_a->position.u -
+        stud_b->position.u;
 }
 
 
@@ -141,7 +141,7 @@ int wall_add_stud_at_position(
         generation->wall,
         generation->settings,
         position,
-        generation->y,
+        generation->z,
         generation->length,
         generation->type
     );

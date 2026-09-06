@@ -19,9 +19,7 @@ static int opening_command_copy_wall_definition(
         .id = source->id,
 
         .definition = {
-            .origin = source->definition.origin,
-            .length =
-                source->definition.length
+            .segment = source->definition.segment
         },
 
         .framing = {0}

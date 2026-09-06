@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <limits.h>
+#include <errno.h>
 
 #include "actions.h"
 #include "sitehelper_model.h"
@@ -170,7 +172,9 @@ void addWall(void *context)
     DomainId wall_id =
         sitehelper_project_add_wall(
             &app->project,
-            app->editor.current_room_id
+            app->editor.current_room_id,
+            /* Legacy CLI starts with an explicit horizontal 4200 mm segment. */
+            (WallPlanSegment){ .end = { .x = 4200 } }
         );
 
     if (wall_id == DOMAIN_ID_INVALID) {
@@ -265,6 +269,7 @@ void setWallLength(void *context)
     }
 
     char *end;
+    errno = 0;
     long input = strtol(buffer, &end, 10);
 
     if (end == buffer) {
@@ -272,7 +277,14 @@ void setWallLength(void *context)
         return;
     }
 
-    if (!wall_set_length(wall, (int)input)) {
+    PlanPosition start = wall->definition.segment.start;
+    /* Legacy length editing deliberately establishes a horizontal segment. */
+    if (errno == ERANGE || input <= 0 || input > INT_MAX ||
+        start.x > INT_MAX - input ||
+        !wall_set_plan_segment(wall, (WallPlanSegment){
+            .start = start,
+            .end = { .x = start.x + (int)input, .y = start.y }
+        })) {
         printf("Invalid wall length.\n");
         return;
     }
@@ -543,7 +555,7 @@ void describeBuild(void *context)
 
             printf(
                 "    Length: %d mm\n",
-                wall->definition.length
+                wall_length_mm(wall)
             );
 
             printf(
@@ -563,7 +575,7 @@ void describeBuild(void *context)
                     "position = %d mm, "
                     "length = %d mm\n",
                     stud_index + 1,
-                    stud->position.x,
+                    stud->position.u,
                     stud->length
                 );
             }
@@ -576,7 +588,7 @@ void describeBuild(void *context)
             if (wall->framing.nog_count > 0) {
 
                 int current_height =
-                    wall->framing.nogs[0].position.y;
+                    wall->framing.nogs[0].position.z;
 
                 printf(
                     "      Noggin row at %d mm\n",
@@ -591,7 +603,7 @@ void describeBuild(void *context)
                         &wall->framing.nogs[nog_index];
 
                     int height =
-                        noggin->position.y;
+                        noggin->position.z;
 
                     if (height != current_height) {
 

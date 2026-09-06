@@ -38,8 +38,9 @@ typedef struct
     SnapType type;
 } SnapResult;
 
+/* Input, candidates, and result share the caller's geometry space. */
 SnapResult editor_snap(
-    Vec2 world_position,
+    Vec2 position,
     const SnapCandidate *candidates,
     size_t candidate_count,
     const SnapSettings *settings

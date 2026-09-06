@@ -5,10 +5,11 @@
 
 #include "opening.h"
 #include "timber.h"
+#include "wall_plan_segment.h"
 
 typedef struct WallDefinition {
-    Position origin;
-    int length;
+    /* Ordered endpoints are the sole physical longitudinal geometry. */
+    WallPlanSegment segment;
 
     Opening *openings;
     size_t opening_count;

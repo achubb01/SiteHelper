@@ -17,14 +17,14 @@ static int snap_priority(
 );
 
 SnapResult editor_snap(
-    Vec2 world_position,
+    Vec2 position,
     const SnapCandidate *candidates,
     size_t candidate_count,
     const SnapSettings *settings
 )
 {
     SnapResult fallback = {
-        .position = world_position,
+        .position = position,
         .type = SNAP_NONE
     };
 
@@ -38,7 +38,7 @@ SnapResult editor_snap(
     ) {
         fallback = (SnapResult){
             .position = grid_snap_position(
-                world_position,
+                position,
                 settings->grid_spacing
             ),
             .type = SNAP_GRID
@@ -61,7 +61,7 @@ SnapResult editor_snap(
         tolerance_squared;
 
     SnapResult object_result = {
-        .position = world_position,
+        .position = position,
         .type = SNAP_NONE
     };
 
@@ -81,7 +81,7 @@ SnapResult editor_snap(
 
         double candidate_distance_squared =
             distance_squared(
-                world_position,
+                position,
                 candidate->position
             );
 

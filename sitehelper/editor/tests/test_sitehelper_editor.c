@@ -11,8 +11,8 @@ static Timber make_test_stud(void)
         .width = 90,
 
         .position = {
-            .x = 100,
-            .y = 0
+            .u = 100,
+            .z = 0
         },
 
         .type = TIMBER_STUD,
@@ -203,9 +203,9 @@ static void test_editor_selects_wall_member_at_position(void)
     sitehelper_editor_select_wall_member_at_position(
         &editor,
         &wall,
-        (Position){
-            .x = 120,
-            .y = 1000
+        (WallLocalPosition){
+            .u = 120,
+            .z = 1000
         }
     );
 
@@ -259,9 +259,9 @@ static void test_editor_clicking_empty_space_clears_selection(void)
     sitehelper_editor_select_wall_member_at_position(
         &editor,
         &wall,
-        (Position){
-            .x = 120,
-            .y = 1000
+        (WallLocalPosition){
+            .u = 120,
+            .z = 1000
         }
     );
 
@@ -276,9 +276,9 @@ static void test_editor_clicking_empty_space_clears_selection(void)
     sitehelper_editor_select_wall_member_at_position(
         &editor,
         &wall,
-        (Position){
-            .x = 500,
-            .y = 1000
+        (WallLocalPosition){
+            .u = 500,
+            .z = 1000
         }
     );
 
@@ -312,9 +312,9 @@ static void test_editor_clear_selection_clears_selection(void)
     sitehelper_editor_select_wall_member_at_position(
         &editor,
         &wall,
-        (Position){
-            .x = 120,
-            .y = 1000
+        (WallLocalPosition){
+            .u = 120,
+            .z = 1000
         }
     );
 
@@ -360,9 +360,9 @@ static void test_editor_selecting_null_wall_preserves_selection(void)
     sitehelper_editor_select_wall_member_at_position(
         &editor,
         &wall,
-        (Position){
-            .x = 120,
-            .y = 1000
+        (WallLocalPosition){
+            .u = 120,
+            .z = 1000
         }
     );
 
@@ -377,9 +377,9 @@ static void test_editor_selecting_null_wall_preserves_selection(void)
     sitehelper_editor_select_wall_member_at_position(
         &editor,
         NULL,
-        (Position){
-            .x = 0,
-            .y = 0
+        (WallLocalPosition){
+            .u = 0,
+            .z = 0
         }
     );
 
@@ -530,8 +530,8 @@ static void test_editor_updates_snap_from_wall_candidates(void)
         .length = 2400,
 
         .position = {
-            .x = 600,
-            .y = 0
+            .u = 600,
+            .z = 0
         },
 
         .type = TIMBER_STUD
@@ -717,7 +717,7 @@ static void test_opening_tool_pointer_move_updates_preview(void)
     };
 
     Wall wall = {
-        .definition.length = 4000,
+        .definition.segment.end.x = 4000,
         .framing.studs = studs,
         .framing.stud_count = 4
     };
@@ -785,7 +785,7 @@ static void test_editor_pointer_move_updates_opening_placement(void)
     };
 
     Wall wall = {
-        .definition.length = 4000,
+        .definition.segment.end.x = 4000,
         .framing.studs = studs,
         .framing.stud_count = 4
     };
@@ -1381,7 +1381,7 @@ test_editor_invalidate_transient_state_clears_snap_and_opening_placement(void)
 static void test_editor_keeps_validated_candidate_geometry(void)
 {
     Wall wall = {
-        .definition.length = 4200
+        .definition.segment.end.x = 4200
     };
     BuildSettings settings = opening_test_settings();
     SiteHelperEditor editor = opening_test_editor();
@@ -1407,7 +1407,7 @@ static void test_editor_keeps_validated_candidate_geometry(void)
 static void test_editor_keeps_left_end_rejected_candidate(void)
 {
     Wall wall = {
-        .definition.length = 4200
+        .definition.segment.end.x = 4200
     };
     BuildSettings settings = opening_test_settings();
     SiteHelperEditor editor = opening_test_editor();
@@ -1434,7 +1434,7 @@ static void test_editor_keeps_left_end_rejected_candidate(void)
 static void test_editor_keeps_right_end_rejected_candidate(void)
 {
     Wall wall = {
-        .definition.length = 4200
+        .definition.segment.end.x = 4200
     };
     BuildSettings settings = opening_test_settings();
     SiteHelperEditor editor = opening_test_editor();
@@ -1461,7 +1461,7 @@ static void test_editor_keeps_right_end_rejected_candidate(void)
 static void test_editor_keeps_height_rejected_candidate(void)
 {
     Wall wall = {
-        .definition.length = 4200
+        .definition.segment.end.x = 4200
     };
     BuildSettings settings = opening_test_settings();
     SiteHelperEditor editor = opening_test_editor();
@@ -1499,7 +1499,7 @@ static void test_editor_keeps_overlapping_candidate(void)
     };
     Wall wall = {
         .definition = {
-            .length = 4200,
+            .segment.end.x = 4200,
             .openings = openings,
             .opening_count = 1
         }
@@ -1536,7 +1536,7 @@ static void test_editor_applies_opening_width_allowance_during_validation(void)
         (3 * settings.stud_width) -
         nominal_width;
     Wall wall = {
-        .definition.length = wall_length
+        .definition.segment.end.x = wall_length
     };
     SiteHelperEditor editor = opening_test_editor();
 
@@ -1587,8 +1587,10 @@ static void test_opening_tool_does_not_mutate_wall_before_command_execution(void
     Wall wall = {
         .id = 20,
         .definition = {
-            .origin = { .x = 5000, .y = 3000 },
-            .length = 4200
+            .segment = {
+                .start = { .x = 5000, .y = 3000 },
+                .end = { .x = 9200, .y = 3000 }
+            }
         }
     };
     BuildSettings settings = opening_test_settings();
@@ -1614,9 +1616,9 @@ static void test_opening_tool_does_not_mutate_wall_before_command_execution(void
 
     /* Previewing and producing a command are editor-only operations. */
     assert(wall.id == 20);
-    assert(wall.definition.origin.x == 5000);
-    assert(wall.definition.origin.y == 3000);
-    assert(wall.definition.length == 4200);
+    assert(wall.definition.segment.start.x == 5000);
+    assert(wall.definition.segment.start.y == 3000);
+    assert(wall_length_mm(&wall) == 4200);
     assert(wall.definition.openings == NULL);
     assert(wall.definition.opening_count == 0);
     assert(wall.framing.studs == NULL);

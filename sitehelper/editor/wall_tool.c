@@ -1,6 +1,8 @@
 #include "wall_tool.h"
 
 #include <stddef.h>
+#include <limits.h>
+#include <math.h>
 
 void wall_tool_init(WallTool *tool)
 {
@@ -44,47 +46,32 @@ int wall_tool_begin(WallTool *tool, Vec2 start)
 
 int wall_tool_command_data(
     const WallTool *tool,
-    Position *origin,
-    int *length
+    WallPlanSegment *segment
 )
 {
-    if (tool == NULL || origin == NULL || length == NULL ||
+    if (tool == NULL || segment == NULL ||
         !tool->active || !tool->has_start) {
 
         return 0;
     }
 
-    double left = tool->start.x < tool->endpoint.x
-        ? tool->start.x
-        : tool->endpoint.x;
-    double difference = tool->endpoint.x - tool->start.x;
-    double width = difference < 0.0 ? -difference : difference;
-
-    if (width < 1.0) {
-        return 0;
+    const double coordinates[] = {
+        tool->start.x, tool->start.y, tool->endpoint.x, tool->endpoint.y
+    };
+    for (size_t i = 0; i < sizeof coordinates / sizeof coordinates[0]; i++) {
+        if (!isfinite(coordinates[i]) || coordinates[i] < INT_MIN ||
+            coordinates[i] > INT_MAX) {
+            return 0;
+        }
     }
 
-    *origin = (Position){
-        .x = (int)left,
-        .y = (int)tool->start.y
+    WallPlanSegment candidate = {
+        .start = { .x = (int)tool->start.x, .y = (int)tool->start.y },
+        .end = { .x = (int)tool->endpoint.x, .y = (int)tool->endpoint.y }
     };
-    *length = (int)width;
-    return *length > 0;
-}
-
-int wall_tool_preview_rect(const WallTool *tool, Rect2 *rect)
-{
-    Position origin;
-    int length;
-
-    if (!wall_tool_command_data(tool, &origin, &length)) {
+    if (wall_plan_segment_length_mm(candidate) == 0) {
         return 0;
     }
-
-    *rect = (Rect2){
-        .position = { .x = origin.x, .y = origin.y },
-        .width = length,
-        .height = 20.0
-    };
+    *segment = candidate;
     return 1;
 }

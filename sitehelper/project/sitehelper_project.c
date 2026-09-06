@@ -76,7 +76,8 @@ DomainId sitehelper_project_add_room(
 
 DomainId sitehelper_project_add_wall(
     SiteHelperProject *project,
-    DomainId room_id
+    DomainId room_id,
+    WallPlanSegment segment
 )
 {
     if (project == NULL ||
@@ -103,6 +104,9 @@ DomainId sitehelper_project_add_wall(
     }
 
     Wall wall = { .id = wall_id };
+    if (!wall_set_plan_segment(&wall, segment)) {
+        return DOMAIN_ID_INVALID;
+    }
 
     if (!room_add_wall_reference(room, wall_id)) {
         return DOMAIN_ID_INVALID;

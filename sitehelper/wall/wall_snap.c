@@ -65,8 +65,8 @@ static Vec2 timber_start(
 )
 {
     return (Vec2){
-        .x = (double)timber->position.x,
-        .y = (double)timber->position.y
+        .x = (double)timber->position.u,
+        .y = (double)timber->position.z
     };
 }
 
@@ -162,18 +162,18 @@ static Vec2 timber_start_face_centre(
     if (timber_is_vertical(timber)) {
         return (Vec2){
             .x =
-                (double)timber->position.x
+                (double)timber->position.u
                 + (double)timber->width / 2.0,
 
-            .y = (double)timber->position.y
+            .y = (double)timber->position.z
         };
     }
 
     return (Vec2){
-        .x = (double)timber->position.x,
+        .x = (double)timber->position.u,
 
         .y =
-            (double)timber->position.y
+            (double)timber->position.z
             + (double)timber->width / 2.0
     };
 }
@@ -243,10 +243,10 @@ static int point_is_on_timber(
     }
 
     double left =
-        (double)timber->position.x;
+        (double)timber->position.u;
 
     double bottom =
-        (double)timber->position.y;
+        (double)timber->position.z;
 
     double right;
     double top;

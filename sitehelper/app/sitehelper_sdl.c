@@ -391,8 +391,9 @@ static void sitehelper_app_render(
         );
 
         if (wall != NULL) {
-            preview_rect.position.x += wall->definition.origin.x;
-            preview_rect.position.y += wall->definition.origin.y;
+            /* Match wall_render's temporary elevation layout offset. */
+            preview_rect.position.x += wall->definition.segment.start.x;
+            preview_rect.position.y += wall->definition.segment.start.y;
         }
 
         renderer2d_draw_rect(
@@ -407,10 +408,12 @@ static void sitehelper_app_render(
         );
     }
 
-    if (sitehelper_editor_get_wall_preview_rect(&app->editor, &preview_rect)) {
-        renderer2d_draw_rect(
+    WallPlanSegment preview_segment;
+    if (sitehelper_editor_get_wall_preview_segment(&app->editor, &preview_segment)) {
+        renderer2d_draw_line(
             app->renderer,
-            preview_rect,
+            (Vec2){ .x = preview_segment.start.x, .y = preview_segment.start.y },
+            (Vec2){ .x = preview_segment.end.x, .y = preview_segment.end.y },
             (Colour){ .r = 100, .g = 220, .b = 150, .a = 255 }
         );
     }
@@ -684,7 +687,7 @@ static void sitehelper_app_process_events(
                         Viewport2D viewport = renderer2d_get_viewport(
                             app->renderer
                         );
-                        Vec2 world_position = camera_screen_to_world(
+                        Vec2 layout_position = camera_screen_to_world(
                             &camera,
                             viewport,
                             screen_position
@@ -699,7 +702,7 @@ static void sitehelper_app_process_events(
                             &app->editor,
                             &app->project.structure,
                             room,
-                                world_position,
+                                layout_position,
                                 &action)) {
                             continue;
                         }
@@ -822,7 +825,7 @@ static void sitehelper_app_update_editor_pointer(
             app->renderer
         );
 
-    Vec2 world_position =
+    Vec2 layout_position =
         camera_screen_to_world(
             &camera,
             viewport,
@@ -838,7 +841,7 @@ static void sitehelper_app_update_editor_pointer(
         &app->editor,
         wall,
         &app->project.settings,
-        world_position
+        layout_position
     );
 }
 
@@ -914,8 +917,9 @@ static void sitehelper_app_render_snap_cursor(
         sitehelper_editor_get_active_tool(&app->editor) ==
             EDITOR_TOOL_OPENING) {
 
-        position.x += wall->definition.origin.x;
-        position.y += wall->definition.origin.y;
+        /* Match wall_render's temporary elevation layout offset. */
+        position.x += wall->definition.segment.start.x;
+        position.y += wall->definition.segment.start.y;
     }
 
     renderer2d_draw_line(

@@ -33,7 +33,7 @@ WallOpeningValidation wall_validate_opening(
 {
     if (wall == NULL ||
         settings == NULL ||
-        proposal == NULL) {
+        proposal == NULL || wall_length_mm(wall) == 0) {
 
         return wall_opening_validation(
             WALL_OPENING_INVALID_ARGUMENT,
@@ -101,7 +101,7 @@ WallOpeningValidation wall_validate_opening(
         );
     }
 
-    if (assembly_end > wall->definition.length - settings->stud_width) {
+    if (assembly_end > wall_length_mm(wall) - settings->stud_width) {
         return wall_opening_validation(
             WALL_OPENING_TOO_CLOSE_TO_RIGHT_END,
             DOMAIN_ID_INVALID
@@ -314,7 +314,8 @@ const Opening *wall_find_opening_by_id_const(
 
 int wall_apply_openings(
     Wall *wall,
-    const BuildSettings *settings
+    const BuildSettings *settings,
+    int wall_length
 )
 {
     if (wall == NULL || settings == NULL) {
@@ -374,7 +375,7 @@ int wall_apply_openings(
 
         if (right_king_position +
             settings->stud_width >
-            wall->definition.length) {
+            wall_length) {
 
             return 0;
         }
@@ -506,7 +507,7 @@ static int stud_overlaps_range(
     }
 
     int stud_start =
-        stud->position.x;
+        stud->position.u;
 
     int stud_end =
         stud_start +
@@ -747,9 +748,9 @@ static int wall_generate_upper_cripples(
     }
 
     /*
-     * Header position.y is its bottom face.
+     * Header position.z is its bottom face.
      */
-    int header_y =
+    int header_z =
         opening->frame_bottom +
         frame_height;
 
@@ -757,8 +758,8 @@ static int wall_generate_upper_cripples(
      * Upper cripples begin on top
      * of the header.
      */
-    int cripple_y =
-        header_y +
+    int cripple_z =
+        header_z +
         settings->stud_width;
 
     /*
@@ -767,7 +768,7 @@ static int wall_generate_upper_cripples(
      */
     int cripple_length =
         settings->stud_height -
-        cripple_y;
+        cripple_z;
 
     if (cripple_length <= 0) {
         return 0;
@@ -793,7 +794,7 @@ static int wall_generate_upper_cripples(
         .wall = wall,
         .settings = settings,
 
-        .y = cripple_y,
+        .z = cripple_z,
         .length = cripple_length,
 
         .type = STUD_CRIPPLE
@@ -901,11 +902,11 @@ int wall_repair_stud_spacing(
             &wall->framing.studs[i];
 
         int spacing =
-            right->position.x -
-            left->position.x;
+            right->position.u -
+            left->position.u;
 
         /*
-         * Same X or touching/closely packed
+         * Same U or touching/closely packed
          * members require no repair.
          */
         if (spacing <=
@@ -949,7 +950,7 @@ int wall_repair_stud_spacing(
              gap++) {
 
             int position =
-                left->position.x +
+                left->position.u +
                 (spacing * gap) / gaps;
 
             if (!wall_add_stud(
@@ -1001,11 +1002,11 @@ static int wall_span_is_opening(
      * members.
      */
     int span_left =
-        left->position.x +
+        left->position.u +
         settings->stud_width;
 
     int span_right =
-        right->position.x;
+        right->position.u;
 
     if (span_right <= span_left) {
         return 0;

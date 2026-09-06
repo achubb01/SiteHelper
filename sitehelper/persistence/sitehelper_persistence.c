@@ -13,7 +13,7 @@
 
 enum
 {
-    SITEHELPER_PROJECT_FORMAT_VERSION = 3,
+    SITEHELPER_PROJECT_FORMAT_VERSION = 4,
     PERSISTENCE_TOKEN_CAPACITY = 64
 };
 
@@ -552,7 +552,7 @@ static SiteHelperPersistenceResult project_validate_for_save(
 
             const Wall *wall = &project->structure.walls[wall_index];
 
-            if (wall->definition.length <= 0 ||
+            if (wall_length_mm(wall) == 0 ||
                 (wall->definition.opening_count != 0 &&
                  wall->definition.openings == NULL) ||
                 wall->definition.opening_count >
@@ -562,7 +562,7 @@ static SiteHelperPersistenceResult project_validate_for_save(
             }
 
             Wall validation_wall = {
-                .definition.length = wall->definition.length
+                .definition.segment = wall->definition.segment
             };
 
             for (size_t opening_index = 0;
@@ -699,8 +699,7 @@ static SiteHelperPersistenceResult parse_wall(
 {
     char token[PERSISTENCE_TOKEN_CAPACITY];
     DomainId wall_id;
-    Position origin = {0};
-    int length;
+    WallPlanSegment segment = {0};
     size_t opening_count;
 
     if (expect_token(file, "wall") != SITEHELPER_PERSISTENCE_SUCCESS ||
@@ -711,21 +710,45 @@ static SiteHelperPersistenceResult parse_wall(
         return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
     }
 
-    if (version >= 2) {
-        if (expect_token(file, "origin") != SITEHELPER_PERSISTENCE_SUCCESS ||
+    if (version >= 4) {
+        if (expect_token(file, "segment") != SITEHELPER_PERSISTENCE_SUCCESS ||
             read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
-            !parse_int_token(token, &origin.x) ||
+            !parse_int_token(token, &segment.start.x) ||
             read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
-            !parse_int_token(token, &origin.y)) {
+            !parse_int_token(token, &segment.start.y) ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &segment.end.x) ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &segment.end.y)) {
 
             return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
         }
+    } else {
+        if (version >= 2) {
+            if (expect_token(file, "origin") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &segment.start.x) ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &segment.start.y)) {
+                return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+            }
+        }
+        int length;
+        if (expect_token(file, "length") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &length)) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        /* Versions 1-3 represented horizontal walls. Check before adding. */
+        if (length <= 0 || segment.start.x > INT_MAX - length) {
+            return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+        segment.end = (PlanPosition){
+            .x = segment.start.x + length, .y = segment.start.y
+        };
     }
 
     if (
-        expect_token(file, "length") != SITEHELPER_PERSISTENCE_SUCCESS ||
-        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
-        !parse_int_token(token, &length) ||
         expect_token(file, "openings") != SITEHELPER_PERSISTENCE_SUCCESS ||
         read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
         !parse_size_token(token, &opening_count)) {
@@ -734,8 +757,7 @@ static SiteHelperPersistenceResult parse_wall(
     }
 
     Wall candidate = { .id = wall_id };
-    if (!wall_set_origin(&candidate, origin) ||
-        !wall_set_length(&candidate, length) ||
+    if (!wall_set_plan_segment(&candidate, segment) ||
         !build_append_wall(&project->structure, &candidate)) {
 
         wall_destroy(&candidate);
@@ -985,11 +1007,12 @@ static int write_project(
             const Wall *wall = &project->structure.walls[wall_index];
 
             if (fprintf(file,
-                    "wall %" PRIu64 " origin %d %d length %d openings %zu\n",
+                    "wall %" PRIu64 " segment %d %d %d %d openings %zu\n",
                     (uint64_t)wall->id,
-                    wall->definition.origin.x,
-                    wall->definition.origin.y,
-                    wall->definition.length,
+                    wall->definition.segment.start.x,
+                    wall->definition.segment.start.y,
+                    wall->definition.segment.end.x,
+                    wall->definition.segment.end.y,
                     wall->definition.opening_count) < 0) {
 
                 return 0;

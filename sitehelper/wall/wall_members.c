@@ -95,7 +95,7 @@ int wall_add_header(
         frame_width +
         (2 * settings->stud_width);
 
-    int header_y =
+    int header_z =
         opening->frame_bottom +
         frame_height;
 
@@ -103,8 +103,8 @@ int wall_add_header(
         return 0;
     }
 
-    if (header_y < 0 ||
-        header_y > settings->stud_height) {
+    if (header_z < 0 ||
+        header_z > settings->stud_height) {
         return 0;
     }
 
@@ -114,8 +114,8 @@ int wall_add_header(
         .width = settings->stud_width,
 
         .position = {
-            .x = left_trimmer_position,
-            .y = header_y
+            .u = left_trimmer_position,
+            .z = header_z
         },
 
         .type = TIMBER_HEADER
@@ -160,8 +160,8 @@ int wall_add_sill(
         .width = settings->stud_width,
 
         .position = {
-            .x = opening->frame_position,
-            .y = opening->frame_bottom
+            .u = opening->frame_position,
+            .z = opening->frame_bottom
         },
 
         .type = TIMBER_SILL

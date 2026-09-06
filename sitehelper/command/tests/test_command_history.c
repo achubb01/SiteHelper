@@ -39,10 +39,7 @@ add_test_wall(
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(
-            project,
-            room_id
-        );
+        sitehelper_project_add_wall(project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id != DOMAIN_ID_INVALID
@@ -62,10 +59,7 @@ add_test_wall(
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            length
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = length } })
     );
 
     assert(
@@ -595,10 +589,7 @@ test_redo_moves_history_cursor_forward(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(
-            &project,
-            room_id
-        );
+        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -618,10 +609,7 @@ test_redo_moves_history_cursor_forward(void)
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            4200
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     assert(
@@ -770,10 +758,7 @@ test_failed_redo_preserves_history_position(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(
-            &project,
-            room_id
-        );
+        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -793,10 +778,7 @@ test_failed_redo_preserves_history_position(void)
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            4200
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     assert(
@@ -979,10 +961,7 @@ test_execute_after_undo_discards_redo_branch(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(
-            &project,
-            room_id
-        );
+        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -1002,10 +981,7 @@ test_execute_after_undo_discards_redo_branch(void)
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            6000
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = 6000 } })
     );
 
     assert(
@@ -1252,10 +1228,7 @@ test_failed_execute_after_undo_preserves_redo_branch(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(
-            &project,
-            room_id
-        );
+        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -1275,10 +1248,7 @@ test_failed_execute_after_undo_preserves_redo_branch(void)
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            6000
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = 6000 } })
     );
 
     assert(
@@ -1526,10 +1496,7 @@ test_multiple_commands_can_be_undone_and_redone_in_order(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(
-            &project,
-            room_id
-        );
+        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -1549,10 +1516,7 @@ test_multiple_commands_can_be_undone_and_redone_in_order(void)
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            6000
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = 6000 } })
     );
 
     assert(
@@ -1914,10 +1878,7 @@ test_undo_and_redo_reject_history_boundaries(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(
-            &project,
-            room_id
-        );
+        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -1937,10 +1898,7 @@ test_undo_and_redo_reject_history_boundaries(void)
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            4200
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     assert(

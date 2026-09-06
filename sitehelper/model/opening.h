@@ -16,11 +16,11 @@ typedef struct
 
     OpeningType type;
 
-    int frame_position;
-    int frame_bottom;
+    int frame_position; /* Wall-local U, in millimetres. */
+    int frame_bottom;   /* Wall-local Z, in millimetres. */
 
-    int width;
-    int height;
+    int width;  /* Extent along U, in millimetres. */
+    int height; /* Extent along Z, in millimetres. */
 
     int width_allowance;
     int height_allowance;

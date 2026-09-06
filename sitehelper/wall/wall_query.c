@@ -14,7 +14,7 @@ static bool timber_has_valid_dimensions(
 
 static bool vertical_timber_contains_position(
     const Timber *timber,
-    Position position
+    WallLocalPosition position
 )
 {
     if (!timber_has_valid_dimensions(timber)) {
@@ -22,30 +22,30 @@ static bool vertical_timber_contains_position(
     }
 
     int left =
-        timber->position.x;
+        timber->position.u;
 
     int right =
-        timber->position.x +
+        timber->position.u +
         timber->width;
 
     int bottom =
-        timber->position.y;
+        timber->position.z;
 
     int top =
-        timber->position.y +
+        timber->position.z +
         timber->length;
 
     return
-        position.x >= left &&
-        position.x <= right &&
-        position.y >= bottom &&
-        position.y <= top;
+        position.u >= left &&
+        position.u <= right &&
+        position.z >= bottom &&
+        position.z <= top;
 }
 
 
 static bool horizontal_timber_contains_position(
     const Timber *timber,
-    Position position
+    WallLocalPosition position
 )
 {
     if (!timber_has_valid_dimensions(timber)) {
@@ -53,31 +53,31 @@ static bool horizontal_timber_contains_position(
     }
 
     int left =
-        timber->position.x;
+        timber->position.u;
 
     int right =
-        timber->position.x +
+        timber->position.u +
         timber->length;
 
     int bottom =
-        timber->position.y;
+        timber->position.z;
 
     int top =
-        timber->position.y +
+        timber->position.z +
         timber->width;
 
     return
-        position.x >= left &&
-        position.x <= right &&
-        position.y >= bottom &&
-        position.y <= top;
+        position.u >= left &&
+        position.u <= right &&
+        position.z >= bottom &&
+        position.z <= top;
 }
 
 
 static const Timber *find_vertical_timber_in_array(
     const Timber *timbers,
     size_t count,
-    Position position
+    WallLocalPosition position
 )
 {
     if (timbers == NULL) {
@@ -100,7 +100,7 @@ static const Timber *find_vertical_timber_in_array(
 static const Timber *find_horizontal_timber_in_array(
     const Timber *timbers,
     size_t count,
-    Position position
+    WallLocalPosition position
 )
 {
     if (timbers == NULL) {
@@ -122,7 +122,7 @@ static const Timber *find_horizontal_timber_in_array(
 
 WallMemberHit wall_find_member_at_position(
     const Wall *wall,
-    Position position
+    WallLocalPosition position
 )
 {
     WallMemberHit hit = {

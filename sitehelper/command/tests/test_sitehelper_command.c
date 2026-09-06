@@ -23,10 +23,7 @@ test_execute_dispatches_opening_command(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(
-            &project,
-            room_id
-        );
+        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id != DOMAIN_ID_INVALID
@@ -46,10 +43,7 @@ test_execute_dispatches_opening_command(void)
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            4200
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     assert(
@@ -213,10 +207,7 @@ test_failed_command_produces_no_result(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(
-            &project,
-            room_id
-        );
+        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id != DOMAIN_ID_INVALID
@@ -236,10 +227,7 @@ test_failed_command_produces_no_result(void)
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            4200
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     assert(
@@ -335,10 +323,7 @@ test_undo_dispatches_opening_command(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(
-            &project,
-            room_id
-        );
+        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id != DOMAIN_ID_INVALID
@@ -358,10 +343,7 @@ test_undo_dispatches_opening_command(void)
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            4200
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     assert(
@@ -453,10 +435,7 @@ test_redo_dispatches_opening_command(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(
-            &project,
-            room_id
-        );
+        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -477,10 +456,7 @@ test_redo_dispatches_opening_command(void)
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            4200
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     assert(

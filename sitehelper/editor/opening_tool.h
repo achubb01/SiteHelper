@@ -14,6 +14,7 @@ typedef struct
     int height;
     int bottom;
 
+    /* Local elevation geometry, x = U and y = Z, in millimetres. */
     Vec2 preview_position;
     int preview_valid;
 } OpeningTool;

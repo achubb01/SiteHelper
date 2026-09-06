@@ -8,50 +8,23 @@ typedef int (*PositionCallback)(
     void *context
 );
 
-static int wall_generate_studs(Wall *wall, const BuildSettings *settings);
+static int wall_generate_studs(Wall *wall, const BuildSettings *settings, int wall_length);
 
 
-static int wall_generate_plates(Wall *wall, const BuildSettings *settings);
+static int wall_generate_plates(Wall *wall, const BuildSettings *settings, int wall_length);
 
 
-
-int wall_set_length(Wall *wall, int length)
-{
-    if (wall == NULL) {
-        return 0;
-    }
-
-    if (length <= 0) {
-        return 0;
-    }
-
-    wall->definition.length = length;
-
-    return 1;
-}
-
-int wall_set_origin(Wall *wall, Position origin)
-{
-    if (wall == NULL) {
-        return 0;
-    }
-
-    wall->definition.origin = origin;
-    return 1;
-}
 
 static int wall_generate_plates(
     Wall *wall,
-    const BuildSettings *settings
+    const BuildSettings *settings,
+    int wall_length
 )
 {
     if (wall == NULL ||
         settings == NULL) {
         return 0;
     }
-
-    int wall_length =
-        wall->definition.length;
 
     if (wall_length <= 0 ||
         settings->stud_width <= 0 ||
@@ -66,8 +39,8 @@ static int wall_generate_plates(
         .width = settings->stud_width,
 
         .position = {
-            .x = 0,
-            .y = 0
+            .u = 0,
+            .z = 0
         },
 
         .type = TIMBER_PLATE,
@@ -83,8 +56,8 @@ static int wall_generate_plates(
         .width = settings->stud_width,
 
         .position = {
-            .x = 0,
-            .y = settings->stud_height
+            .u = 0,
+            .z = settings->stud_height
         },
 
         .type = TIMBER_PLATE,
@@ -99,24 +72,28 @@ static int wall_generate_plates(
 
 static int wall_build_framing(
     Wall *wall,
-    const BuildSettings *settings
+    const BuildSettings *settings,
+    int wall_length
 )
 {
     if (!wall_generate_plates(
             wall,
-            settings)) {
+            settings,
+            wall_length)) {
         return 0;
     }
 
     if (!wall_generate_studs(
             wall,
-            settings)) {
+            settings,
+            wall_length)) {
         return 0;
     }
 
     if (!wall_apply_openings(
             wall,
-            settings)) {
+            settings,
+            wall_length)) {
         return 0;
     }
 
@@ -144,7 +121,8 @@ int wall_generate(
         return 0;
     }
 
-    if (wall->definition.length <= 0) {
+    int wall_length = wall_length_mm(wall);
+    if (wall_length == 0) {
         return 0;
     }
 
@@ -163,6 +141,8 @@ int wall_generate(
      * The definition is borrowed from the
      * live wall. The candidate does not own
      * the openings array.
+     * Local generation receives only the derived scalar length; it does not
+     * inspect the borrowed physical segment.
      */
     Wall candidate = {
         .id = wall->id,
@@ -172,7 +152,8 @@ int wall_generate(
 
     if (!wall_build_framing(
             &candidate,
-            settings)) {
+            settings,
+            wall_length)) {
 
         wall_framing_destroy(
             &candidate.framing
@@ -199,7 +180,8 @@ int wall_generate(
 
 static int wall_generate_studs(
     Wall *wall,
-    const BuildSettings *settings
+    const BuildSettings *settings,
+    int wall_length
 )
 {
     if (wall == NULL ||
@@ -208,7 +190,7 @@ static int wall_generate_studs(
     }
 
     int end =
-        wall->definition.length -
+        wall_length -
         settings->stud_width;
 
     if (end < 0) {
@@ -230,8 +212,6 @@ static int wall_generate_studs(
         &context
     );
 }
-
-
 
 
 

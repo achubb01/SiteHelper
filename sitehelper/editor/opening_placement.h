@@ -9,8 +9,8 @@ typedef struct
 {
     int has_candidate;
 
-    double left;
-    double bottom;
+    double left;   /* Preview U in millimetres; committed dimensions are int. */
+    double bottom; /* Preview Z in millimetres. */
 
     int width;
     int height;
@@ -18,6 +18,7 @@ typedef struct
     WallOpeningValidation validation;
 } OpeningPlacement;
 
+/* Input is local elevation geometry (x = U, y = Z), without layout offset. */
 OpeningPlacement opening_find_placement(
     Vec2 position,
     const OpeningTool *tool

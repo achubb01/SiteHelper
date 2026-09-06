@@ -1,5 +1,6 @@
 add_library(sitehelper_model
     domain/domain_id.c
+    model/wall_plan_segment.c
 )
 
 target_include_directories(sitehelper_model
@@ -8,7 +9,12 @@ target_include_directories(sitehelper_model
         ${CMAKE_CURRENT_SOURCE_DIR}/model
 )
 
+if(NOT MSVC)
+    target_link_libraries(sitehelper_model PRIVATE m)
+endif()
+
 add_library(sitehelper_wall
+    wall/wall_plan.c
     wall/wall_generation.c
     wall/wall_lifecycle.c
     wall/build_structure.c
@@ -19,7 +25,6 @@ add_library(sitehelper_wall
     wall/wall_openings.c
     wall/wall_query.c
     wall/wall_selection.c
-    wall/wall_coordinates.c
 )
 
 target_include_directories(sitehelper_wall
@@ -112,6 +117,7 @@ add_library(sitehelper_editor
     editor/opening_tool.c
     editor/opening_placement.c
     editor/wall_tool.c
+    editor/wall_elevation_layout.c
     editor/editor_action.c
 
     wall/wall_snap.c
@@ -217,6 +223,10 @@ target_link_libraries(test_sitehelper
 )
 
 add_test(NAME sitehelper_tests COMMAND test_sitehelper)
+
+add_executable(test_wall_plan wall/tests/test_wall_plan.c)
+target_link_libraries(test_wall_plan PRIVATE sitehelper_wall)
+add_test(NAME wall_plan_tests COMMAND test_wall_plan)
 
 add_executable(test_wall_generation_invariants
     wall/tests/test_wall_generation_invariants.c

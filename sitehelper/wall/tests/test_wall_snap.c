@@ -17,8 +17,8 @@ static void test_collects_vertical_stud_endpoints(void)
     Timber stud = {
         .length = 2400,
         .position = {
-            .x = 600,
-            .y = 0
+            .u = 600,
+            .z = 0
         },
         .type = TIMBER_STUD
     };
@@ -57,8 +57,8 @@ static void test_collects_horizontal_noggin_endpoints(void)
     Timber noggin = {
         .length = 565,
         .position = {
-            .x = 635,
-            .y = 1200
+            .u = 635,
+            .z = 1200
         },
         .type = TIMBER_NOGGIN
     };
@@ -95,12 +95,12 @@ static void test_respects_candidate_capacity(void)
     Timber studs[2] = {
         {
             .length = 2400,
-            .position = {.x = 0, .y = 0},
+            .position = {.u = 0, .z = 0},
             .type = TIMBER_STUD
         },
         {
             .length = 2400,
-            .position = {.x = 600, .y = 0},
+            .position = {.u = 600, .z = 0},
             .type = TIMBER_STUD
         }
     };
@@ -180,8 +180,8 @@ static void test_collects_stud_to_top_plate_intersection(void)
         .width = 35,
 
         .position = {
-            .x = 600,
-            .y = 0
+            .u = 600,
+            .z = 0
         },
 
         .type = TIMBER_STUD
@@ -192,8 +192,8 @@ static void test_collects_stud_to_top_plate_intersection(void)
         .width = 35,
 
         .position = {
-            .x = 0,
-            .y = 2400
+            .u = 0,
+            .z = 2400
         },
 
         .type = TIMBER_PLATE
@@ -263,8 +263,8 @@ static void test_does_not_duplicate_intersection_candidates(void)
         .length = 2400,
         .width = 35,
         .position = {
-            .x = 600,
-            .y = 0
+            .u = 600,
+            .z = 0
         },
         .type = TIMBER_STUD
     };
@@ -273,8 +273,8 @@ static void test_does_not_duplicate_intersection_candidates(void)
         .length = 4200,
         .width = 35,
         .position = {
-            .x = 0,
-            .y = 2400
+            .u = 0,
+            .z = 2400
         },
         .type = TIMBER_PLATE
     };
@@ -313,8 +313,8 @@ static void test_collects_noggin_to_stud_intersection(void)
         .length = 2400,
         .width = 35,
         .position = {
-            .x = 600,
-            .y = 0
+            .u = 600,
+            .z = 0
         },
         .type = TIMBER_STUD
     };
@@ -323,8 +323,8 @@ static void test_collects_noggin_to_stud_intersection(void)
         .length = 565,
         .width = 35,
         .position = {
-            .x = 35,
-            .y = 1200
+            .u = 35,
+            .z = 1200
         },
         .type = TIMBER_NOGGIN
     };
@@ -365,8 +365,8 @@ static void test_plate_free_end_is_endpoint_not_intersection(void)
         .width = 35,
 
         .position = {
-            .x = 0,
-            .y = 2400
+            .u = 0,
+            .z = 2400
         },
 
         .type = TIMBER_PLATE

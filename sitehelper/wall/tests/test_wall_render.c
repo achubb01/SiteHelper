@@ -75,8 +75,8 @@ static void test_wall_render_draws_bottom_and_top_plate_and_studs(void)
             .width = 35,
 
             .position = {
-                .x = 600,
-                .y = 0
+                .u = 600,
+                .z = 0
             },
 
             .type = TIMBER_STUD,
@@ -94,8 +94,8 @@ static void test_wall_render_draws_bottom_and_top_plate_and_studs(void)
             .width = 35,
 
             .position = {
-                .x = 635,
-                .y = 800
+                .u = 635,
+                .z = 800
             },
 
             .type = TIMBER_NOGGIN,
@@ -113,8 +113,8 @@ static void test_wall_render_draws_bottom_and_top_plate_and_studs(void)
             .width = 35,
 
             .position = {
-                .x = 965,
-                .y = 1720
+                .u = 965,
+                .z = 1720
             },
 
             .type = TIMBER_HEADER
@@ -125,8 +125,8 @@ static void test_wall_render_draws_bottom_and_top_plate_and_studs(void)
             .width = 35,
 
             .position = {
-                .x = 1000,
-                .y = 700
+                .u = 1000,
+                .z = 700
             },
 
             .type = TIMBER_SILL
@@ -364,8 +364,8 @@ static void test_wall_render_uses_selected_colour_for_selected_timber(void)
             .width = 35,
 
             .position = {
-                .x = 600,
-                .y = 0
+                .u = 600,
+                .z = 0
             },
 
             .type = TIMBER_STUD,
@@ -463,7 +463,7 @@ static void test_wall_render_uses_selected_colour_for_selected_timber(void)
     );
 }
 
-static void test_wall_render_applies_origin_without_mutating_local_framing(void)
+static void test_wall_render_uses_start_offset_without_rotating_local_framing(void)
 {
     Renderer2D *renderer = renderer2d_create();
     assert(renderer != NULL);
@@ -479,25 +479,31 @@ static void test_wall_render_applies_origin_without_mutating_local_framing(void)
     });
 
     Wall first = {
-        .definition.origin = {0, 0},
+        .definition.segment = { .start = {0, 0}, .end = {100, 0} },
         .framing.bottomplate = {
             .length = 100, .width = 10, .position = {10, 20},
             .type = TIMBER_PLATE
         }
     };
     Wall second = first;
-    second.definition.origin = (Position){500, 300};
+    second.definition.segment = (WallPlanSegment){
+        .start = {500, 300}, .end = {560, 380}
+    };
     WallRenderStyle style = { .timber_colour = {1, 1, 1, 255} };
 
     wall_render(renderer, &first, NULL, &style);
     wall_render(renderer, &second, NULL, &style);
 
-    assert(first.framing.bottomplate.position.x == 10);
-    assert(first.framing.bottomplate.position.y == 20);
-    assert(second.framing.bottomplate.position.x == 10);
-    assert(second.framing.bottomplate.position.y == 20);
+    assert(first.framing.bottomplate.position.u == 10);
+    assert(first.framing.bottomplate.position.z == 20);
+    assert(second.framing.bottomplate.position.u == 10);
+    assert(second.framing.bottomplate.position.z == 20);
     assert(!nearly_equal(state.rects[0].position.x, state.rects[2].position.x));
     assert(!nearly_equal(state.rects[0].position.y, state.rects[2].position.y));
+    assert(nearly_equal(state.rects[0].width, 100.0));
+    assert(nearly_equal(state.rects[2].width, 100.0));
+    assert(nearly_equal(state.rects[0].height, 10.0));
+    assert(nearly_equal(state.rects[2].height, 10.0));
 
     renderer2d_destroy(renderer);
 }
@@ -506,7 +512,7 @@ int main(void)
 {
     test_wall_render_draws_bottom_and_top_plate_and_studs();
     test_wall_render_uses_selected_colour_for_selected_timber();
-    test_wall_render_applies_origin_without_mutating_local_framing();
+    test_wall_render_uses_start_offset_without_rotating_local_framing();
 
     printf("wall render tests passed\n");
 

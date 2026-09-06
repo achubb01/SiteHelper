@@ -47,7 +47,7 @@ void sitehelper_editor_clear_selection(
 void sitehelper_editor_select_wall_member_at_position(
     SiteHelperEditor *editor,
     const Wall *wall,
-    Position position
+    WallLocalPosition position
 );
 
 void sitehelper_editor_reconcile_wall_selection(
@@ -88,17 +88,20 @@ void sitehelper_editor_set_snap_result(
     SnapResult result
 );
 
+/* With a wall, position is local elevation Vec2 (x = U, y = Z).
+ * Without a wall, position is in the active tool's render layout. */
 void sitehelper_editor_update_snap(
     SiteHelperEditor *editor,
     const Wall *wall,
-    Vec2 world_position
+    Vec2 position
 );
 
+/* Pointer APIs receive render layout coordinates, before camera projection. */
 void sitehelper_editor_pointer_move(
     SiteHelperEditor *editor,
     const Wall *wall,
     const BuildSettings *settings,
-    Vec2 world_position
+    Vec2 layout_position
 );
 
 const OpeningPlacement *
@@ -122,7 +125,7 @@ void sitehelper_editor_complete_opening_command(
 int sitehelper_editor_primary_action(
     SiteHelperEditor *editor,
     const Wall *wall,
-    Vec2 world_position,
+    Vec2 layout_position,
     EditorAction *action
 );
 
@@ -130,7 +133,7 @@ int sitehelper_editor_primary_action_in_room(
     SiteHelperEditor *editor,
     const BuildStructure *structure,
     const Room *room,
-    Vec2 world_position,
+    Vec2 layout_position,
     EditorAction *action
 );
 
@@ -150,9 +153,9 @@ void sitehelper_editor_complete_action(
 );
 
 int sitehelper_editor_has_wall_preview(const SiteHelperEditor *editor);
-int sitehelper_editor_get_wall_preview_rect(
+int sitehelper_editor_get_wall_preview_segment(
     const SiteHelperEditor *editor,
-    Rect2 *rect
+    WallPlanSegment *segment
 );
 
 void sitehelper_editor_invalidate_transient_state(

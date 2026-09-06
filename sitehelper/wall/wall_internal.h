@@ -13,7 +13,7 @@ typedef struct
     Wall *wall;
     const BuildSettings *settings;
 
-    int y;
+    int z;
     int length;
 
     StudType type;
@@ -43,8 +43,8 @@ void wall_clear_studs(
 int wall_add_custom_stud(
     Wall *wall,
     const BuildSettings *settings,
-    int x,
-    int y,
+    int u,
+    int z,
     int length,
     StudType type
 );
@@ -77,7 +77,8 @@ int wall_add_sill(
 
 int wall_apply_openings(
     Wall *wall,
-    const BuildSettings *settings
+    const BuildSettings *settings,
+    int wall_length
 );
 
 int wall_repair_stud_spacing(

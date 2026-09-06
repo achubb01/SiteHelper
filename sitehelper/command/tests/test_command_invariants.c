@@ -7,18 +7,19 @@
 static Wall *add_generated_wall(
     SiteHelperProject *project,
     DomainId room_id,
-    Position origin,
+    PlanPosition origin,
     int length,
     DomainId *wall_id_out
 )
 {
-    DomainId wall_id = sitehelper_project_add_wall(project, room_id);
+    DomainId wall_id = sitehelper_project_add_wall(project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
     assert(wall_id != DOMAIN_ID_INVALID);
 
     Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
     assert(wall != NULL);
-    assert(wall_set_origin(wall, origin));
-    assert(wall_set_length(wall, length));
+    assert(wall_set_plan_segment(wall, (WallPlanSegment){
+        .start = origin, .end = { .x = origin.x + length, .y = origin.y }
+    }));
     assert(wall_generate(wall, &project->settings));
 
     if (wall_id_out != NULL) {
@@ -40,18 +41,23 @@ static void setup_opening_project(
     DomainId room_id = sitehelper_project_add_room(project);
     assert(room_id != DOMAIN_ID_INVALID);
 
-    add_generated_wall(
+    Wall *target = add_generated_wall(
         project,
         room_id,
-        (Position){ .x = 0, .y = 0 },
+        (PlanPosition){ .x = 0, .y = 0 },
         6000,
         target_wall_id_out
     );
+    /* Opening snapshots and undo/redo must retain ordered diagonal geometry. */
+    assert(wall_set_plan_segment(target, (WallPlanSegment){
+        .start = {4600, 6800}, .end = {1000, 2000}
+    }));
+    assert(wall_generate(target, &project->settings));
 
     add_generated_wall(
         project,
         room_id,
-        (Position){ .x = 7000, .y = 1500 },
+        (PlanPosition){ .x = 7000, .y = 1500 },
         4200,
         other_wall_id_out
     );
@@ -150,6 +156,10 @@ static void test_success_only_changes_intended_authoritative_state(void)
     );
 
     assert(target != NULL);
+    assert(target->definition.segment.start.x == 4600);
+    assert(target->definition.segment.start.y == 6800);
+    assert(target->definition.segment.end.x == 1000);
+    assert(target->definition.segment.end.y == 2000);
     assert(target->definition.opening_count == 1);
     assert(wall_find_opening_by_id_const(
         target,

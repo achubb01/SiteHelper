@@ -10,15 +10,14 @@ static int wall_command_build_wall(
 )
 {
     if (settings == NULL || command == NULL || wall == NULL ||
-        wall_id == DOMAIN_ID_INVALID || command->length <= 0) {
+        wall_id == DOMAIN_ID_INVALID) {
 
         return 0;
     }
 
     *wall = (Wall){ .id = wall_id };
 
-    if (!wall_set_origin(wall, command->origin) ||
-        !wall_set_length(wall, command->length) ||
+    if (!wall_set_plan_segment(wall, command->segment) ||
         !wall_generate(wall, settings)) {
 
         wall_destroy(wall);
@@ -30,19 +29,18 @@ static int wall_command_build_wall(
 
 int wall_command_create(
     DomainId room_id,
-    Position origin,
-    int length,
+    WallPlanSegment segment,
     WallCommand *command
 )
 {
-    if (command == NULL || room_id == DOMAIN_ID_INVALID || length <= 0) {
+    if (command == NULL || room_id == DOMAIN_ID_INVALID ||
+        wall_plan_segment_length_mm(segment) == 0) {
         return 0;
     }
 
     *command = (WallCommand){
         .room_id = room_id,
-        .origin = origin,
-        .length = length
+        .segment = segment
     };
 
     return 1;
@@ -61,7 +59,8 @@ int wall_command_execute(
     *wall_id_out = DOMAIN_ID_INVALID;
 
     if (project == NULL || command == NULL ||
-        command->room_id == DOMAIN_ID_INVALID || command->length <= 0) {
+        command->room_id == DOMAIN_ID_INVALID ||
+        wall_plan_segment_length_mm(command->segment) == 0) {
 
         return 0;
     }

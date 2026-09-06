@@ -67,7 +67,7 @@ static void test_add_wall_rejects_missing_room_without_consuming_identity(void)
     DomainId next_before = project.domain_ids.next;
 
     assert(
-        sitehelper_project_add_wall(&project, 999)
+        sitehelper_project_add_wall(&project, 999, (WallPlanSegment){ .end = { .x = 4200 } })
         == DOMAIN_ID_INVALID
     );
 
@@ -75,6 +75,29 @@ static void test_add_wall_rejects_missing_room_without_consuming_identity(void)
     assert(project.structure.wall_count == 0);
     assert(project.structure.room_count == 0);
 
+    sitehelper_project_destroy(&project);
+}
+
+static void test_add_wall_requires_valid_ordered_geometry(void)
+{
+    SiteHelperProject project;
+    sitehelper_project_init(&project);
+    DomainId room_id = sitehelper_project_add_room(&project);
+    DomainId next = project.domain_ids.next;
+    assert(sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){0}) ==
+        DOMAIN_ID_INVALID);
+    assert(project.domain_ids.next == next);
+    assert(project.structure.wall_count == 0);
+    assert(build_find_room_by_id(&project.structure, room_id)->wall_count == 0);
+
+    WallPlanSegment segment = { .start = {5000, 5000}, .end = {1000, 2000} };
+    assert(sitehelper_project_add_wall(&project, room_id, segment) == next);
+    const Wall *wall = build_find_wall_by_id_const(&project.structure, next);
+    assert(wall != NULL);
+    assert(wall->definition.segment.start.x == 5000);
+    assert(wall->definition.segment.start.y == 5000);
+    assert(wall->definition.segment.end.x == 1000);
+    assert(wall->definition.segment.end.y == 2000);
     sitehelper_project_destroy(&project);
 }
 
@@ -120,10 +143,7 @@ static void test_project_destroy_releases_structure(void)
     assert(wall != NULL);
 
     assert(
-        wall_set_length(
-            wall,
-            4200
-        )
+        wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     assert(
@@ -175,6 +195,7 @@ static void test_project_destroy_handles_empty_project(void)
 
 int main(void)
 {
+    test_add_wall_requires_valid_ordered_geometry();
     test_project_init_sets_defaults();
 
     test_project_init_initialises_domain_ids();

@@ -2,7 +2,7 @@
 #include "sitehelper_editor.h"
 #include "wall_query.h"
 #include "wall_snap.h"
-#include "wall_coordinates.h"
+#include "wall_elevation_layout.h"
 
 int sitehelper_editor_set_active_tool(
     SiteHelperEditor *editor,
@@ -99,7 +99,7 @@ void sitehelper_editor_clear_selection(
 void sitehelper_editor_select_wall_member_at_position(
     SiteHelperEditor *editor,
     const Wall *wall,
-    Position position
+    WallLocalPosition position
 )
 {
     if (
@@ -317,7 +317,7 @@ void sitehelper_editor_set_snap_result(
 void sitehelper_editor_update_snap(
     SiteHelperEditor *editor,
     const Wall *wall,
-    Vec2 world_position
+    Vec2 position
 )
 {
     if (editor == NULL) {
@@ -358,7 +358,7 @@ void sitehelper_editor_update_snap(
 
     SnapResult result =
         editor_snap(
-            world_position,
+            position,
             candidates,
             candidate_count,
             settings
@@ -374,7 +374,7 @@ void sitehelper_editor_pointer_move(
     SiteHelperEditor *editor,
     const Wall *wall,
     const BuildSettings *settings,
-    Vec2 world_position
+    Vec2 layout_position
 )
 {
     if (editor == NULL) {
@@ -382,7 +382,7 @@ void sitehelper_editor_pointer_move(
     }
 
     if (editor->active_tool == EDITOR_TOOL_WALL) {
-        sitehelper_editor_update_snap(editor, NULL, world_position);
+        sitehelper_editor_update_snap(editor, NULL, layout_position);
 
         const SnapResult *snap_result = editor_snap_state_get_result(
             &editor->snap
@@ -396,17 +396,13 @@ void sitehelper_editor_pointer_move(
         return;
     }
 
-    Position world_pointer = {
-        .x = (int)world_position.x,
-        .y = (int)world_position.y
-    };
-    Position local_pointer = wall_world_to_local_position(
+    WallLocalPosition local_pointer = wall_elevation_layout_to_local_position(
         wall,
-        world_pointer
+        layout_position
     );
     Vec2 local_position = {
-        .x = local_pointer.x,
-        .y = local_pointer.y
+        .x = local_pointer.u,
+        .y = local_pointer.z
     };
 
     sitehelper_editor_update_snap(
@@ -546,7 +542,7 @@ void sitehelper_editor_complete_opening_command(
 int sitehelper_editor_primary_action(
     SiteHelperEditor *editor,
     const Wall *wall,
-    Vec2 world_position,
+    Vec2 layout_position,
     EditorAction *action
 )
 {
@@ -568,10 +564,10 @@ int sitehelper_editor_primary_action(
                 return 1;
             }
 
-            Position position = wall_world_to_local_position(wall, (Position){
-                .x = (int)world_position.x,
-                .y = (int)world_position.y
-            });
+            WallLocalPosition position = wall_elevation_layout_to_local_position(
+                wall,
+                layout_position
+            );
 
             sitehelper_editor_select_wall_member_at_position(
                 editor,
@@ -612,24 +608,22 @@ int sitehelper_editor_primary_action(
 
             Vec2 position = snap_result != NULL && snap_result->type != SNAP_NONE
                 ? snap_result->position
-                : world_position;
+                : layout_position;
 
             if (!editor->wall_tool.has_start) {
                 return wall_tool_begin(&editor->wall_tool, position);
             }
 
-            Position origin;
-            int length;
+            wall_tool_update(&editor->wall_tool, position);
+            WallPlanSegment segment;
             WallCommand wall_command;
 
             if (!wall_tool_command_data(
                     &editor->wall_tool,
-                    &origin,
-                    &length) ||
+                    &segment) ||
                 !wall_command_create(
                     editor->current_room_id,
-                    origin,
-                    length,
+                    segment,
                     &wall_command) ||
                 !sitehelper_command_from_wall(
                     &wall_command,
@@ -651,7 +645,7 @@ int sitehelper_editor_primary_action_in_room(
     SiteHelperEditor *editor,
     const BuildStructure *structure,
     const Room *room,
-    Vec2 world_position,
+    Vec2 layout_position,
     EditorAction *action
 )
 {
@@ -672,12 +666,9 @@ int sitehelper_editor_primary_action_in_room(
             if (wall == NULL) {
                 continue;
             }
-            Position local = wall_world_to_local_position(
+            WallLocalPosition local = wall_elevation_layout_to_local_position(
                 wall,
-                (Position){
-                    .x = (int)world_position.x,
-                    .y = (int)world_position.y
-                }
+                layout_position
             );
             WallMemberHit hit = wall_find_member_at_position(wall, local);
 
@@ -708,7 +699,7 @@ int sitehelper_editor_primary_action_in_room(
     return sitehelper_editor_primary_action(
         editor,
         wall,
-        world_position,
+        layout_position,
         action
     );
 }
@@ -827,11 +818,11 @@ int sitehelper_editor_has_wall_preview(const SiteHelperEditor *editor)
         editor->wall_tool.has_start;
 }
 
-int sitehelper_editor_get_wall_preview_rect(
+int sitehelper_editor_get_wall_preview_segment(
     const SiteHelperEditor *editor,
-    Rect2 *rect
+    WallPlanSegment *segment
 )
 {
     return editor != NULL &&
-        wall_tool_preview_rect(&editor->wall_tool, rect);
+        wall_tool_command_data(&editor->wall_tool, segment);
 }

@@ -30,7 +30,7 @@ static WallOpeningProposal valid_proposal(void)
 static void test_accepts_a_valid_opening(void)
 {
     Wall wall = {
-        .definition.length = 4000
+        .definition.segment.end.x = 4000
     };
     BuildSettings settings = test_settings();
 
@@ -53,7 +53,7 @@ static void test_accepts_a_valid_opening(void)
 static void test_rejects_invalid_arguments_and_proposals(void)
 {
     Wall wall = {
-        .definition.length = 4000
+        .definition.segment.end.x = 4000
     };
     BuildSettings settings = test_settings();
     WallOpeningProposal proposal = valid_proposal();
@@ -78,7 +78,7 @@ static void test_rejects_invalid_arguments_and_proposals(void)
 static void test_rejects_opening_that_exceeds_wall_height(void)
 {
     Wall wall = {
-        .definition.length = 4000
+        .definition.segment.end.x = 4000
     };
     BuildSettings settings = test_settings();
     WallOpeningProposal proposal = valid_proposal();
@@ -92,7 +92,7 @@ static void test_rejects_opening_that_exceeds_wall_height(void)
 static void test_rejects_openings_too_close_to_wall_ends(void)
 {
     Wall wall = {
-        .definition.length = 4000
+        .definition.segment.end.x = 4000
     };
     BuildSettings settings = test_settings();
     WallOpeningProposal proposal = valid_proposal();
@@ -120,7 +120,7 @@ static void test_reports_conflicting_opening_identity(void)
     };
     Wall wall = {
         .definition = {
-            .length = 4000,
+            .segment.end.x = 4000,
             .openings = openings,
             .opening_count = 1
         }
@@ -143,7 +143,7 @@ static void test_reports_conflicting_opening_identity(void)
 static void test_add_opening_definition_rejects_duplicate_identity_without_mutation(void)
 {
     Wall wall = {
-        .definition.length = 5000
+        .definition.segment.end.x = 5000
     };
     BuildSettings settings = test_settings();
     Opening first = {
@@ -182,7 +182,7 @@ static void test_add_opening_definition_rejects_duplicate_identity_without_mutat
 static void test_add_opening_definition_preserves_custom_allowances(void)
 {
     Wall wall = {
-        .definition.length = 4000
+        .definition.segment.end.x = 4000
     };
     BuildSettings settings = test_settings();
     Opening opening = {

@@ -5,7 +5,7 @@
 #include "wall.h"
 
 
-static void test_finds_stud_at_world_position(void)
+static void test_finds_stud_at_wall_local_position(void)
 {
     Timber studs[] = {
         {
@@ -13,8 +13,8 @@ static void test_finds_stud_at_world_position(void)
             .depth = 90,
             .width = 35,
             .position = {
-                .x = 600,
-                .y = 0
+                .u = 600,
+                .z = 0
             },
             .type = TIMBER_STUD,
             .details.stud = {
@@ -28,9 +28,9 @@ static void test_finds_stud_at_world_position(void)
         .framing.stud_count = 1
     };
 
-    Position position = {
-        .x = 620,
-        .y = 1000
+    WallLocalPosition position = {
+        .u = 620,
+        .z = 1000
     };
 
     WallMemberHit hit =
@@ -58,16 +58,16 @@ static void test_finds_bottom_plate(void)
             .depth = 90,
             .width = 35,
             .position = {
-                .x = 0,
-                .y = 0
+                .u = 0,
+                .z = 0
             },
             .type = TIMBER_PLATE
         }
     };
 
-    Position position = {
-        .x = 1000,
-        .y = 20
+    WallLocalPosition position = {
+        .u = 1000,
+        .z = 20
     };
 
     WallMemberHit hit =
@@ -95,16 +95,16 @@ static void test_finds_top_plate(void)
             .depth = 90,
             .width = 35,
             .position = {
-                .x = 0,
-                .y = 2400
+                .u = 0,
+                .z = 2400
             },
             .type = TIMBER_PLATE
         }
     };
 
-    Position position = {
-        .x = 1500,
-        .y = 2420
+    WallLocalPosition position = {
+        .u = 1500,
+        .z = 2420
     };
 
     WallMemberHit hit =
@@ -132,8 +132,8 @@ static void test_finds_noggin(void)
             .depth = 90,
             .width = 35,
             .position = {
-                .x = 635,
-                .y = 800
+                .u = 635,
+                .z = 800
             },
             .type = TIMBER_NOGGIN,
             .details.noggin = {
@@ -147,9 +147,9 @@ static void test_finds_noggin(void)
         .framing.nog_count = 1
     };
 
-    Position position = {
-        .x = 800,
-        .y = 820
+    WallLocalPosition position = {
+        .u = 800,
+        .z = 820
     };
 
     WallMemberHit hit =
@@ -177,8 +177,8 @@ static void test_finds_header(void)
             .depth = 90,
             .width = 35,
             .position = {
-                .x = 965,
-                .y = 1720
+                .u = 965,
+                .z = 1720
             },
             .type = TIMBER_HEADER
         }
@@ -189,9 +189,9 @@ static void test_finds_header(void)
         .framing.member_count = 1
     };
 
-    Position position = {
-        .x = 1200,
-        .y = 1730
+    WallLocalPosition position = {
+        .u = 1200,
+        .z = 1730
     };
 
     WallMemberHit hit =
@@ -219,8 +219,8 @@ static void test_finds_sill(void)
             .depth = 90,
             .width = 35,
             .position = {
-                .x = 1000,
-                .y = 700
+                .u = 1000,
+                .z = 700
             },
             .type = TIMBER_SILL
         }
@@ -231,9 +231,9 @@ static void test_finds_sill(void)
         .framing.member_count = 1
     };
 
-    Position position = {
-        .x = 1300,
-        .y = 720
+    WallLocalPosition position = {
+        .u = 1300,
+        .z = 720
     };
 
     WallMemberHit hit =
@@ -261,8 +261,8 @@ static void test_returns_null_for_empty_space(void)
             .depth = 90,
             .width = 35,
             .position = {
-                .x = 600,
-                .y = 0
+                .u = 600,
+                .z = 0
             },
             .type = TIMBER_STUD
         }
@@ -273,9 +273,9 @@ static void test_returns_null_for_empty_space(void)
         .framing.stud_count = 1
     };
 
-    Position position = {
-        .x = 500,
-        .y = 1000
+    WallLocalPosition position = {
+        .u = 500,
+        .z = 1000
     };
 
     WallMemberHit hit =
@@ -301,9 +301,9 @@ static void test_returns_null_for_empty_space(void)
 
 static void test_returns_null_for_null_wall(void)
 {
-    Position position = {
-        .x = 100,
-        .y = 100
+    WallLocalPosition position = {
+        .u = 100,
+        .z = 100
     };
 
     WallMemberHit hit =
@@ -332,10 +332,7 @@ static void test_find_opening_by_id(void)
     };
 
     assert(
-        wall_set_length(
-            &wall,
-            4200
-        )
+        wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     DomainId opening_id = 42;
@@ -414,10 +411,7 @@ static void test_opening_identity_survives_reallocation(void)
     };
 
     assert(
-        wall_set_length(
-            &wall,
-            12000
-        )
+        wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 12000 } })
     );
 
     DomainId first_id = 1;
@@ -517,10 +511,7 @@ test_remove_opening_by_id_removes_only_target(void)
     };
 
     assert(
-        wall_set_length(
-            &wall,
-            6000
-        )
+        wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 6000 } })
     );
 
     assert(
@@ -601,10 +592,7 @@ test_remove_missing_opening_preserves_definition(void)
     };
 
     assert(
-        wall_set_length(
-            &wall,
-            4200
-        )
+        wall_set_plan_segment(&wall, (WallPlanSegment){ .end = { .x = 4200 } })
     );
 
     assert(
@@ -649,7 +637,7 @@ test_remove_missing_opening_preserves_definition(void)
 
 int main(void)
 {
-    test_finds_stud_at_world_position();
+    test_finds_stud_at_wall_local_position();
     test_finds_bottom_plate();
     test_finds_top_plate();
     test_finds_noggin();

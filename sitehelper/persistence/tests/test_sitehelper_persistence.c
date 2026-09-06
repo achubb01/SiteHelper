@@ -1,5 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
+#include <limits.h>
+#include <string.h>
 #include "sitehelper_persistence.h"
 #include "wall.h"
 
@@ -29,7 +31,7 @@ static Wall *add_wall(
     int length
 )
 {
-    DomainId wall_id = sitehelper_project_add_wall(project, room_id);
+    DomainId wall_id = sitehelper_project_add_wall(project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
     assert(wall_id != DOMAIN_ID_INVALID);
 
     Room *room = build_find_room_by_id(&project->structure, room_id);
@@ -38,7 +40,7 @@ static Wall *add_wall(
     assert(room_has_wall_id(room, wall_id));
     Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
     assert(wall != NULL);
-    assert(wall_set_length(wall, length));
+    assert(wall_set_plan_segment(wall, (WallPlanSegment){ .end = { .x = length } }));
 
     return wall;
 }
@@ -115,9 +117,10 @@ static void make_non_trivial_project(SiteHelperProject *project)
             room_id,
             7000 + room_number * 100
         );
-        assert(wall_set_origin(first_wall, (Position){
-            .x = room_number * 10000,
-            .y = room_number * 3000
+        assert(wall_set_plan_segment(first_wall, (WallPlanSegment){
+            .start = {room_number * 10000, room_number * 3000},
+            .end = {room_number * 10000 + 7000 + room_number * 100,
+                room_number * 3000}
         }));
 
         add_opening(
@@ -151,9 +154,10 @@ static void make_non_trivial_project(SiteHelperProject *project)
             room_id,
             4600 + room_number * 100
         );
-        assert(wall_set_origin(second_wall, (Position){
-            .x = room_number * 10000 + 5000,
-            .y = room_number * 3000 + 1500
+        assert(wall_set_plan_segment(second_wall, (WallPlanSegment){
+            .start = {room_number * 10000 + 5000, room_number * 3000 + 1500},
+            .end = {room_number * 10000 + 9600 + room_number * 100,
+                room_number * 3000 + 1500}
         }));
 
         add_opening(
@@ -178,8 +182,8 @@ static void assert_timber_equal(const Timber *expected, const Timber *actual)
     assert(expected->length == actual->length);
     assert(expected->depth == actual->depth);
     assert(expected->width == actual->width);
-    assert(expected->position.x == actual->position.x);
-    assert(expected->position.y == actual->position.y);
+    assert(expected->position.u == actual->position.u);
+    assert(expected->position.z == actual->position.z);
     assert(expected->type == actual->type);
 
     switch (expected->type) {
@@ -273,12 +277,16 @@ static void assert_project_equal(
             assert(expected_wall != NULL && actual_wall != NULL);
 
             assert(expected_wall->id == actual_wall->id);
-            assert(expected_wall->definition.origin.x ==
-                actual_wall->definition.origin.x);
-            assert(expected_wall->definition.origin.y ==
-                actual_wall->definition.origin.y);
-            assert(expected_wall->definition.length ==
-                actual_wall->definition.length);
+            assert(expected_wall->definition.segment.start.x ==
+                actual_wall->definition.segment.start.x);
+            assert(expected_wall->definition.segment.start.y ==
+                actual_wall->definition.segment.start.y);
+            assert(wall_length_mm(expected_wall) ==
+                wall_length_mm(actual_wall));
+            assert(expected_wall->definition.segment.end.x ==
+                actual_wall->definition.segment.end.x);
+            assert(expected_wall->definition.segment.end.y ==
+                actual_wall->definition.segment.end.y);
             assert(expected_wall->definition.opening_count ==
                 actual_wall->definition.opening_count);
 
@@ -385,7 +393,7 @@ static void test_unsupported_version_is_rejected(void)
     sitehelper_project_init(&destination);
 
     write_text_file(unsupported_path,
-        "sitehelper_project 4\n");
+        "sitehelper_project 5\n");
 
     assert(sitehelper_project_load_file(&destination, unsupported_path) ==
         SITEHELPER_PERSISTENCE_UNSUPPORTED_VERSION);
@@ -540,8 +548,10 @@ static void test_version_one_wall_defaults_origin_to_zero(void)
     assert(room_has_wall_id(room, 2));
     const Wall *wall = build_find_wall_by_id_const(&destination.structure, 2);
     assert(wall != NULL);
-    assert(wall->definition.origin.x == 0);
-    assert(wall->definition.origin.y == 0);
+    assert(wall->definition.segment.start.x == 0);
+    assert(wall->definition.segment.start.y == 0);
+    assert(wall->definition.segment.end.x == 4200);
+    assert(wall->definition.segment.end.y == 0);
 
     sitehelper_project_destroy(&destination);
     remove(round_trip_path);
@@ -566,8 +576,10 @@ static void test_version_two_wall_preserves_origin(void)
         SITEHELPER_PERSISTENCE_SUCCESS);
     const Wall *wall = build_find_wall_by_id_const(&destination.structure, 2);
     assert(wall != NULL);
-    assert(wall->definition.origin.x == 5000);
-    assert(wall->definition.origin.y == 3000);
+    assert(wall->definition.segment.start.x == 5000);
+    assert(wall->definition.segment.start.y == 3000);
+    assert(wall->definition.segment.end.x == 9200);
+    assert(wall->definition.segment.end.y == 3000);
 
     sitehelper_project_destroy(&destination);
     remove(round_trip_path);
@@ -599,7 +611,7 @@ static void test_malformed_version_two_origin_is_transactional(void)
     remove(malformed_path);
 }
 
-static void test_version_three_shared_wall_references_round_trip(void)
+static void test_shared_wall_references_round_trip(void)
 {
     SiteHelperProject original;
     SiteHelperProject loaded;
@@ -609,7 +621,9 @@ static void test_version_three_shared_wall_references_round_trip(void)
     DomainId first_room = sitehelper_project_add_room(&original);
     DomainId second_room = sitehelper_project_add_room(&original);
     Wall *wall = add_wall(&original, first_room, 4200);
-    wall->definition.origin = (Position){ 5000, 3000 };
+    assert(wall_set_plan_segment(wall, (WallPlanSegment){
+        .start = {5000, 3000}, .end = {9200, 3000}
+    }));
     assert(wall_generate(wall, &original.settings));
     assert(room_add_wall_reference(
         build_find_room_by_id(&original.structure, second_room), wall->id));
@@ -624,7 +638,7 @@ static void test_version_three_shared_wall_references_round_trip(void)
     assert(room_has_wall_id(
         build_find_room_by_id_const(&loaded.structure, second_room), wall->id));
     assert(build_find_wall_by_id_const(&loaded.structure, wall->id)->
-        definition.origin.x == 5000);
+        definition.segment.start.x == 5000);
 
     sitehelper_project_destroy(&loaded);
     sitehelper_project_destroy(&original);
@@ -659,6 +673,131 @@ static void test_malformed_version_three_reference_is_transactional(void)
     remove(malformed_path);
 }
 
+static void test_version_four_ordered_segments_round_trip(void)
+{
+    SiteHelperProject original;
+    SiteHelperProject loaded;
+    sitehelper_project_init(&original);
+    sitehelper_project_init(&loaded);
+    DomainId room_id = sitehelper_project_add_room(&original);
+    const WallPlanSegment segments[] = {
+        { .start = {0, 0}, .end = {6000, 0} },
+        { .start = {1000, 2000}, .end = {4600, 6800} },
+        { .start = {4600, 6800}, .end = {1000, 2000} }
+    };
+    for (size_t i = 0; i < sizeof segments / sizeof segments[0]; i++) {
+        DomainId id = sitehelper_project_add_wall(&original, room_id, segments[i]);
+        assert(id != DOMAIN_ID_INVALID);
+        Wall *wall = build_find_wall_by_id(&original.structure, id);
+        add_opening(&original, wall, OPENING_WINDOW, 1200, 700, 900, 1000,
+            25, 30, true);
+    }
+    generate_project(&original);
+    assert(sitehelper_project_save_file(&original, round_trip_path) ==
+        SITEHELPER_PERSISTENCE_SUCCESS);
+    FILE *file = fopen(round_trip_path, "r");
+    assert(file != NULL);
+    char text[4096];
+    size_t count = fread(text, 1, sizeof text - 1, file);
+    assert(!ferror(file) && feof(file));
+    text[count] = '\0';
+    assert(fclose(file) == 0);
+    assert(strstr(text, "sitehelper_project 4\n") == text);
+    assert(strstr(text, "segment 1000 2000 4600 6800 openings 1") != NULL);
+    assert(strstr(text, "segment 4600 6800 1000 2000 openings 1") != NULL);
+    assert(strstr(text, " origin ") == NULL && strstr(text, " length ") == NULL);
+    assert(sitehelper_project_load_file(&loaded, round_trip_path) ==
+        SITEHELPER_PERSISTENCE_SUCCESS);
+    assert_project_equal(&original, &loaded);
+    sitehelper_project_destroy(&original);
+    sitehelper_project_destroy(&loaded);
+    remove(round_trip_path);
+}
+
+static void test_version_three_migrates_shared_horizontal_wall(void)
+{
+    SiteHelperProject project;
+    sitehelper_project_init(&project);
+    write_text_file(round_trip_path,
+        "sitehelper_project 3\n"
+        "domain_id_next 4\n"
+        "settings 2400 90 35 600 1200 0 0 maximise\n"
+        "walls 1\n"
+        "wall 2 origin -5000 3000 length 4200 openings 0\n"
+        "rooms 2\n"
+        "room 1 wall_refs 1\nwall_ref 2\nend_room\n"
+        "room 3 wall_refs 1\nwall_ref 2\nend_room\nend_project\n");
+    assert(sitehelper_project_load_file(&project, round_trip_path) ==
+        SITEHELPER_PERSISTENCE_SUCCESS);
+    const Wall *wall = build_find_wall_by_id_const(&project.structure, 2);
+    assert(wall != NULL);
+    assert(wall->definition.segment.start.x == -5000);
+    assert(wall->definition.segment.start.y == 3000);
+    assert(wall->definition.segment.end.x == -800);
+    assert(wall->definition.segment.end.y == 3000);
+    assert(project.structure.wall_count == 1 && project.structure.room_count == 2);
+    assert(room_has_wall_id(build_find_room_by_id(&project.structure, 1), 2));
+    assert(room_has_wall_id(build_find_room_by_id(&project.structure, 3), 2));
+    sitehelper_project_destroy(&project);
+    remove(round_trip_path);
+}
+
+static void test_invalid_segment_files_are_transactional(void)
+{
+    SiteHelperProject destination;
+    SiteHelperProject expected;
+    make_non_trivial_project(&destination);
+    make_non_trivial_project(&expected);
+    const char *records[] = {
+        "segment 10 20 10 20 openings 0",
+        "segment invalid 20 30 40 openings 0",
+        "segment 0 0 6000 openings 0",
+        "segment 0 0 6000 0 length 6000 openings 0",
+        "segment 0 0 999999999999999999999999 0 openings 0"
+    };
+    char text[1024];
+    for (size_t i = 0; i < sizeof records / sizeof records[0]; i++) {
+        snprintf(text, sizeof text,
+            "sitehelper_project 4\ndomain_id_next 5\n"
+            "settings 2400 90 35 600 1200 0 0 maximise\n"
+            "walls 2\nwall 4 segment 0 0 6000 0 openings 0\n"
+            "wall 2 %s\nrooms 1\n"
+            "room 1 wall_refs 1\nwall_ref 2\nend_room\nend_project\n",
+            records[i]);
+        write_text_file(malformed_path, text);
+        assert(sitehelper_project_load_file(&destination, malformed_path) ==
+            (i == 0 ? SITEHELPER_PERSISTENCE_INVALID_PROJECT :
+                SITEHELPER_PERSISTENCE_MALFORMED_DATA));
+        assert_project_equal(&expected, &destination);
+    }
+    snprintf(text, sizeof text,
+        "sitehelper_project 4\ndomain_id_next 3\n"
+        "settings 2400 90 35 600 1200 0 0 maximise\n"
+        "walls 1\nwall 2 segment %d 0 %d 0 openings 0\n"
+        "rooms 0\nend_project\n", INT_MIN, INT_MAX);
+    write_text_file(malformed_path, text);
+    assert(sitehelper_project_load_file(&destination, malformed_path) ==
+        SITEHELPER_PERSISTENCE_INVALID_PROJECT);
+    assert_project_equal(&expected, &destination);
+
+    /* Historical origin + length must not overflow during migration. */
+    for (int version = 2; version <= 3; version++) {
+        snprintf(text, sizeof text,
+            "sitehelper_project %d\ndomain_id_next 3\n"
+            "settings 2400 90 35 600 1200 0 0 maximise\n%s"
+            "wall 2 origin %d 0 length 4200 openings 0\n",
+            version, version == 2 ? "rooms 1\nroom 1 walls 1\n" : "walls 1\n",
+            INT_MAX);
+        write_text_file(malformed_path, text);
+        assert(sitehelper_project_load_file(&destination, malformed_path) ==
+            SITEHELPER_PERSISTENCE_INVALID_PROJECT);
+        assert_project_equal(&expected, &destination);
+    }
+    sitehelper_project_destroy(&destination);
+    sitehelper_project_destroy(&expected);
+    remove(malformed_path);
+}
+
 int main(void)
 {
     test_round_trip_rebuilds_framing_and_preserves_identity();
@@ -671,8 +810,11 @@ int main(void)
     test_version_one_wall_defaults_origin_to_zero();
     test_version_two_wall_preserves_origin();
     test_malformed_version_two_origin_is_transactional();
-    test_version_three_shared_wall_references_round_trip();
+    test_shared_wall_references_round_trip();
     test_malformed_version_three_reference_is_transactional();
+    test_version_four_ordered_segments_round_trip();
+    test_version_three_migrates_shared_horizontal_wall();
+    test_invalid_segment_files_are_transactional();
 
     puts("sitehelper persistence tests passed");
     return 0;

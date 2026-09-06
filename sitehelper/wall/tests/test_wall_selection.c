@@ -14,8 +14,8 @@ static Timber make_common_stud(
         .width = 35,
 
         .position = {
-            .x = x,
-            .y = 0
+            .u = x,
+            .z = 0
         },
 
         .type = TIMBER_STUD,
@@ -101,11 +101,11 @@ static void test_set_stores_value_not_pointer(void)
         &timber
     );
 
-    timber.position.x =
+    timber.position.u =
         9999;
 
     assert(
-        selection.timber.position.x ==
+        selection.timber.position.u ==
         600
     );
 
@@ -466,8 +466,8 @@ static void test_bottom_plate_resolves(void)
         .width = 35,
 
         .position = {
-            .x = 0,
-            .y = 0
+            .u = 0,
+            .z = 0
         },
 
         .type = TIMBER_PLATE

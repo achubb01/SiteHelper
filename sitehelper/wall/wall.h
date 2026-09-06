@@ -7,8 +7,8 @@ typedef struct
 {
     OpeningType type;
 
-    int frame_position;
-    int frame_bottom;
+    int frame_position; /* Wall-local U, in millimetres. */
+    int frame_bottom;   /* Wall-local Z, in millimetres. */
 
     int width;
     int height;
@@ -60,11 +60,13 @@ int room_add_wall_reference(Room *room, DomainId wall_id);
 int room_remove_wall_reference(Room *room, DomainId wall_id);
 int room_has_wall_id(const Room *room, DomainId wall_id);
 int build_set_stud_spacing(BuildSettings *settings, int spacing);
-int wall_set_length(Wall *wall, int length);
-int wall_set_origin(Wall *wall, Position origin);
+/* Invalid geometry returns 0; mutation commits both ordered endpoints at once. */
+int wall_length_mm(const Wall *wall);
+int wall_set_plan_segment(Wall *wall, WallPlanSegment segment);
 int wall_set_stud_spacing(Wall *wall, int length);
 int wall_add_stud(Wall *wall, const BuildSettings *settings, int position, StudType type);
 int wall_add_noggin(Wall *wall, const BuildSettings *settings, size_t bay, int vertical_position);
+/* Generates framing entirely in U/Z; only derived length affects framing. */
 int wall_generate(Wall *wall, const BuildSettings *settings);
 int opening_frame_width(const Opening *opening, const BuildSettings *settings);
 int opening_frame_height(const Opening *opening, const BuildSettings *setting);

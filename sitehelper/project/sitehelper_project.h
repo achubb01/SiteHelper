@@ -26,7 +26,8 @@ DomainId sitehelper_project_add_room(
 
 DomainId sitehelper_project_add_wall(
     SiteHelperProject *project,
-    DomainId room_id
+    DomainId room_id,
+    WallPlanSegment segment
 );
 
 #endif

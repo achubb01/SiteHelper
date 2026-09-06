@@ -11,8 +11,8 @@ static Timber make_test_stud(void)
         .width = 90,
 
         .position = {
-            .x = 100,
-            .y = 0
+            .u = 100,
+            .z = 0
         },
 
         .type = TIMBER_STUD,

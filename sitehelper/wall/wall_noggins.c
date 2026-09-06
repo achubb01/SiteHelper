@@ -53,8 +53,8 @@ int wall_generate_noggins(
                 &wall->framing.studs[bay + 1];
 
             int clear_width =
-                right->position.x
-                - left->position.x
+                right->position.u
+                - left->position.u
                 - settings->stud_width;
 
             if (clear_width <= 0) {
@@ -114,11 +114,11 @@ static int noggin_intersects_opening(
         &wall->framing.studs[bay + 1];
 
     int noggin_start =
-        left_stud->position.x
+        left_stud->position.u
         + settings->stud_width;
 
     int noggin_end =
-        right_stud->position.x;
+        right_stud->position.u;
 
     for (size_t i = 0;
          i < wall->definition.opening_count;
@@ -196,8 +196,8 @@ int wall_add_noggin(
         &wall->framing.studs[bay + 1];
 
     int length =
-        right->position.x
-        - left->position.x
+        right->position.u
+        - left->position.u
         - settings->stud_width;
 
     if (length <= 0) {
@@ -230,9 +230,9 @@ int wall_add_noggin(
         .width = settings->stud_width,
 
         .position = {
-            .x = left->position.x
+            .u = left->position.u
                 + settings->stud_width,
-            .y = vertical_position
+            .z = vertical_position
         },
 
         .type = TIMBER_NOGGIN,

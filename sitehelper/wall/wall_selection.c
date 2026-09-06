@@ -2,13 +2,13 @@
 
 
 static bool positions_equal(
-    Position a,
-    Position b
+    WallLocalPosition a,
+    WallLocalPosition b
 )
 {
     return
-        a.x == b.x &&
-        a.y == b.y;
+        a.u == b.u &&
+        a.z == b.z;
 }
 
 
@@ -53,7 +53,7 @@ static bool timber_matches(
              * Bay is generation metadata rather than
              * persistent member identity.
              *
-             * Position and dimensions are sufficient
+             * Local position and dimensions are sufficient
              * for resolving the current generated noggin.
              */
             return true;

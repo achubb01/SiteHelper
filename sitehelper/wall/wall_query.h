@@ -10,7 +10,7 @@ typedef struct {
 
 WallMemberHit wall_find_member_at_position(
     const Wall *wall,
-    Position position
+    WallLocalPosition position
 );
 
 #endif
