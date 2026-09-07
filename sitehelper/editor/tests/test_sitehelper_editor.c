@@ -57,6 +57,7 @@ static SiteHelperEditor opening_test_editor(void)
     SiteHelperEditor editor;
 
     sitehelper_editor_init(&editor);
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
     editor.current_room_id = 10;
     editor.current_wall_id = 20;
 
@@ -119,6 +120,7 @@ static void test_editor_can_change_active_tool(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     int result =
         sitehelper_editor_set_active_tool(
@@ -547,6 +549,7 @@ static void test_editor_updates_snap_from_wall_candidates(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_update_snap(
         &editor,
@@ -652,6 +655,7 @@ static void test_editor_activates_opening_tool(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     assert(
         sitehelper_editor_set_active_tool(
@@ -670,6 +674,7 @@ static void test_editor_switching_away_cancels_opening_tool(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_set_active_tool(
         &editor,
@@ -728,6 +733,7 @@ static void test_opening_tool_pointer_move_updates_preview(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_set_active_tool(
         &editor,
@@ -796,6 +802,7 @@ static void test_editor_pointer_move_updates_opening_placement(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_set_active_tool(
         &editor,
@@ -867,6 +874,7 @@ static void test_editor_creates_opening_command(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     editor.current_room_id = 10;
     editor.current_wall_id = 20;
@@ -930,6 +938,7 @@ static void test_editor_completing_opening_command_clears_placement(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_set_active_tool(
         &editor,
@@ -975,6 +984,7 @@ static void test_select_primary_action_selects_wall_member(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     EditorAction action;
 
@@ -1033,6 +1043,7 @@ static void test_select_primary_action_with_null_wall_preserves_selection(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     EditorAction action;
 
@@ -1094,6 +1105,7 @@ static void test_opening_primary_action_produces_command(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     editor.current_room_id = 10;
     editor.current_wall_id = 20;
@@ -1168,6 +1180,7 @@ static void test_editor_has_opening_preview_when_opening_placement_valid(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_set_active_tool(
         &editor,
@@ -1207,6 +1220,7 @@ static void test_editor_returns_opening_preview_rect(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_set_active_tool(
         &editor,
@@ -1237,6 +1251,7 @@ static void test_editor_does_not_return_opening_preview_rect_when_inactive(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     Rect2 rect;
 
@@ -1256,6 +1271,7 @@ test_editor_rejects_opening_command_without_target(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_set_active_tool(
         &editor,
@@ -1282,6 +1298,7 @@ test_editor_complete_action_clears_opening_placement(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     editor.opening_placement = valid_opening_placement();
 
@@ -1317,6 +1334,7 @@ test_editor_complete_action_accepts_null(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_complete_action(
         NULL,
@@ -1339,6 +1357,7 @@ test_editor_invalidate_transient_state_clears_snap_and_opening_placement(void)
     sitehelper_editor_init(
         &editor
     );
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_set_snap_result(
         &editor,
@@ -1601,13 +1620,13 @@ static void test_opening_tool_does_not_mutate_wall_before_command_execution(void
         &editor,
         &wall,
         &settings,
-        (Vec2){ .x = 5600.0, .y = 4000.0 }
+        (Vec2){ .x = 600.0, .y = 1000.0 }
     );
 
     assert(sitehelper_editor_primary_action(
         &editor,
         &wall,
-        (Vec2){ .x = 5600.0, .y = 4000.0 },
+        (Vec2){ .x = 600.0, .y = 1000.0 },
         &action
     ));
 

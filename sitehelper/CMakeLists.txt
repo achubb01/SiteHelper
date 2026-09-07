@@ -117,7 +117,6 @@ add_library(sitehelper_editor
     editor/opening_tool.c
     editor/opening_placement.c
     editor/wall_tool.c
-    editor/wall_elevation_layout.c
     editor/editor_action.c
 
     wall/wall_snap.c
@@ -184,6 +183,7 @@ endif()
 
 add_library(sitehelper_app_core
     app/appstate.c
+    app/app_view.c
 )
 
 target_include_directories(sitehelper_app_core
@@ -193,6 +193,7 @@ target_include_directories(sitehelper_app_core
 
 target_link_libraries(sitehelper_app_core
     PUBLIC
+        sitehelper_render
         sitehelper_project
         sitehelper_editor
         sitehelper_command
@@ -468,6 +469,10 @@ target_link_libraries(test_appstate
 )
 
 add_test(NAME appstate_tests COMMAND test_appstate)
+
+add_executable(test_app_view app/tests/test_app_view.c)
+target_link_libraries(test_app_view PRIVATE sitehelper_app_core sitehelper_persistence)
+add_test(NAME app_view_tests COMMAND test_app_view)
 
 add_executable(test_viewport_input
     app/tests/test_viewport_input.c

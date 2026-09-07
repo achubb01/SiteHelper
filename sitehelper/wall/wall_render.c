@@ -1,11 +1,5 @@
 #include "wall_render.h"
 
-/*
- * Temporary elevation layout compatibility: segment start X/Y is reused as a
- * drawing offset for local U/Z before camera projection. These Rect2 positions
- * are render coordinates, not physical plan positions (plan Y is not height).
- */
-
 static Colour timber_render_colour(
     const Timber *timber,
     const Timber *selected,
@@ -22,7 +16,6 @@ static Colour timber_render_colour(
 
 static void draw_vertical_timber(
     Renderer2D *renderer,
-    const Wall *wall,
     const Timber *timber,
     const Timber *selected,
     const WallRenderStyle *style
@@ -37,8 +30,8 @@ static void draw_vertical_timber(
 
     Rect2 rect = {
         .position = {
-            .x = (double)wall->definition.segment.start.x + timber->position.u,
-            .y = (double)wall->definition.segment.start.y + timber->position.z
+            .x = (double)timber->position.u,
+            .y = (double)timber->position.z
         },
 
         .width =
@@ -58,7 +51,6 @@ static void draw_vertical_timber(
 
 static void draw_horizontal_timber(
     Renderer2D *renderer,
-    const Wall *wall,
     const Timber *timber,
     const Timber *selected,
     const WallRenderStyle *style
@@ -73,8 +65,8 @@ static void draw_horizontal_timber(
 
     Rect2 rect = {
         .position = {
-            .x = (double)wall->definition.segment.start.x + timber->position.u,
-            .y = (double)wall->definition.segment.start.y + timber->position.z
+            .x = (double)timber->position.u,
+            .y = (double)timber->position.z
         },
 
         .width =
@@ -94,7 +86,6 @@ static void draw_horizontal_timber(
 
 static void draw_timber_array(
     Renderer2D *renderer,
-    const Wall *wall,
     const Timber *timbers,
     size_t count,
     bool vertical,
@@ -114,7 +105,6 @@ static void draw_timber_array(
 
             draw_vertical_timber(
                 renderer,
-                wall,
                 &timbers[i],
                 selected,
                 style
@@ -124,7 +114,6 @@ static void draw_timber_array(
 
             draw_horizontal_timber(
                 renderer,
-                wall,
                 &timbers[i],
                 selected,
                 style
@@ -134,7 +123,7 @@ static void draw_timber_array(
 }
 
 
-void wall_render(
+void wall_elevation_render(
     Renderer2D *renderer,
     const Wall *wall,
     const Timber *selected,
@@ -150,7 +139,6 @@ void wall_render(
 
     draw_horizontal_timber(
         renderer,
-        wall,
         &wall->framing.bottomplate,
         selected,
         style
@@ -158,7 +146,6 @@ void wall_render(
 
     draw_horizontal_timber(
         renderer,
-        wall,
         &wall->framing.topplate,
         selected,
         style
@@ -166,7 +153,6 @@ void wall_render(
 
     draw_timber_array(
         renderer,
-        wall,
         wall->framing.studs,
         wall->framing.stud_count,
         true,
@@ -176,7 +162,6 @@ void wall_render(
 
     draw_timber_array(
         renderer,
-        wall,
         wall->framing.nogs,
         wall->framing.nog_count,
         false,
@@ -186,11 +171,25 @@ void wall_render(
 
     draw_timber_array(
         renderer,
-        wall,
         wall->framing.members,
         wall->framing.member_count,
         false,
         selected,
         style
     );
+}
+
+void wall_plan_render(
+    Renderer2D *renderer,
+    const Wall *wall,
+    Colour colour
+)
+{
+    if (renderer == NULL || wall == NULL) {
+        return;
+    }
+    WallPlanSegment segment = wall->definition.segment;
+    renderer2d_draw_line(renderer,
+        (Vec2){segment.start.x, segment.start.y},
+        (Vec2){segment.end.x, segment.end.y}, colour);
 }

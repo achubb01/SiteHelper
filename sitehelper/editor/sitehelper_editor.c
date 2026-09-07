@@ -1,8 +1,46 @@
 #include <stdlib.h>
+#include <math.h>
 #include "sitehelper_editor.h"
 #include "wall_query.h"
 #include "wall_snap.h"
-#include "wall_elevation_layout.h"
+
+int sitehelper_editor_tool_available(EditorView view, EditorTool tool)
+{
+    return (view == EDITOR_VIEW_PLAN &&
+            (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_WALL)) ||
+        (view == EDITOR_VIEW_WALL_ELEVATION &&
+            (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_OPENING));
+}
+
+int sitehelper_editor_set_active_view(SiteHelperEditor *editor, EditorView view)
+{
+    if (editor == NULL || view < EDITOR_VIEW_PLAN || view >= EDITOR_VIEW_COUNT) {
+        return 0;
+    }
+    if (editor->active_view == view) {
+        return 1;
+    }
+    editor->active_view = view;
+    sitehelper_editor_invalidate_transient_state(editor);
+    sitehelper_editor_clear_selection(editor);
+    if (!sitehelper_editor_tool_available(view, editor->active_tool)) {
+        sitehelper_editor_set_active_tool(editor, EDITOR_TOOL_SELECT);
+    }
+    return 1;
+}
+
+/* Physical plan proximity; shares the editor's object tolerance. */
+static double plan_segment_distance(WallPlanSegment segment, Vec2 point)
+{
+    double dx = (double)segment.end.x - segment.start.x;
+    double dy = (double)segment.end.y - segment.start.y;
+    double px = point.x - segment.start.x;
+    double py = point.y - segment.start.y;
+    double squared_length = dx * dx + dy * dy;
+    double t = squared_length > 0.0 ? (px * dx + py * dy) / squared_length : 0.0;
+    t = fmax(0.0, fmin(1.0, t));
+    return hypot(px - t * dx, py - t * dy);
+}
 
 int sitehelper_editor_set_active_tool(
     SiteHelperEditor *editor,
@@ -13,9 +51,12 @@ int sitehelper_editor_set_active_tool(
         editor == NULL
         || tool < EDITOR_TOOL_SELECT
         || tool >= EDITOR_TOOL_COUNT
+        || !sitehelper_editor_tool_available(editor->active_view, tool)
     ) {
         return 0;
     }
+
+    sitehelper_editor_invalidate_transient_state(editor);
 
     if (tool == EDITOR_TOOL_OPENING) {
         opening_tool_activate(
@@ -51,6 +92,7 @@ void sitehelper_editor_init(
     *editor = (SiteHelperEditor){
         .current_room_id = DOMAIN_ID_INVALID,
         .current_wall_id = DOMAIN_ID_INVALID,
+        .active_view = EDITOR_VIEW_PLAN,
         .active_tool = EDITOR_TOOL_SELECT
     };
 
@@ -334,7 +376,7 @@ void sitehelper_editor_update_snap(
 
     size_t candidate_count = 0;
 
-    if (wall != NULL) {
+    if (editor->active_view == EDITOR_VIEW_WALL_ELEVATION && wall != NULL) {
         candidate_count =
             wall_collect_snap_candidates(
                 wall,
@@ -374,7 +416,7 @@ void sitehelper_editor_pointer_move(
     SiteHelperEditor *editor,
     const Wall *wall,
     const BuildSettings *settings,
-    Vec2 layout_position
+    Vec2 view_position
 )
 {
     if (editor == NULL) {
@@ -382,7 +424,7 @@ void sitehelper_editor_pointer_move(
     }
 
     if (editor->active_tool == EDITOR_TOOL_WALL) {
-        sitehelper_editor_update_snap(editor, NULL, layout_position);
+        sitehelper_editor_update_snap(editor, NULL, view_position);
 
         const SnapResult *snap_result = editor_snap_state_get_result(
             &editor->snap
@@ -396,20 +438,7 @@ void sitehelper_editor_pointer_move(
         return;
     }
 
-    WallLocalPosition local_pointer = wall_elevation_layout_to_local_position(
-        wall,
-        layout_position
-    );
-    Vec2 local_position = {
-        .x = local_pointer.u,
-        .y = local_pointer.z
-    };
-
-    sitehelper_editor_update_snap(
-        editor,
-        wall,
-        local_position
-    );
+    sitehelper_editor_update_snap(editor, wall, view_position);
 
     switch (editor->active_tool) {
         case EDITOR_TOOL_OPENING:
@@ -542,7 +571,7 @@ void sitehelper_editor_complete_opening_command(
 int sitehelper_editor_primary_action(
     SiteHelperEditor *editor,
     const Wall *wall,
-    Vec2 layout_position,
+    Vec2 view_position,
     EditorAction *action
 )
 {
@@ -564,10 +593,18 @@ int sitehelper_editor_primary_action(
                 return 1;
             }
 
-            WallLocalPosition position = wall_elevation_layout_to_local_position(
-                wall,
-                layout_position
-            );
+            if (editor->active_view == EDITOR_VIEW_PLAN) {
+                sitehelper_editor_clear_selection(editor);
+                editor->current_wall_id = plan_segment_distance(
+                    wall->definition.segment, view_position
+                ) <= editor->snap.settings.object_snap_tolerance
+                    ? wall->id : DOMAIN_ID_INVALID;
+                return 1;
+            }
+
+            WallLocalPosition position = {
+                .u = (int)view_position.x, .z = (int)view_position.y
+            };
 
             sitehelper_editor_select_wall_member_at_position(
                 editor,
@@ -608,7 +645,7 @@ int sitehelper_editor_primary_action(
 
             Vec2 position = snap_result != NULL && snap_result->type != SNAP_NONE
                 ? snap_result->position
-                : layout_position;
+                : view_position;
 
             if (!editor->wall_tool.has_start) {
                 return wall_tool_begin(&editor->wall_tool, position);
@@ -645,7 +682,7 @@ int sitehelper_editor_primary_action_in_room(
     SiteHelperEditor *editor,
     const BuildStructure *structure,
     const Room *room,
-    Vec2 layout_position,
+    Vec2 view_position,
     EditorAction *action
 )
 {
@@ -653,38 +690,29 @@ int sitehelper_editor_primary_action_in_room(
         return 0;
     }
 
-    if (editor->active_tool == EDITOR_TOOL_SELECT && room != NULL) {
+    if (editor->active_view == EDITOR_VIEW_PLAN &&
+        editor->active_tool == EDITOR_TOOL_SELECT) {
         *action = (EditorAction){ .kind = EDITOR_ACTION_NONE };
+        sitehelper_editor_clear_selection(editor);
+        sitehelper_editor_invalidate_transient_state(editor);
+        editor->current_wall_id = DOMAIN_ID_INVALID;
+        double nearest = editor->snap.settings.object_snap_tolerance;
 
-        /* Later appended walls win deterministic overlaps. */
-        for (size_t index = room->wall_count; index > 0; index--) {
+        /* Nearest segment wins; later appended walls win exact ties. */
+        for (size_t index = room != NULL ? room->wall_count : 0; index > 0; index--) {
             const Wall *wall = build_find_wall_by_id_const(
-                structure,
-                room->wall_ids[index - 1]
+                structure, room->wall_ids[index - 1]
             );
-
             if (wall == NULL) {
                 continue;
             }
-            WallLocalPosition local = wall_elevation_layout_to_local_position(
-                wall,
-                layout_position
-            );
-            WallMemberHit hit = wall_find_member_at_position(wall, local);
-
-            if (hit.kind != WALL_MEMBER_NONE) {
-                editor_selection_set_wall_member(
-                    &editor->selection,
-                    wall->id,
-                    hit.kind,
-                    hit.timber
-                );
+            double distance = plan_segment_distance(wall->definition.segment, view_position);
+            if (distance <= nearest &&
+                (editor->current_wall_id == DOMAIN_ID_INVALID || distance < nearest)) {
+                nearest = distance;
                 editor->current_wall_id = wall->id;
-                return 1;
             }
         }
-
-        sitehelper_editor_clear_selection(editor);
         return 1;
     }
 
@@ -699,7 +727,7 @@ int sitehelper_editor_primary_action_in_room(
     return sitehelper_editor_primary_action(
         editor,
         wall,
-        layout_position,
+        view_position,
         action
     );
 }
@@ -809,6 +837,7 @@ void sitehelper_editor_invalidate_transient_state(
     editor->opening_placement =
         (OpeningPlacement){0};
 
+    editor->opening_tool.preview_valid = 0;
     wall_tool_cancel(&editor->wall_tool);
 }
 

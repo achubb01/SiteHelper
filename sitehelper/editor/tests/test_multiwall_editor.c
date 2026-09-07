@@ -5,7 +5,6 @@
 #include "command_history.h"
 #include "sitehelper_command.h"
 #include "wall.h"
-#include "wall_elevation_layout.h"
 
 static Wall *add_wall(
     SiteHelperProject *project,
@@ -27,23 +26,6 @@ static Wall *add_wall(
     return wall;
 }
 
-static void test_elevation_layout_input_preserves_quantization(void)
-{
-    Wall wall = { .definition.segment.start = { .x = 5000, .y = -3000 } };
-    WallLocalPosition local = wall_elevation_layout_to_local_position(
-        &wall, (Vec2){ .x = 4999.75, .y = -2999.75 }
-    );
-    /* Truncate before subtracting: truncating the local delta differs here. */
-    assert(local.u == -1);
-    assert(local.z == 1);
-
-    local = wall_elevation_layout_to_local_position(
-        NULL, (Vec2){ .x = -12.75, .y = 23.75 }
-    );
-    assert(local.u == -12);
-    assert(local.z == 23);
-}
-
 static void test_positioned_walls_select_by_stable_identity(void)
 {
     SiteHelperProject project;
@@ -60,13 +42,13 @@ static void test_positioned_walls_select_by_stable_identity(void)
 
     assert(sitehelper_editor_primary_action_in_room(
         &editor, &project.structure, room, (Vec2){ 10, 10 }, &action));
-    assert(editor.selection.wall_id == 20);
+    assert(editor_selection_is_empty(&editor.selection));
     assert(editor.current_wall_id == 20);
     assert(editor_selection_get_wall_member(&editor.selection, 30) == NULL);
 
     assert(sitehelper_editor_primary_action_in_room(
         &editor, &project.structure, room, (Vec2){ 5010, 3010 }, &action));
-    assert(editor.selection.wall_id == 30);
+    assert(editor_selection_is_empty(&editor.selection));
     assert(editor.current_wall_id == 30);
     assert(editor_selection_get_wall_member(&editor.selection, 20) == NULL);
 
@@ -77,7 +59,7 @@ static void test_positioned_walls_select_by_stable_identity(void)
     room = build_find_room_by_id(&project.structure, room_id);
     assert(build_find_wall_by_id(
         &project.structure, editor.current_wall_id)->id == 30);
-    assert(editor.selection.wall_id == 30);
+    assert(editor_selection_is_empty(&editor.selection));
 
     sitehelper_project_destroy(&project);
 }
@@ -95,13 +77,14 @@ static void test_opening_path_uses_positioned_wall_local_coordinates(void)
     sitehelper_editor_init(&editor);
     editor.current_room_id = room_id;
     editor.current_wall_id = wall->id;
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
     assert(sitehelper_editor_set_active_tool(&editor, EDITOR_TOOL_OPENING));
 
     sitehelper_editor_pointer_move(
         &editor,
         wall,
         &project.settings,
-        (Vec2){ 6600, 3800 }
+        (Vec2){ 1600, 800 }
     );
 
     const OpeningPlacement *placement =
@@ -114,7 +97,7 @@ static void test_opening_path_uses_positioned_wall_local_coordinates(void)
         &editor,
         &project.structure,
         build_find_room_by_id(&project.structure, room_id),
-        (Vec2){ 6600, 3800 },
+        (Vec2){ 1600, 800 },
         &action
     ));
     assert(action.kind == EDITOR_ACTION_COMMAND);
@@ -207,7 +190,6 @@ static void test_wall_second_click_sets_endpoint_without_pointer_move(void)
 int main(void)
 {
     test_wall_second_click_sets_endpoint_without_pointer_move();
-    test_elevation_layout_input_preserves_quantization();
     test_wall_preview_and_command_preserve_diagonal_clicks();
     test_positioned_walls_select_by_stable_identity();
     test_opening_path_uses_positioned_wall_local_coordinates();

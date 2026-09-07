@@ -12,11 +12,20 @@
 #include "editor_action.h"
 #include "sitehelper_project.h"
 
+/* Transient view state; never part of SiteHelperProject. */
+typedef enum
+{
+    EDITOR_VIEW_PLAN,
+    EDITOR_VIEW_WALL_ELEVATION,
+    EDITOR_VIEW_COUNT
+} EditorView;
+
 typedef struct
 {
     DomainId current_room_id;
     DomainId current_wall_id;
 
+    EditorView active_view;
     EditorTool active_tool;
 
     EditorSelection selection;
@@ -30,6 +39,9 @@ typedef struct
 void sitehelper_editor_init(
     SiteHelperEditor *editor
 );
+
+int sitehelper_editor_tool_available(EditorView view, EditorTool tool);
+int sitehelper_editor_set_active_view(SiteHelperEditor *editor, EditorView view);
 
 int sitehelper_editor_set_active_tool(
     SiteHelperEditor *editor,
@@ -88,20 +100,20 @@ void sitehelper_editor_set_snap_result(
     SnapResult result
 );
 
-/* With a wall, position is local elevation Vec2 (x = U, y = Z).
- * Without a wall, position is in the active tool's render layout. */
+/* Active view world coordinates: Plan X/Y or elevation U/Z.
+ * Generated wall snap candidates are used only in elevation. */
 void sitehelper_editor_update_snap(
     SiteHelperEditor *editor,
     const Wall *wall,
     Vec2 position
 );
 
-/* Pointer APIs receive render layout coordinates, before camera projection. */
+/* Pointer APIs receive active view world coordinates, after camera unprojection. */
 void sitehelper_editor_pointer_move(
     SiteHelperEditor *editor,
     const Wall *wall,
     const BuildSettings *settings,
-    Vec2 layout_position
+    Vec2 view_position
 );
 
 const OpeningPlacement *
@@ -125,7 +137,7 @@ void sitehelper_editor_complete_opening_command(
 int sitehelper_editor_primary_action(
     SiteHelperEditor *editor,
     const Wall *wall,
-    Vec2 layout_position,
+    Vec2 view_position,
     EditorAction *action
 );
 
@@ -133,7 +145,7 @@ int sitehelper_editor_primary_action_in_room(
     SiteHelperEditor *editor,
     const BuildStructure *structure,
     const Room *room,
-    Vec2 layout_position,
+    Vec2 view_position,
     EditorAction *action
 );
 

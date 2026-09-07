@@ -3,6 +3,7 @@
 #include "sitehelper_project.h"
 #include "sitehelper_editor.h"
 #include "appstate.h"
+#include "app_view.h"
 #include "viewport_input.h"
 
 #include "domain_id.h"
@@ -70,6 +71,7 @@ typedef struct
     GuiToolbar toolbar;
 
     ViewportInput viewport_input;
+    AppViews views;
 
     int running;
 } SiteHelperApp;
@@ -150,7 +152,7 @@ static int sitehelper_app_init(
 
     app->backend =
         renderer2d_sdl_create_backend(
-            "SiteHelper",
+            "SiteHelper (Tab: Plan / Wall Elevation)",
             800,
             600
         );
@@ -165,6 +167,7 @@ static int sitehelper_app_init(
         .scale = 0.12
     };
 
+    app_views_init(&app->views, camera);
     renderer2d_set_camera(
         app->renderer,
         camera
@@ -351,31 +354,7 @@ static void sitehelper_app_render(
         &app->grid_style
     );
 
-    const Room *room = app_current_room_const(&app->project, &app->editor);
-    const EditorSelection *selection = sitehelper_editor_get_selection(
-        &app->editor
-    );
-
-    if (room != NULL) {
-        for (size_t index = 0; index < room->wall_count; index++) {
-            const Wall *wall = build_find_wall_by_id_const(
-                &app->project.structure,
-                room->wall_ids[index]
-            );
-
-            if (wall == NULL) {
-                continue;
-            }
-            const WallSelection *wall_selection =
-                editor_selection_get_wall_member(selection, wall->id);
-            const Timber *selected = wall_selection_resolve(
-                wall_selection,
-                wall
-            );
-
-            wall_render(app->renderer, wall, selected, &app->wall_style);
-        }
-    }
+    app_render_walls(app->renderer, &app->project, &app->editor, &app->wall_style);
 
     Rect2 preview_rect;
 
@@ -385,17 +364,6 @@ static void sitehelper_app_render(
             &preview_rect
         )
     ) {
-        const Wall *wall = app_current_wall_const(
-            &app->project,
-            &app->editor
-        );
-
-        if (wall != NULL) {
-            /* Match wall_render's temporary elevation layout offset. */
-            preview_rect.position.x += wall->definition.segment.start.x;
-            preview_rect.position.y += wall->definition.segment.start.y;
-        }
-
         renderer2d_draw_rect(
             app->renderer,
             preview_rect,
@@ -512,6 +480,16 @@ static void sitehelper_app_process_events(
                         );
                     }
 
+                    continue;
+                }
+
+                if (key == PLATFORM_KEY_TAB && !event.data.key_down.repeat &&
+                    modifiers == PLATFORM_MODIFIER_NONE) {
+                    EditorView view = app->editor.active_view == EDITOR_VIEW_PLAN
+                        ? EDITOR_VIEW_WALL_ELEVATION : EDITOR_VIEW_PLAN;
+                    app_views_set_active(&app->views, &app->editor, app->renderer, view);
+                    viewport_input_end_middle_drag(&app->viewport_input);
+                    sitehelper_app_set_active_tool(app, app->editor.active_tool);
                     continue;
                 }
 
@@ -687,7 +665,7 @@ static void sitehelper_app_process_events(
                         Viewport2D viewport = renderer2d_get_viewport(
                             app->renderer
                         );
-                        Vec2 layout_position = camera_screen_to_world(
+                        Vec2 view_position = camera_screen_to_world(
                             &camera,
                             viewport,
                             screen_position
@@ -702,7 +680,7 @@ static void sitehelper_app_process_events(
                             &app->editor,
                             &app->project.structure,
                             room,
-                                layout_position,
+                                view_position,
                                 &action)) {
                             continue;
                         }
@@ -825,7 +803,7 @@ static void sitehelper_app_update_editor_pointer(
             app->renderer
         );
 
-    Vec2 layout_position =
+    Vec2 view_position =
         camera_screen_to_world(
             &camera,
             viewport,
@@ -841,7 +819,7 @@ static void sitehelper_app_update_editor_pointer(
         &app->editor,
         wall,
         &app->project.settings,
-        layout_position
+        view_position
     );
 }
 
@@ -908,20 +886,6 @@ static void sitehelper_app_render_snap_cursor(
     Vec2 position =
         snap_result->position;
 
-    const Wall *wall = app_current_wall_const(
-        &app->project,
-        &app->editor
-    );
-
-    if (wall != NULL &&
-        sitehelper_editor_get_active_tool(&app->editor) ==
-            EDITOR_TOOL_OPENING) {
-
-        /* Match wall_render's temporary elevation layout offset. */
-        position.x += wall->definition.segment.start.x;
-        position.y += wall->definition.segment.start.y;
-    }
-
     renderer2d_draw_line(
         app->renderer,
         (Vec2){
@@ -987,6 +951,11 @@ static void sitehelper_app_set_active_tool(
         i++
     ) {
         EditorTool button_tool;
+        int known = sitehelper_app_toolbar_action_tool(
+            app->toolbar.buttons[i].id, &button_tool
+        );
+        gui_button_set_enabled(&app->toolbar.buttons[i], known &&
+            sitehelper_editor_tool_available(app->editor.active_view, button_tool));
 
         gui_button_set_active(
             &app->toolbar.buttons[i],

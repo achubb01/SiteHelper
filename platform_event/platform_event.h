@@ -21,7 +21,8 @@ typedef enum
     PLATFORM_KEY_UP,
     PLATFORM_KEY_DOWN_ARROW,
     PLATFORM_KEY_Y,
-    PLATFORM_KEY_Z
+    PLATFORM_KEY_Z,
+    PLATFORM_KEY_TAB
 } PlatformKey;
 
 typedef enum

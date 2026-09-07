@@ -8,6 +8,9 @@ static PlatformKey platform_event_sdl_key(
 )
 {
     switch (key) {
+        case SDLK_TAB:
+            return PLATFORM_KEY_TAB;
+
         case SDLK_LEFT:
             return PLATFORM_KEY_LEFT;
 

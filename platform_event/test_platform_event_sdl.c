@@ -53,6 +53,10 @@ static void test_key_events(void)
     assert(event.data.key_down.modifiers == PLATFORM_MODIFIER_NONE);
     assert(!event.data.key_down.repeat);
 
+    sdl_event.key.key = SDLK_TAB;
+    platform_event_sdl_translate(&sdl_event, &event);
+    assert(event.data.key_down.key == PLATFORM_KEY_TAB);
+
     sdl_event.key.key = SDLK_Z;
     sdl_event.key.mod = SDL_KMOD_CTRL;
     sdl_event.key.repeat = 0;
