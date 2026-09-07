@@ -8,6 +8,13 @@ typedef struct PlanPosition
     int y;
 } PlanPosition;
 
+/* Calculated physical building-plan coordinates, in millimetres; not persisted. */
+typedef struct PlanPoint
+{
+    double x;
+    double y;
+} PlanPoint;
+
 /* Wall elevation coordinates, in millimetres, independent of plan placement. */
 typedef struct WallLocalPosition
 {

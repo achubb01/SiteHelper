@@ -1,6 +1,7 @@
 add_library(sitehelper_model
     domain/domain_id.c
     model/wall_plan_segment.c
+    model/wall_plan_transform.c
 )
 
 target_include_directories(sitehelper_model
@@ -228,6 +229,10 @@ add_test(NAME sitehelper_tests COMMAND test_sitehelper)
 add_executable(test_wall_plan wall/tests/test_wall_plan.c)
 target_link_libraries(test_wall_plan PRIVATE sitehelper_wall)
 add_test(NAME wall_plan_tests COMMAND test_wall_plan)
+
+add_executable(test_wall_plan_transform model/tests/test_wall_plan_transform.c)
+target_link_libraries(test_wall_plan_transform PRIVATE sitehelper_model)
+add_test(NAME wall_plan_transform_tests COMMAND test_wall_plan_transform)
 
 add_executable(test_wall_generation_invariants
     wall/tests/test_wall_generation_invariants.c

@@ -2,6 +2,7 @@
 #include <math.h>
 #include "sitehelper_editor.h"
 #include "wall_query.h"
+#include "wall_plan_transform.h"
 #include "wall_snap.h"
 
 int sitehelper_editor_tool_available(EditorView view, EditorTool tool)
@@ -32,14 +33,17 @@ int sitehelper_editor_set_active_view(SiteHelperEditor *editor, EditorView view)
 /* Physical plan proximity; shares the editor's object tolerance. */
 static double plan_segment_distance(WallPlanSegment segment, Vec2 point)
 {
-    double dx = (double)segment.end.x - segment.start.x;
-    double dy = (double)segment.end.y - segment.start.y;
-    double px = point.x - segment.start.x;
-    double py = point.y - segment.start.y;
-    double squared_length = dx * dx + dy * dy;
-    double t = squared_length > 0.0 ? (px * dx + py * dy) / squared_length : 0.0;
-    t = fmax(0.0, fmin(1.0, t));
-    return hypot(px - t * dx, py - t * dy);
+    PlanPoint plan_point = { .x = point.x, .y = point.y };
+    double u;
+    if (!wall_plan_segment_plan_to_u(segment, plan_point, &u)) {
+        return INFINITY;
+    }
+    u = fmax(0.0, fmin((double)wall_plan_segment_length_mm(segment), u));
+    PlanPoint nearest;
+    if (!wall_plan_segment_u_to_plan(segment, u, &nearest)) {
+        return INFINITY;
+    }
+    return hypot(plan_point.x - nearest.x, plan_point.y - nearest.y);
 }
 
 int sitehelper_editor_set_active_tool(
