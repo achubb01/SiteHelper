@@ -55,18 +55,9 @@ static int parse_bool_token(const char *token, bool *value);
 static const char *stud_spacing_mode_token(StudSpacingMode mode);
 static const char *opening_type_token(OpeningType type);
 
-static int build_settings_valid(const BuildSettings *settings);
 static int project_contains_id(
     const SiteHelperProject *project,
     DomainId id
-);
-static size_t project_id_occurrence_count(
-    const SiteHelperProject *project,
-    DomainId id
-);
-static int project_ids_valid(const SiteHelperProject *project);
-static SiteHelperPersistenceResult project_validate_for_save(
-    const SiteHelperProject *project
 );
 static SiteHelperPersistenceResult parse_project(
     FILE *file,
@@ -329,19 +320,6 @@ static const char *opening_type_token(OpeningType type)
     }
 }
 
-static int build_settings_valid(const BuildSettings *settings)
-{
-    if (settings == NULL || settings->stud_height <= 0 ||
-        settings->stud_depth <= 0 || settings->stud_width <= 0 ||
-        settings->stud_spacing <= 0 || settings->nog_spacing <= 0) {
-
-        return 0;
-    }
-
-    return settings->stud_spacing_mode == STUD_SPACING_EVEN ||
-        settings->stud_spacing_mode == STUD_SPACING_MAXIMISE;
-}
-
 static int project_contains_id(
     const SiteHelperProject *project,
     DomainId id
@@ -383,210 +361,6 @@ static int project_contains_id(
     }
 
     return 0;
-}
-
-static size_t project_id_occurrence_count(
-    const SiteHelperProject *project,
-    DomainId id
-)
-{
-    if (project == NULL || id == DOMAIN_ID_INVALID) {
-        return 0;
-    }
-
-    size_t occurrences = 0;
-
-    for (size_t room_index = 0;
-         room_index < project->structure.room_count;
-         room_index++) {
-
-        const Room *room = &project->structure.rooms[room_index];
-
-        if (room->id == id) {
-            occurrences++;
-        }
-
-    }
-
-    for (size_t wall_index = 0;
-         wall_index < project->structure.wall_count;
-         wall_index++) {
-
-        const Wall *wall = &project->structure.walls[wall_index];
-        if (wall->id == id) {
-            occurrences++;
-        }
-
-        for (size_t opening_index = 0;
-             opening_index < wall->definition.opening_count;
-             opening_index++) {
-
-            if (wall->definition.openings[opening_index].id == id) {
-                occurrences++;
-            }
-        }
-    }
-
-    return occurrences;
-}
-
-static int project_ids_valid(const SiteHelperProject *project)
-{
-    if (project == NULL || project->domain_ids.next == DOMAIN_ID_INVALID) {
-        return 0;
-    }
-
-    DomainId maximum_id = DOMAIN_ID_INVALID;
-
-    for (size_t room_index = 0;
-         room_index < project->structure.room_count;
-         room_index++) {
-
-        const Room *room = &project->structure.rooms[room_index];
-
-        if (room->id == DOMAIN_ID_INVALID ||
-            project_id_occurrence_count(project, room->id) != 1) {
-
-            return 0;
-        }
-
-        if (room->id > maximum_id) {
-            maximum_id = room->id;
-        }
-
-    }
-
-    for (size_t wall_index = 0;
-         wall_index < project->structure.wall_count;
-         wall_index++) {
-
-        const Wall *wall = &project->structure.walls[wall_index];
-        if (wall->id == DOMAIN_ID_INVALID ||
-            project_id_occurrence_count(project, wall->id) != 1) {
-            return 0;
-        }
-
-        if (wall->id > maximum_id) {
-            maximum_id = wall->id;
-        }
-
-        for (size_t opening_index = 0;
-             opening_index < wall->definition.opening_count;
-             opening_index++) {
-
-            DomainId opening_id = wall->definition.openings[opening_index].id;
-            if (opening_id == DOMAIN_ID_INVALID ||
-                project_id_occurrence_count(project, opening_id) != 1) {
-                return 0;
-            }
-
-            if (opening_id > maximum_id) {
-                maximum_id = opening_id;
-            }
-        }
-    }
-
-    if (project->domain_ids.next <= maximum_id) {
-        return 0;
-    }
-
-    return 1;
-}
-
-static SiteHelperPersistenceResult project_validate_for_save(
-    const SiteHelperProject *project
-)
-{
-    if (project == NULL || !build_settings_valid(&project->settings)) {
-        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
-    }
-
-    if ((project->structure.room_count != 0 &&
-         project->structure.rooms == NULL) ||
-        project->structure.room_count > project->structure.room_capacity) {
-
-        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
-    }
-
-    for (size_t room_index = 0;
-         room_index < project->structure.room_count;
-         room_index++) {
-
-        const Room *room = &project->structure.rooms[room_index];
-
-        if ((room->wall_count != 0 && room->wall_ids == NULL) ||
-            room->wall_count > room->wall_capacity) {
-
-            return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
-        }
-
-        for (size_t wall_index = 0;
-             wall_index < room->wall_count;
-             wall_index++) {
-
-            if (build_find_wall_by_id_const(
-                    &project->structure,
-                    room->wall_ids[wall_index]) == NULL) {
-
-                return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
-            }
-
-            for (size_t previous = 0; previous < wall_index; previous++) {
-                if (room->wall_ids[previous] == room->wall_ids[wall_index]) {
-                    return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
-                }
-            }
-        }
-    }
-
-    if ((project->structure.wall_count != 0 &&
-         project->structure.walls == NULL) ||
-        project->structure.wall_count > project->structure.wall_capacity) {
-
-        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
-    }
-
-    for (size_t wall_index = 0;
-         wall_index < project->structure.wall_count;
-         wall_index++) {
-
-            const Wall *wall = &project->structure.walls[wall_index];
-
-            if (wall_length_mm(wall) == 0 ||
-                (wall->definition.opening_count != 0 &&
-                 wall->definition.openings == NULL) ||
-                wall->definition.opening_count >
-                    wall->definition.opening_capacity) {
-
-                return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
-            }
-
-            Wall validation_wall = {
-                .definition.segment = wall->definition.segment
-            };
-
-            for (size_t opening_index = 0;
-                 opening_index < wall->definition.opening_count;
-                 opening_index++) {
-
-                if (!wall_add_opening_definition(
-                        &validation_wall,
-                        &project->settings,
-                        &wall->definition.openings[opening_index])) {
-
-                    wall_destroy(&validation_wall);
-                    return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
-                }
-            }
-
-            wall_destroy(&validation_wall);
-    }
-
-    if (!project_ids_valid(project)) {
-        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
-    }
-
-    return SITEHELPER_PERSISTENCE_SUCCESS;
 }
 
 static SiteHelperPersistenceResult parse_settings(
@@ -947,9 +721,7 @@ static SiteHelperPersistenceResult parse_project(
 
     project->domain_ids.next = next;
 
-    return project_ids_valid(project)
-        ? SITEHELPER_PERSISTENCE_SUCCESS
-        : SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+    return SITEHELPER_PERSISTENCE_SUCCESS;
 }
 
 static SiteHelperPersistenceResult regenerate_project(
@@ -1087,10 +859,8 @@ SiteHelperPersistenceResult sitehelper_project_save_file(
         return SITEHELPER_PERSISTENCE_INVALID_ARGUMENT;
     }
 
-    SiteHelperPersistenceResult validation = project_validate_for_save(project);
-
-    if (validation != SITEHELPER_PERSISTENCE_SUCCESS) {
-        return validation;
+    if (sitehelper_project_validate(project).code != SITEHELPER_PROJECT_VALID) {
+        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
     }
 
     FILE *file = fopen(path, "w");
@@ -1135,6 +905,10 @@ SiteHelperPersistenceResult sitehelper_project_load_file(
         result = SITEHELPER_PERSISTENCE_IO_ERROR;
     }
 
+    if (result == SITEHELPER_PERSISTENCE_SUCCESS &&
+        sitehelper_project_validate(&candidate).code != SITEHELPER_PROJECT_VALID) {
+        result = SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+    }
     if (result == SITEHELPER_PERSISTENCE_SUCCESS) {
         result = regenerate_project(&candidate);
     }

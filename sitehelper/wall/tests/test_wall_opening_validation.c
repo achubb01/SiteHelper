@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 
 #include "wall.h"
@@ -212,8 +213,34 @@ static void test_add_opening_definition_preserves_custom_allowances(void)
     wall_destroy(&wall);
 }
 
+static void test_extreme_stored_values_are_rejected_without_overflow(void)
+{
+    Wall wall = {.definition.segment.end.x = 4000};
+    BuildSettings settings = test_settings();
+    WallOpeningProposal proposal = valid_proposal();
+    proposal.width = INT_MAX; /* Width + default allowance is unrepresentable. */
+    assert(wall_validate_opening(&wall, &settings, &proposal).code == WALL_OPENING_INVALID_DIMENSIONS);
+    proposal = valid_proposal();
+    proposal.height = INT_MAX;
+    assert(wall_validate_opening(&wall, &settings, &proposal).code == WALL_OPENING_INVALID_DIMENSIONS);
+    proposal = valid_proposal();
+    proposal.frame_bottom = INT_MAX;
+    assert(wall_validate_opening(&wall, &settings, &proposal).code == WALL_OPENING_INVALID_HEIGHT);
+    proposal = valid_proposal();
+    proposal.frame_position = INT_MAX;
+    assert(wall_validate_opening(&wall, &settings, &proposal).code == WALL_OPENING_TOO_CLOSE_TO_RIGHT_END);
+    proposal = valid_proposal();
+    settings.stud_width = INT_MAX;
+    assert(wall_validate_opening(&wall, &settings, &proposal).code == WALL_OPENING_TOO_CLOSE_TO_LEFT_END);
+    settings = test_settings();
+    proposal.custom_allowance = true;
+    proposal.width_allowance = INT_MIN;
+    assert(wall_validate_opening(&wall, &settings, &proposal).code == WALL_OPENING_INVALID_DIMENSIONS);
+}
+
 int main(void)
 {
+    test_extreme_stored_values_are_rejected_without_overflow();
     test_accepts_a_valid_opening();
     test_rejects_invalid_arguments_and_proposals();
     test_rejects_opening_that_exceeds_wall_height();

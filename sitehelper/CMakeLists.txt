@@ -1,5 +1,6 @@
 add_library(sitehelper_model
     domain/domain_id.c
+    model/build_settings.c
     model/wall_plan_segment.c
     model/wall_plan_transform.c
 )
@@ -40,6 +41,7 @@ target_link_libraries(sitehelper_wall
 
 add_library(sitehelper_project
     project/sitehelper_project.c
+    project/project_validation.c
 )
 
 target_include_directories(sitehelper_project
@@ -529,6 +531,15 @@ target_link_libraries(test_sitehelper_project
 )
 
 add_test(NAME sitehelper_project_tests COMMAND test_sitehelper_project)
+
+add_executable(test_project_validation project/tests/test_project_validation.c)
+target_link_libraries(test_project_validation PRIVATE sitehelper_project)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_project_validation PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_project_validation PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME project_validation_tests COMMAND test_project_validation)
 
 add_executable(test_sitehelper_persistence
     persistence/tests/test_sitehelper_persistence.c

@@ -798,8 +798,122 @@ static void test_invalid_segment_files_are_transactional(void)
     remove(malformed_path);
 }
 
+static void test_save_consumes_project_validation_before_opening_file(void)
+{
+    SiteHelperProject project, expected;
+    make_non_trivial_project(&project);
+    make_non_trivial_project(&expected);
+    const char *sentinel = "existing file must survive rejected save\n";
+    for (int kind = 0; kind < 9; kind++) {
+        SiteHelperProject saved_project = project;
+        Room *room = &project.structure.rooms[0];
+        Wall *wall = &project.structure.walls[0];
+        Room saved_room = *room;
+        Wall saved_wall = *wall;
+        Opening saved_opening = wall->definition.openings[0];
+        DomainId saved_reference = room->wall_ids[1];
+        switch (kind) {
+            case 0: project.structure.walls = NULL; break;
+            case 1: project.structure.wall_capacity = 0; break;
+            case 2: project.structure.room_capacity = 0; break;
+            case 3: room->wall_ids = NULL; break;
+            case 4: wall->definition.openings = NULL; break;
+            case 5: project.domain_ids.next = 1; break;
+            case 6: wall->id = room->id; break;
+            case 7: wall->definition.openings[0].frame_position = 10; break;
+            case 8: room->wall_ids[1] = room->wall_ids[0]; break;
+        }
+        write_text_file(invalid_path, sentinel);
+        assert(sitehelper_project_validate(&project).code != SITEHELPER_PROJECT_VALID);
+        assert(sitehelper_project_save_file(&project, invalid_path) == SITEHELPER_PERSISTENCE_INVALID_PROJECT);
+        FILE *file = fopen(invalid_path, "r");
+        char content[128];
+        assert(file && fgets(content, sizeof content, file));
+        assert(strcmp(content, sentinel) == 0 && fgetc(file) == EOF);
+        assert(fclose(file) == 0);
+        project = saved_project;
+        *room = saved_room;
+        *wall = saved_wall;
+        wall->definition.openings[0] = saved_opening;
+        room->wall_ids[1] = saved_reference;
+        assert_project_equal(&expected, &project);
+    }
+    sitehelper_project_destroy(&project);
+    sitehelper_project_destroy(&expected);
+    assert(remove(invalid_path) == 0);
+}
+
+static void test_complete_invalid_candidates_and_regeneration_are_transactional(void)
+{
+    SiteHelperProject destination, expected;
+    make_non_trivial_project(&destination);
+    make_non_trivial_project(&expected);
+    const struct {
+        const char *text;
+        SiteHelperPersistenceResult result;
+    } cases[] = {
+        /* Syntax and incremental construction succeed; the final project
+         * validation rejects the allocator watermark before regeneration. */
+        {"sitehelper_project 4\ndomain_id_next 2\n"
+         "settings 2400 90 35 600 1200 0 0 maximise\n"
+         "walls 1\nwall 2 segment 0 0 4200 0 openings 0\nrooms 0\nend_project\n",
+         SITEHELPER_PERSISTENCE_INVALID_PROJECT},
+        {"sitehelper_project 4\ndomain_id_next 3\n"
+         "settings 2400 90 5000 600 1200 0 0 maximise\n"
+         "walls 1\nwall 2 segment 0 0 4200 0 openings 0\nrooms 0\nend_project\n",
+         SITEHELPER_PERSISTENCE_REGENERATION_FAILED},
+        {"sitehelper_project 4\ndomain_id_next 5\n"
+         "settings 2400 90 35 600 1200 0 0 maximise\n"
+         "walls 1\nwall 2 segment 0 0 4200 0 openings 2\n"
+         "opening 3 door 500 0 800 2000 0 0 false\n"
+         "opening 4 door 600 0 800 2000 0 0 false\nrooms 0\nend_project\n",
+         SITEHELPER_PERSISTENCE_INVALID_PROJECT},
+        {"sitehelper_project 4\ndomain_id_next 3\n"
+         "settings 2400 90 35 600 1200 0 0 maximise\n"
+         "walls 1\nwall 2 segment 0 0 4200 0 openings 0\n"
+         "rooms 1\nroom 1 wall_refs 2\nwall_ref 2\nwall_ref 2\nend_room\nend_project\n",
+         SITEHELPER_PERSISTENCE_MALFORMED_DATA}
+    };
+    for (size_t i = 0; i < sizeof cases / sizeof *cases; i++) {
+        write_text_file(invalid_path, cases[i].text);
+        assert(sitehelper_project_load_file(&destination, invalid_path) == cases[i].result);
+        assert_project_equal(&expected, &destination);
+        assert(sitehelper_project_validate(&destination).code == SITEHELPER_PROJECT_VALID);
+    }
+    assert(remove(invalid_path) == 0);
+    assert(sitehelper_project_load_file(&destination, invalid_path) == SITEHELPER_PERSISTENCE_IO_ERROR);
+    assert_project_equal(&expected, &destination);
+    sitehelper_project_destroy(&destination);
+    sitehelper_project_destroy(&expected);
+}
+
+static void test_save_accepts_authoritative_project_without_framing(void)
+{
+    SiteHelperProject project, loaded;
+    sitehelper_project_init(&project);
+    sitehelper_project_init(&loaded);
+    DomainId room = sitehelper_project_add_room(&project);
+    DomainId id = sitehelper_project_add_wall(&project, room,
+        (WallPlanSegment){{4600, 6800}, {1000, 2000}});
+    Wall *wall = build_find_wall_by_id(&project.structure, id);
+    assert(wall && wall->framing.stud_count == 0);
+    assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
+    assert(sitehelper_project_save_file(&project, round_trip_path) == SITEHELPER_PERSISTENCE_SUCCESS);
+    assert(wall->framing.stud_count == 0);
+    assert(sitehelper_project_load_file(&loaded, round_trip_path) == SITEHELPER_PERSISTENCE_SUCCESS);
+    assert(sitehelper_project_validate(&loaded).code == SITEHELPER_PROJECT_VALID);
+    assert(build_find_wall_by_id(&loaded.structure, id)->framing.stud_count > 0);
+    assert(loaded.domain_ids.next == project.domain_ids.next);
+    sitehelper_project_destroy(&project);
+    sitehelper_project_destroy(&loaded);
+    assert(remove(round_trip_path) == 0);
+}
+
 int main(void)
 {
+    test_save_consumes_project_validation_before_opening_file();
+    test_complete_invalid_candidates_and_regeneration_are_transactional();
+    test_save_accepts_authoritative_project_without_framing();
     test_round_trip_rebuilds_framing_and_preserves_identity();
     test_generator_history_survives_round_trip();
     test_malformed_load_is_transactional();

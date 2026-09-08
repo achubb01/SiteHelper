@@ -1,3 +1,5 @@
+#include <limits.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,8 +11,8 @@ static int wall_frame_door(Wall *wall, const BuildSettings *settings, const Open
 static int wall_frame_window(Wall *wall, const BuildSettings *settings, const Opening *opening, int left_trimmer_position, int right_trimmer_position);
 static int wall_generate_lower_cripples(Wall *wall, const BuildSettings *settings, const Opening *opening);
 static int wall_generate_upper_cripples(Wall *wall, const BuildSettings *settings, const Opening *opening);
-static int opening_assembly_start(const Opening *opening, const BuildSettings *settings);
-static int opening_assembly_end(const Opening *opening, const BuildSettings *settings);
+static int64_t opening_assembly_start(const Opening *opening, const BuildSettings *settings);
+static int64_t opening_assembly_end(const Opening *opening, const BuildSettings *settings);
 static int openings_conflict(const Opening *a, const Opening *b, const BuildSettings *settings);
 static int wall_span_is_opening(const Wall *wall, const BuildSettings *settings, const Timber *left, const Timber *right);
 
@@ -84,15 +86,15 @@ WallOpeningValidation wall_validate_opening(
         );
     }
 
-    if (opening.frame_bottom + frame_height > settings->stud_height) {
+    if ((int64_t)opening.frame_bottom + frame_height > settings->stud_height) {
         return wall_opening_validation(
             WALL_OPENING_INVALID_HEIGHT,
             DOMAIN_ID_INVALID
         );
     }
 
-    int assembly_start = opening_assembly_start(&opening, settings);
-    int assembly_end = opening_assembly_end(&opening, settings);
+    int64_t assembly_start = opening_assembly_start(&opening, settings);
+    int64_t assembly_end = opening_assembly_end(&opening, settings);
 
     if (assembly_start < settings->stud_width) {
         return wall_opening_validation(
@@ -140,7 +142,8 @@ int opening_frame_width(
             ? opening->width_allowance
             : settings->opening_width_allowance;
 
-    return opening->width + allowance;
+    int64_t width = (int64_t)opening->width + allowance;
+    return width > 0 && width <= INT_MAX ? (int)width : 0;
 }
 
 int opening_frame_height(
@@ -158,7 +161,8 @@ int opening_frame_height(
             ? opening->height_allowance
             : settings->opening_height_allowance;
 
-    return opening->height + allowance;
+    int64_t height = (int64_t)opening->height + allowance;
+    return height > 0 && height <= INT_MAX ? (int)height : 0;
 }
 
 int wall_add_opening_definition(
@@ -809,28 +813,28 @@ static int wall_generate_upper_cripples(
     );
 }
 
-static int opening_assembly_start(
+static int64_t opening_assembly_start(
     const Opening *opening,
     const BuildSettings *settings
 )
 {
     return
-        opening->frame_position -
-        (2 * settings->stud_width);
+        (int64_t)opening->frame_position -
+        (2 * (int64_t)settings->stud_width);
 }
 
-static int opening_assembly_end(
+static int64_t opening_assembly_end(
     const Opening *opening,
     const BuildSettings *settings
 )
 {
     return
-        opening->frame_position +
+        (int64_t)opening->frame_position +
         opening_frame_width(
             opening,
             settings
         ) +
-        (2 * settings->stud_width);
+        (2 * (int64_t)settings->stud_width);
 }
 
 static int openings_conflict(
@@ -845,25 +849,25 @@ static int openings_conflict(
         return 0;
     }
 
-    int a_start =
+    int64_t a_start =
         opening_assembly_start(
             a,
             settings
         );
 
-    int a_end =
+    int64_t a_end =
         opening_assembly_end(
             a,
             settings
         );
 
-    int b_start =
+    int64_t b_start =
         opening_assembly_start(
             b,
             settings
         );
 
-    int b_end =
+    int64_t b_end =
         opening_assembly_end(
             b,
             settings

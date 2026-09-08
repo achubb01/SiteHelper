@@ -63,6 +63,7 @@ static void assert_project_equal(const SiteHelperProject *expected,
     const SiteHelperProject *actual)
 {
     test_assert_project_authoritative_equal(expected, actual);
+    assert(sitehelper_project_validate(actual).code == SITEHELPER_PROJECT_VALID);
     for (size_t i = 0; i < expected->structure.wall_count; i++) {
         const Wall *wall = &expected->structure.walls[i];
         test_assert_framing_semantically_equal(&wall->framing,

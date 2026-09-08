@@ -115,6 +115,7 @@ static void test_success_only_changes_intended_authoritative_state(void)
     SiteHelperCommandResult result;
 
     assert(sitehelper_command_execute(&project, &command, &result));
+    assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
     assert(result.type == SITEHELPER_COMMAND_ADD_OPENING);
     assert(result.data.add_opening.room_id == room_id);
     assert(result.data.add_opening.wall_id == target_wall_id);
@@ -217,6 +218,7 @@ static void test_failure_leaves_full_authoritative_state_unchanged(void)
     };
 
     assert(!sitehelper_command_execute(&project, &overlapping, &result));
+    assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
     assert(result.type == SITEHELPER_COMMAND_NONE);
     test_assert_project_authoritative_equal(&before, &project);
 
@@ -249,6 +251,7 @@ static void test_undo_restores_and_redo_recreates_exact_authoritative_state(void
     SiteHelperCommandResult result;
 
     assert(sitehelper_command_execute(&project, &command, &result));
+    assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
 
     SiteHelperProject committed;
     test_clone_project_authoritative(&project, &committed);
@@ -256,6 +259,7 @@ static void test_undo_restores_and_redo_recreates_exact_authoritative_state(void
     DomainId next_after_execute = project.domain_ids.next;
 
     assert(sitehelper_command_undo(&project, &command, &result));
+    assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
     test_assert_project_model_equal(&before, &project);
 
     /*
@@ -265,6 +269,7 @@ static void test_undo_restores_and_redo_recreates_exact_authoritative_state(void
     assert(project.domain_ids.next == next_after_execute);
 
     assert(sitehelper_command_redo(&project, &command, &result));
+    assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
     test_assert_project_authoritative_equal(&committed, &project);
 
     const Wall *target = build_find_wall_by_id_const(

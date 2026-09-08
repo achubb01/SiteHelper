@@ -22,4 +22,8 @@ typedef struct
     StudSpacingMode stud_spacing_mode;
 } BuildSettings;
 
+/* Authoritative scalar settings rules. Allowances are checked in context by
+ * opening validation; no independent sign restriction is imposed on them. */
+int build_settings_valid(const BuildSettings *settings);
+
 #endif
