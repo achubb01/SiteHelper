@@ -1,7 +1,13 @@
 #include <stdlib.h>
 
 #include "command_history.h"
+#include "sitehelper_command_internal.h"
 
+static void history_entry_destroy(SiteHelperCommandHistoryEntry *entry)
+{
+    sitehelper_command_destroy_undo_state(entry->undo_state);
+    *entry = (SiteHelperCommandHistoryEntry){0};
+}
 
 static int
 sitehelper_command_history_reserve(
@@ -76,6 +82,10 @@ sitehelper_command_history_destroy(
         return;
     }
 
+    for (size_t i = 0; i < history->count; i++) {
+        history_entry_destroy(&history->entries[i]);
+    }
+
     free(
         history->entries
     );
@@ -120,29 +130,30 @@ sitehelper_command_history_execute(
      * recording it must not be capable of
      * failing due to allocation.
      */
+    /* Copy before realloc: callers may pass a command from an existing entry. */
+    SiteHelperCommandHistoryEntry candidate = { .command = *command };
     if (!sitehelper_command_history_reserve(
             history,
             history->cursor + 1)) {
         return 0;
     }
 
-    if (!sitehelper_command_execute(
+    if (!sitehelper_command_capture_undo_state(
+            project, &candidate.command, &candidate.undo_state) ||
+        !sitehelper_command_execute(
             project,
-            command,
-            result)) {
+            &candidate.command,
+            &candidate.result)) {
+        history_entry_destroy(&candidate);
         return 0;
     }
 
-    history->entries[
-        history->cursor
-    ] =
-        (SiteHelperCommandHistoryEntry){
-            .command =
-                *command,
-
-            .result =
-                *result
-        };
+    for (size_t i = history->cursor; i < history->count; i++) {
+        history_entry_destroy(&history->entries[i]);
+    }
+    *result = candidate.result;
+    /* Transfer exclusive ownership into the reserved slot. */
+    history->entries[history->cursor] = candidate;
 
     /*
     * The new command replaces any redoable
@@ -181,10 +192,11 @@ sitehelper_command_history_undo(
      * the domain mutation has been successfully
      * reversed.
      */
-    if (!sitehelper_command_undo(
+    if (!sitehelper_command_undo_with_state(
             project,
             &entry->command,
-            &entry->result)) {
+            &entry->result,
+            entry->undo_state)) {
         return 0;
     }
 

@@ -73,6 +73,8 @@ target_link_libraries(sitehelper_persistence
 add_library(sitehelper_command
     command/opening_command.c
     command/wall_command.c
+    command/delete_wall_command.c
+    command/move_wall_endpoint_command.c
     command/sitehelper_command.c
     command/command_history.c
 )
@@ -441,6 +443,26 @@ target_link_libraries(test_wall_command
 )
 
 add_test(NAME wall_command_tests COMMAND test_wall_command)
+
+add_executable(test_delete_wall_command command/tests/test_delete_wall_command.c)
+target_link_libraries(test_delete_wall_command PRIVATE sitehelper_command sitehelper_test_support)
+# Link-time allocation failures exercise transactions without production hooks.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_delete_wall_command PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_delete_wall_command PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME delete_wall_command_tests COMMAND test_delete_wall_command)
+
+add_executable(test_move_wall_endpoint_command command/tests/test_move_wall_endpoint_command.c)
+target_link_libraries(test_move_wall_endpoint_command PRIVATE
+    sitehelper_command sitehelper_test_support sitehelper_persistence)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_move_wall_endpoint_command PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_move_wall_endpoint_command PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME move_wall_endpoint_command_tests COMMAND test_move_wall_endpoint_command)
 
 add_executable(test_domain_id
     domain/tests/test_domain_id.c

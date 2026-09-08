@@ -5,11 +5,15 @@
 
 #include "sitehelper_command.h"
 
+typedef struct SiteHelperCommandUndoState SiteHelperCommandUndoState;
 
+/* Entries own undo_state exclusively. They may be moved, never shallow-copied
+ * into another owning entry. Commands and public results remain plain values. */
 typedef struct
 {
     SiteHelperCommand command;
     SiteHelperCommandResult result;
+    SiteHelperCommandUndoState *undo_state;
 
 } SiteHelperCommandHistoryEntry;
 

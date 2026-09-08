@@ -74,6 +74,20 @@ static void test_view_rendering_and_local_pointer(void)
     drawing = (Drawing){0};
     wall_elevation_render(renderer, app_current_wall_const(&project, &editor), NULL, &style);
     assert_same_rects(&first_elevation, &drawing); /* Exactly the current wall. */
+    SiteHelperCommand rotation = {.type = SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT,
+        .data.move_wall_endpoint = {first, WALL_ENDPOINT_END, {5000, 7200}}};
+    SiteHelperCommandResult rotation_result;
+    assert(sitehelper_command_execute(&project, &rotation, &rotation_result));
+    sitehelper_editor_reconcile(&editor, &project);
+    drawing = (Drawing){0};
+    app_render_walls(renderer, &project, &editor, &style);
+    assert_same_rects(&first_elevation, &drawing);
+    Camera2D after_rotation = renderer2d_get_camera(renderer);
+    assert(after_rotation.position.x == camera.position.x);
+    assert(after_rotation.position.y == camera.position.y);
+    assert(after_rotation.scale == camera.scale);
+    assert(editor.current_wall_id == first);
+
     editor.current_wall_id = second;
     drawing = (Drawing){0};
     app_render_walls(renderer, &project, &editor, &style);

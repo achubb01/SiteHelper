@@ -3,6 +3,8 @@
 
 #include "opening_command.h"
 #include "wall_command.h"
+#include "delete_wall_command.h"
+#include "move_wall_endpoint_command.h"
 #include "sitehelper_project.h"
 
 typedef enum
@@ -11,6 +13,8 @@ typedef enum
 
     SITEHELPER_COMMAND_ADD_OPENING,
     SITEHELPER_COMMAND_ADD_WALL,
+    SITEHELPER_COMMAND_DELETE_WALL,
+    SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT,
 
     SITEHELPER_COMMAND_COUNT
 } SiteHelperCommandType;
@@ -23,6 +27,8 @@ typedef struct
     {
         OpeningCommand opening;
         WallCommand wall;
+        DeleteWallCommand delete_wall;
+        MoveWallEndpointCommand move_wall_endpoint;
     } data;
 } SiteHelperCommand;
 
@@ -45,6 +51,16 @@ typedef struct
             DomainId wall_id;
         } add_wall;
 
+        struct
+        {
+            DomainId wall_id;
+        } delete_wall;
+
+        struct
+        {
+            DomainId wall_id;
+        } move_wall_endpoint;
+
     } data;
 
 } SiteHelperCommandResult;
@@ -65,6 +81,16 @@ int sitehelper_command_execute(
     SiteHelperCommandResult *result
 );
 
+int sitehelper_command_from_delete_wall(
+    const DeleteWallCommand *deletion,
+    SiteHelperCommand *command
+);
+
+int sitehelper_command_from_move_wall_endpoint(
+    const MoveWallEndpointCommand *move, SiteHelperCommand *command);
+
+/* Compact add-command undo. DELETE_WALL and MOVE_WALL_ENDPOINT require state
+ * owned by command history; use history execute/undo for reversible edits. */
 int sitehelper_command_undo(
     SiteHelperProject *project,
     const SiteHelperCommand *command,
