@@ -42,8 +42,6 @@ void room_destroy(
         return;
     }
 
-    free(room->wall_ids);
-
     *room = (Room){0};
 }
 
@@ -74,6 +72,7 @@ void build_destroy(
     }
 
     free(structure->walls);
+    free(structure->room_separators);
 
     *structure = (BuildStructure){0};
 }

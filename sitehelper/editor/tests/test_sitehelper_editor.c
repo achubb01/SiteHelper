@@ -898,7 +898,6 @@ static void test_editor_creates_opening_command(void)
         )
     );
 
-    assert(command.room_id == 10);
     assert(command.wall_id == 20);
 
     assert(command.type == OPENING_WINDOW);
@@ -1144,7 +1143,6 @@ static void test_opening_primary_action_produces_command(void)
     const OpeningCommand *opening =
         &action.command.data.opening;
 
-    assert(opening->room_id == 10);
     assert(opening->wall_id == 20);
 
     assert(

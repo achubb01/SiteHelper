@@ -66,7 +66,6 @@ static int opening_command_copy_wall_definition(
 }
 
 int opening_command_create(
-    DomainId room_id,
     DomainId wall_id,
     OpeningType type,
     int frame_position,
@@ -78,7 +77,6 @@ int opening_command_create(
 {
     if (
         command == NULL
-        || room_id == DOMAIN_ID_INVALID
         || wall_id == DOMAIN_ID_INVALID
         || frame_position < 0
         || frame_bottom < 0
@@ -96,7 +94,6 @@ int opening_command_create(
     }
 
     *command = (OpeningCommand){
-        .room_id = room_id,
         .wall_id = wall_id,
         .type = type,
         .frame_position = frame_position,
@@ -124,25 +121,12 @@ int opening_command_execute(
     if (
         project == NULL
         || command == NULL
-        || command->room_id == DOMAIN_ID_INVALID
         || command->wall_id == DOMAIN_ID_INVALID
     ) {
         return 0;
     }
 
-    Room *room =
-        build_find_room_by_id(
-            &project->structure,
-            command->room_id
-        );
-
-    if (room == NULL) {
-        return 0;
-    }
-
-    Wall *wall = room_has_wall_id(room, command->wall_id)
-        ? build_find_wall_by_id(&project->structure, command->wall_id)
-        : NULL;
+    Wall *wall = build_find_wall_by_id(&project->structure, command->wall_id);
 
     if (wall == NULL) {
         return 0;
@@ -170,7 +154,7 @@ int opening_command_execute(
             &candidate_ids
         );
 
-    if (opening_id == DOMAIN_ID_INVALID) {
+    if (opening_id == DOMAIN_ID_INVALID || build_contains_domain_id(&project->structure, opening_id)) {
         wall_destroy(
             &candidate
         );
@@ -246,19 +230,7 @@ int opening_command_undo(
         return 0;
     }
 
-    Room *room =
-        build_find_room_by_id(
-            &project->structure,
-            command->room_id
-        );
-
-    if (room == NULL) {
-        return 0;
-    }
-
-    Wall *wall = room_has_wall_id(room, command->wall_id)
-        ? build_find_wall_by_id(&project->structure, command->wall_id)
-        : NULL;
+    Wall *wall = build_find_wall_by_id(&project->structure, command->wall_id);
 
     if (wall == NULL) {
         return 0;
@@ -321,19 +293,7 @@ int opening_command_redo(
         return 0;
     }
 
-    Room *room =
-        build_find_room_by_id(
-            &project->structure,
-            command->room_id
-        );
-
-    if (room == NULL) {
-        return 0;
-    }
-
-    Wall *wall = room_has_wall_id(room, command->wall_id)
-        ? build_find_wall_by_id(&project->structure, command->wall_id)
-        : NULL;
+    Wall *wall = build_find_wall_by_id(&project->structure, command->wall_id);
 
     if (wall == NULL) {
         return 0;
@@ -343,12 +303,7 @@ int opening_command_redo(
      * Redo is only valid after the
      * original opening has been undone.
      */
-    if (
-        wall_find_opening_by_id_const(
-            wall,
-            opening_id
-        ) != NULL
-    ) {
+    if (build_contains_domain_id(&project->structure, opening_id)) {
         return 0;
     }
 

@@ -6,7 +6,6 @@
 #include "opening_command.h"
 #include "wall.h"
 
-static const DomainId TEST_ROOM_ID = 10;
 static const DomainId TEST_WALL_ID = 20;
 
 static Wall *add_test_wall(
@@ -26,7 +25,7 @@ static Wall *add_test_wall(
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(project, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id != DOMAIN_ID_INVALID
@@ -40,7 +39,6 @@ static Wall *add_test_wall(
 
     assert(room != NULL);
 
-    assert(room_has_wall_id(room, wall_id));
     Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
 
     assert(wall != NULL);
@@ -73,7 +71,6 @@ static void test_create_builds_opening_from_placement(void)
 
     assert(
         opening_command_create(
-            TEST_ROOM_ID,
             TEST_WALL_ID,
             OPENING_WINDOW,
             600,
@@ -84,7 +81,6 @@ static void test_create_builds_opening_from_placement(void)
         )
     );
 
-    assert(command.room_id == TEST_ROOM_ID);
     assert(command.wall_id == TEST_WALL_ID);
     assert(command.type == OPENING_WINDOW);
     assert(command.frame_position == 600);
@@ -99,7 +95,6 @@ static void test_create_rejects_invalid_dimensions(void)
 
     assert(
         !opening_command_create(
-            TEST_ROOM_ID,
             TEST_WALL_ID,
             OPENING_WINDOW,
             600,
@@ -112,7 +107,6 @@ static void test_create_rejects_invalid_dimensions(void)
 
     assert(
         !opening_command_create(
-            TEST_ROOM_ID,
             TEST_WALL_ID,
             OPENING_WINDOW,
             600,
@@ -130,7 +124,6 @@ static void test_create_rejects_invalid_position(void)
 
     assert(
         !opening_command_create(
-            TEST_ROOM_ID,
             TEST_WALL_ID,
             OPENING_WINDOW,
             -1,
@@ -143,7 +136,6 @@ static void test_create_rejects_invalid_position(void)
 
     assert(
         !opening_command_create(
-            TEST_ROOM_ID,
             TEST_WALL_ID,
             OPENING_WINDOW,
             600,
@@ -159,7 +151,6 @@ static void test_create_rejects_null_command(void)
 {
     assert(
         !opening_command_create(
-            TEST_ROOM_ID,
             TEST_WALL_ID,
             OPENING_WINDOW,
             1200,
@@ -177,7 +168,6 @@ static void test_create_rejects_invalid_type(void)
 
     assert(
         !opening_command_create(
-            TEST_ROOM_ID,
             TEST_WALL_ID,
             (OpeningType)999,
             1200,
@@ -220,7 +210,6 @@ static void test_execute_adds_opening_to_wall(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,
@@ -355,7 +344,6 @@ static void test_execute_failure_preserves_wall_state(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,
@@ -482,7 +470,6 @@ static void test_execute_preserves_existing_openings(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             3000,   /* frame_position */
@@ -582,19 +569,6 @@ test_create_rejects_invalid_target_ids(void)
     assert(
         !opening_command_create(
             DOMAIN_ID_INVALID,
-            TEST_WALL_ID,
-            OPENING_WINDOW,
-            1200,
-            900,
-            1200,
-            1200,
-            &command
-        ));
-
-    assert(
-        !opening_command_create(
-            TEST_ROOM_ID,
-            DOMAIN_ID_INVALID,
             OPENING_WINDOW,
             1200,
             900,
@@ -678,7 +652,6 @@ test_execute_resolves_wall_after_storage_relocation(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,
@@ -806,7 +779,6 @@ test_failed_execute_does_not_consume_domain_id(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,
@@ -887,7 +859,6 @@ test_execute_rejects_null_opening_id_output(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,
@@ -937,7 +908,6 @@ test_undo_removes_created_opening(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,
@@ -1028,7 +998,6 @@ test_undo_failure_preserves_wall_state(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,
@@ -1131,7 +1100,6 @@ test_redo_restores_created_opening_with_same_identity(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,
@@ -1258,7 +1226,6 @@ test_redo_failure_preserves_wall_state(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,
@@ -1415,7 +1382,6 @@ static void test_execute_rejects_overlapping_opening_without_mutation(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
 

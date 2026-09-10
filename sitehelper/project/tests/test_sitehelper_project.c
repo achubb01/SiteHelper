@@ -58,7 +58,7 @@ static void test_project_init_initialises_domain_ids(void)
     );
 }
 
-static void test_add_wall_rejects_missing_room_without_consuming_identity(void)
+static void test_add_wall_without_room(void)
 {
     SiteHelperProject project;
 
@@ -66,14 +66,14 @@ static void test_add_wall_rejects_missing_room_without_consuming_identity(void)
 
     DomainId next_before = project.domain_ids.next;
 
-    assert(
-        sitehelper_project_add_wall(&project, 999, (WallPlanSegment){ .end = { .x = 4200 } })
-        == DOMAIN_ID_INVALID
-    );
-
-    assert(project.domain_ids.next == next_before);
-    assert(project.structure.wall_count == 0);
+    DomainId wall_id = sitehelper_project_add_wall(&project,
+        (WallPlanSegment){ .end = { .x = 4200 } });
+    assert(wall_id == next_before);
+    assert(project.domain_ids.next == next_before + 1);
     assert(project.structure.room_count == 0);
+    assert(project.structure.wall_count == 1);
+    assert(build_find_wall_by_id(&project.structure, wall_id));
+    assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
 
     sitehelper_project_destroy(&project);
 }
@@ -83,21 +83,22 @@ static void test_add_wall_requires_valid_ordered_geometry(void)
     SiteHelperProject project;
     sitehelper_project_init(&project);
     DomainId room_id = sitehelper_project_add_room(&project);
+    assert(room_id != DOMAIN_ID_INVALID);
     DomainId next = project.domain_ids.next;
-    assert(sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){0}) ==
+    assert(sitehelper_project_add_wall(&project, (WallPlanSegment){0}) ==
         DOMAIN_ID_INVALID);
     assert(project.domain_ids.next == next);
     assert(project.structure.wall_count == 0);
-    assert(build_find_room_by_id(&project.structure, room_id)->wall_count == 0);
 
     WallPlanSegment segment = { .start = {5000, 5000}, .end = {1000, 2000} };
-    assert(sitehelper_project_add_wall(&project, room_id, segment) == next);
+    assert(sitehelper_project_add_wall(&project, segment) == next);
     const Wall *wall = build_find_wall_by_id_const(&project.structure, next);
     assert(wall != NULL);
     assert(wall->definition.segment.start.x == 5000);
     assert(wall->definition.segment.start.y == 5000);
     assert(wall->definition.segment.end.x == 1000);
     assert(wall->definition.segment.end.y == 2000);
+    assert(build_find_room_by_id(&project.structure, room_id));
     sitehelper_project_destroy(&project);
 }
 
@@ -135,7 +136,7 @@ static void test_project_destroy_releases_structure(void)
         );
 
     Wall candidate = { .id = wall_id };
-    assert(room_add_wall_reference(room, wall_id));
+
     assert(build_append_wall(&project.structure, &candidate));
 
     Wall *wall = build_find_wall_by_id(&project.structure, wall_id);
@@ -200,7 +201,7 @@ int main(void)
 
     test_project_init_initialises_domain_ids();
 
-    test_add_wall_rejects_missing_room_without_consuming_identity();
+    test_add_wall_without_room();
 
     test_project_destroy_releases_structure();
 

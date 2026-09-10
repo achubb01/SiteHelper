@@ -12,10 +12,7 @@ int build_add_room(
         return 0;
     }
 
-    if (build_find_room_by_id(
-            structure,
-            room_id) != NULL ||
-        build_find_wall_by_id(structure, room_id) != NULL) {
+    if (build_contains_domain_id(structure, room_id)) {
 
         return 0;
     }
@@ -52,94 +49,11 @@ int build_add_room(
     return 1;
 }
 
-int room_add_wall_reference(
-    Room *room,
-    DomainId wall_id
-)
-{
-    if (room == NULL ||
-        wall_id == DOMAIN_ID_INVALID) {
-        return 0;
-    }
-
-    if (room_has_wall_id(room, wall_id)) {
-
-        return 0;
-    }
-
-    if (room->wall_count ==
-        room->wall_capacity) {
-
-        size_t new_capacity =
-            room->wall_capacity == 0
-                ? 1
-                : room->wall_capacity * 2;
-
-        DomainId *new_wall_ids = realloc(
-            room->wall_ids,
-            new_capacity * sizeof *new_wall_ids
-        );
-
-        if (new_wall_ids == NULL) {
-            return 0;
-        }
-
-        room->wall_ids = new_wall_ids;
-        room->wall_capacity = new_capacity;
-    }
-
-    room->wall_ids[room->wall_count] = wall_id;
-
-    room->wall_count++;
-
-    return 1;
-}
-
-int room_remove_wall_reference(Room *room, DomainId wall_id)
-{
-    if (room == NULL || wall_id == DOMAIN_ID_INVALID) {
-
-        return 0;
-    }
-
-    for (size_t index = 0; index < room->wall_count; index++) {
-        if (room->wall_ids[index] != wall_id) {
-            continue;
-        }
-
-        for (size_t next = index + 1; next < room->wall_count; next++) {
-            room->wall_ids[next - 1] = room->wall_ids[next];
-        }
-
-        room->wall_count--;
-        room->wall_ids[room->wall_count] = DOMAIN_ID_INVALID;
-        return 1;
-    }
-
-    return 0;
-}
-
-int room_has_wall_id(const Room *room, DomainId wall_id)
-{
-    if (room == NULL || wall_id == DOMAIN_ID_INVALID) {
-        return 0;
-    }
-
-    for (size_t index = 0; index < room->wall_count; index++) {
-        if (room->wall_ids[index] == wall_id) {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
 int build_append_wall(BuildStructure *structure, Wall *wall)
 {
     if (structure == NULL || wall == NULL ||
         wall->id == DOMAIN_ID_INVALID ||
-        build_find_wall_by_id(structure, wall->id) != NULL ||
-        build_find_room_by_id(structure, wall->id) != NULL) {
+        build_contains_domain_id(structure, wall->id)) {
 
         return 0;
     }
@@ -182,16 +96,6 @@ int build_remove_wall_by_id(BuildStructure *structure, DomainId wall_id)
 
     if (index == structure->wall_count) {
         return 0;
-    }
-
-    for (size_t room_index = 0;
-         room_index < structure->room_count;
-         room_index++) {
-
-        (void)room_remove_wall_reference(
-            &structure->rooms[room_index],
-            wall_id
-        );
     }
 
     wall_destroy(&structure->walls[index]);

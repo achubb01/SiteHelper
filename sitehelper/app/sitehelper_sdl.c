@@ -293,21 +293,6 @@ static int sitehelper_app_init(
         )
     );
 
-    DomainId room_id =
-        sitehelper_project_add_room(
-            &app->project
-        );
-
-    if (room_id == DOMAIN_ID_INVALID) {
-        sitehelper_app_destroy(app);
-        return 0;
-    }
-
-    app->editor.current_room_id =
-        room_id;
-
-    app->editor.current_wall_id = DOMAIN_ID_INVALID;
-
     app->wall_style = (WallRenderStyle){
         .timber_colour = {
             .r = 200,
@@ -670,18 +655,13 @@ static void sitehelper_app_process_events(
                             viewport,
                             screen_position
                         );
-                        Room *room = app_current_room(
-                            &app->project,
-                            &app->editor
-                        );
                         EditorAction action;
 
-                        if (!sitehelper_editor_primary_action_in_room(
+                        if (!sitehelper_editor_primary_action_in_project(
                             &app->editor,
                             &app->project.structure,
-                            room,
-                                view_position,
-                                &action)) {
+                            view_position,
+                            &action)) {
                             continue;
                         }
 

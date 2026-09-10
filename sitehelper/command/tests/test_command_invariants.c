@@ -6,13 +6,12 @@
 
 static Wall *add_generated_wall(
     SiteHelperProject *project,
-    DomainId room_id,
     PlanPosition origin,
     int length,
     DomainId *wall_id_out
 )
 {
-    DomainId wall_id = sitehelper_project_add_wall(project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
+    DomainId wall_id = sitehelper_project_add_wall(project, (WallPlanSegment){ .end = { .x = 4200 } });
     assert(wall_id != DOMAIN_ID_INVALID);
 
     Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
@@ -43,7 +42,6 @@ static void setup_opening_project(
 
     Wall *target = add_generated_wall(
         project,
-        room_id,
         (PlanPosition){ .x = 0, .y = 0 },
         6000,
         target_wall_id_out
@@ -56,7 +54,6 @@ static void setup_opening_project(
 
     add_generated_wall(
         project,
-        room_id,
         (PlanPosition){ .x = 7000, .y = 1500 },
         4200,
         other_wall_id_out
@@ -66,7 +63,6 @@ static void setup_opening_project(
 }
 
 static SiteHelperCommand make_opening_command(
-    DomainId room_id,
     DomainId wall_id,
     int frame_position
 )
@@ -75,7 +71,6 @@ static SiteHelperCommand make_opening_command(
     SiteHelperCommand command;
 
     assert(opening_command_create(
-        room_id,
         wall_id,
         OPENING_WINDOW,
         frame_position,
@@ -108,7 +103,6 @@ static void test_success_only_changes_intended_authoritative_state(void)
 
     DomainId next_before = project.domain_ids.next;
     SiteHelperCommand command = make_opening_command(
-        room_id,
         target_wall_id,
         1200
     );
@@ -117,7 +111,7 @@ static void test_success_only_changes_intended_authoritative_state(void)
     assert(sitehelper_command_execute(&project, &command, &result));
     assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
     assert(result.type == SITEHELPER_COMMAND_ADD_OPENING);
-    assert(result.data.add_opening.room_id == room_id);
+
     assert(result.data.add_opening.wall_id == target_wall_id);
     assert(result.data.add_opening.opening_id == next_before);
     assert(project.domain_ids.next == next_before + 1);
@@ -136,9 +130,6 @@ static void test_success_only_changes_intended_authoritative_state(void)
     );
 
     assert(before_room != NULL && after_room != NULL);
-    assert(before_room->wall_count == after_room->wall_count);
-    assert(room_has_wall_id(after_room, target_wall_id));
-    assert(room_has_wall_id(after_room, other_wall_id));
 
     const Wall *before_other = build_find_wall_by_id_const(
         &before.structure,
@@ -209,7 +200,6 @@ static void test_failure_leaves_full_authoritative_state_unchanged(void)
     test_clone_project_authoritative(&project, &before);
 
     SiteHelperCommand overlapping = make_opening_command(
-        room_id,
         target_wall_id,
         1400
     );
@@ -244,7 +234,6 @@ static void test_undo_restores_and_redo_recreates_exact_authoritative_state(void
     test_clone_project_authoritative(&project, &before);
 
     SiteHelperCommand command = make_opening_command(
-        room_id,
         target_wall_id,
         1200
     );

@@ -46,14 +46,9 @@ void app_render_walls(
         }
         return;
     }
-    const Room *room = app_current_room_const(project, editor);
-    for (size_t i = 0; room != NULL && i < room->wall_count; i++) {
-        const Wall *wall = build_find_wall_by_id_const(
-            &project->structure, room->wall_ids[i]
-        );
-        if (wall != NULL) {
-            wall_plan_render(renderer, wall, wall->id == editor->current_wall_id
-                ? style->selected_colour : style->timber_colour);
-        }
+    for (size_t i = 0; i < project->structure.wall_count; i++) {
+        const Wall *wall = &project->structure.walls[i];
+        wall_plan_render(renderer, wall, wall->id == editor->current_wall_id
+            ? style->selected_colour : style->timber_colour);
     }
 }

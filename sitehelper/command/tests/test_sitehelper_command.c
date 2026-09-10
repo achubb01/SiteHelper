@@ -23,7 +23,7 @@ test_execute_dispatches_opening_command(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(&project, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id != DOMAIN_ID_INVALID
@@ -37,7 +37,6 @@ test_execute_dispatches_opening_command(void)
 
     assert(room != NULL);
 
-    assert(room_has_wall_id(room, wall_id));
     Wall *wall = build_find_wall_by_id(&project.structure, wall_id);
 
     assert(wall != NULL);
@@ -57,7 +56,6 @@ test_execute_dispatches_opening_command(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,
@@ -100,10 +98,6 @@ test_execute_dispatches_opening_command(void)
         == SITEHELPER_COMMAND_ADD_OPENING
     );
 
-    assert(
-        result.data.add_opening.room_id
-        == room_id
-    );
 
     assert(
         result.data.add_opening.wall_id
@@ -159,7 +153,7 @@ test_execute_rejects_unknown_command(void)
             SITEHELPER_COMMAND_ADD_OPENING,
 
         .data.add_opening = {
-            .room_id = 100,
+
             .wall_id = 200,
             .opening_id = 300
         }
@@ -207,7 +201,7 @@ test_failed_command_produces_no_result(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(&project, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id != DOMAIN_ID_INVALID
@@ -221,7 +215,6 @@ test_failed_command_produces_no_result(void)
 
     assert(room != NULL);
 
-    assert(room_has_wall_id(room, wall_id));
     Wall *wall = build_find_wall_by_id(&project.structure, wall_id);
 
     assert(wall != NULL);
@@ -241,7 +234,6 @@ test_failed_command_produces_no_result(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,
@@ -323,7 +315,7 @@ test_undo_dispatches_opening_command(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(&project, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id != DOMAIN_ID_INVALID
@@ -337,7 +329,6 @@ test_undo_dispatches_opening_command(void)
 
     assert(room != NULL);
 
-    assert(room_has_wall_id(room, wall_id));
     Wall *wall = build_find_wall_by_id(&project.structure, wall_id);
 
     assert(wall != NULL);
@@ -357,7 +348,6 @@ test_undo_dispatches_opening_command(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,
@@ -435,7 +425,7 @@ test_redo_dispatches_opening_command(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(&project, room_id, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(&project, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -450,7 +440,6 @@ test_redo_dispatches_opening_command(void)
 
     assert(room != NULL);
 
-    assert(room_has_wall_id(room, wall_id));
     Wall *wall = build_find_wall_by_id(&project.structure, wall_id);
 
     assert(wall != NULL);
@@ -470,7 +459,6 @@ test_redo_dispatches_opening_command(void)
 
     assert(
         opening_command_create(
-            room_id,
             wall_id,
             OPENING_WINDOW,
             1200,

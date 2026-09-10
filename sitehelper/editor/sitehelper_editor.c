@@ -217,7 +217,7 @@ void sitehelper_editor_reconcile(
         return;
     }
 
-    if (project == NULL || editor->current_room_id == DOMAIN_ID_INVALID) {
+    if (project == NULL) {
         editor->current_room_id = DOMAIN_ID_INVALID;
         editor->current_wall_id = DOMAIN_ID_INVALID;
         sitehelper_editor_clear_selection(editor);
@@ -225,26 +225,11 @@ void sitehelper_editor_reconcile(
         return;
     }
 
-    const Room *room = build_find_room_by_id_const(
-        &project->structure,
-        editor->current_room_id
-    );
-
-    if (room == NULL) {
+    if (build_find_room_by_id_const(&project->structure, editor->current_room_id) == NULL) {
         editor->current_room_id = DOMAIN_ID_INVALID;
-        editor->current_wall_id = DOMAIN_ID_INVALID;
-        sitehelper_editor_clear_selection(editor);
-        sitehelper_editor_invalidate_transient_state(editor);
-        return;
     }
-
-    const Wall *current_wall = room_has_wall_id(
-        room,
-        editor->current_wall_id
-    ) ? build_find_wall_by_id_const(
-        &project->structure,
-        editor->current_wall_id
-    ) : NULL;
+    const Wall *current_wall = build_find_wall_by_id_const(
+        &project->structure, editor->current_wall_id);
 
     if (current_wall == NULL) {
         editor->current_wall_id = DOMAIN_ID_INVALID;
@@ -253,13 +238,8 @@ void sitehelper_editor_reconcile(
     const EditorSelection *selection = &editor->selection;
 
     if (selection->kind == EDITOR_SELECTION_WALL_MEMBER) {
-        const Wall *selected_wall = room_has_wall_id(
-            room,
-            selection->wall_id
-        ) ? build_find_wall_by_id_const(
-            &project->structure,
-            selection->wall_id
-        ) : NULL;
+        const Wall *selected_wall = build_find_wall_by_id_const(
+            &project->structure, selection->wall_id);
 
         if (selected_wall == NULL) {
             sitehelper_editor_clear_selection(editor);
@@ -549,7 +529,6 @@ int sitehelper_editor_create_opening_command(
     }
 
     return opening_command_create(
-        editor->current_room_id,
         editor->current_wall_id,
         editor->opening_tool.type,
         (int)editor->opening_placement.left,
@@ -663,7 +642,6 @@ int sitehelper_editor_primary_action(
                     &editor->wall_tool,
                     &segment) ||
                 !wall_command_create(
-                    editor->current_room_id,
                     segment,
                     &wall_command) ||
                 !sitehelper_command_from_wall(
@@ -682,10 +660,9 @@ int sitehelper_editor_primary_action(
     }
 }
 
-int sitehelper_editor_primary_action_in_room(
+int sitehelper_editor_primary_action_in_project(
     SiteHelperEditor *editor,
     const BuildStructure *structure,
-    const Room *room,
     Vec2 view_position,
     EditorAction *action
 )
@@ -703,13 +680,8 @@ int sitehelper_editor_primary_action_in_room(
         double nearest = editor->snap.settings.object_snap_tolerance;
 
         /* Nearest segment wins; later appended walls win exact ties. */
-        for (size_t index = room != NULL ? room->wall_count : 0; index > 0; index--) {
-            const Wall *wall = build_find_wall_by_id_const(
-                structure, room->wall_ids[index - 1]
-            );
-            if (wall == NULL) {
-                continue;
-            }
+        for (size_t index = structure->wall_count; index > 0; index--) {
+            const Wall *wall = &structure->walls[index - 1];
             double distance = plan_segment_distance(wall->definition.segment, view_position);
             if (distance <= nearest &&
                 (editor->current_wall_id == DOMAIN_ID_INVALID || distance < nearest)) {
@@ -720,13 +692,8 @@ int sitehelper_editor_primary_action_in_room(
         return 1;
     }
 
-    const Wall *wall = room != NULL && room_has_wall_id(
-        room,
-        editor->current_wall_id
-    ) ? build_find_wall_by_id_const(
-        structure,
-        editor->current_wall_id
-    ) : NULL;
+    const Wall *wall = build_find_wall_by_id_const(
+        structure, editor->current_wall_id);
 
     return sitehelper_editor_primary_action(
         editor,
@@ -814,7 +781,6 @@ void sitehelper_editor_complete_action(
             break;
 
         case SITEHELPER_COMMAND_ADD_WALL:
-            editor->current_room_id = result->data.add_wall.room_id;
             editor->current_wall_id = result->data.add_wall.wall_id;
             wall_tool_cancel(&editor->wall_tool);
             break;

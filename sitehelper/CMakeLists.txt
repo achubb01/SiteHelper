@@ -1,4 +1,5 @@
 add_library(sitehelper_model
+    model/build_structure.c
     domain/domain_id.c
     model/build_settings.c
     model/wall_plan_segment.c
@@ -40,6 +41,7 @@ target_link_libraries(sitehelper_wall
 )
 
 add_library(sitehelper_project
+    project/room_separator.c
     project/sitehelper_project.c
     project/project_validation.c
 )
@@ -60,6 +62,26 @@ add_library(sitehelper_persistence
     persistence/sitehelper_persistence.c
 )
 
+option(SITEHELPER_BUILD_TOPOLOGY "Build exact derived plan topology (requires 128-bit compiler arithmetic)" ON)
+if(SITEHELPER_BUILD_TOPOLOGY)
+    include(CheckCSourceCompiles)
+    check_c_source_compiles("int main(void) { __extension__ typedef __int128 I; I a = 1, b; return __builtin_mul_overflow(a, a, &b) || __builtin_add_overflow(a, a, &b); }"
+        SITEHELPER_HAS_EXACT_TOPOLOGY_INTEGER)
+    if(NOT SITEHELPER_HAS_EXACT_TOPOLOGY_INTEGER)
+        message(FATAL_ERROR "Plan topology requires 128-bit integers and checked arithmetic builtins. Use a capable GCC/Clang target, or -DSITEHELPER_BUILD_TOPOLOGY=OFF to build the application without topology.")
+    endif()
+
+    add_library(sitehelper_topology
+        topology/plan_topology.c
+        topology/plan_topology_query.c
+        topology/project_topology.c
+        topology/room_region.c
+        topology/topology_numeric.c
+    )
+    target_include_directories(sitehelper_topology PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/topology)
+    target_link_libraries(sitehelper_topology PUBLIC sitehelper_project PRIVATE sitehelper_wall)
+endif()
+
 target_include_directories(sitehelper_persistence
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/persistence
@@ -77,6 +99,8 @@ add_library(sitehelper_command
     command/wall_command.c
     command/delete_wall_command.c
     command/move_wall_endpoint_command.c
+    command/room_location_command.c
+    command/room_separator_command.c
     command/sitehelper_command.c
     command/command_history.c
 )
@@ -466,6 +490,24 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
 endif()
 add_test(NAME move_wall_endpoint_command_tests COMMAND test_move_wall_endpoint_command)
 
+add_executable(test_room_location_command command/tests/test_room_location_command.c)
+target_link_libraries(test_room_location_command PRIVATE sitehelper_command sitehelper_test_support)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_room_location_command PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_room_location_command PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME room_location_command_tests COMMAND test_room_location_command)
+
+add_executable(test_room_separator_command command/tests/test_room_separator_command.c)
+target_link_libraries(test_room_separator_command PRIVATE sitehelper_command sitehelper_test_support)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_room_separator_command PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_room_separator_command PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME room_separator_command_tests COMMAND test_room_separator_command)
+
 add_executable(test_domain_id
     domain/tests/test_domain_id.c
 )
@@ -532,6 +574,34 @@ target_link_libraries(test_sitehelper_project
 
 add_test(NAME sitehelper_project_tests COMMAND test_sitehelper_project)
 
+add_executable(test_room_location project/tests/test_room_location.c)
+target_link_libraries(test_room_location PRIVATE sitehelper_project sitehelper_test_support)
+add_test(NAME room_location_tests COMMAND test_room_location)
+
+add_executable(test_room_separator project/tests/test_room_separator.c)
+target_link_libraries(test_room_separator PRIVATE sitehelper_project sitehelper_test_support)
+add_test(NAME room_separator_tests COMMAND test_room_separator)
+
+if(SITEHELPER_BUILD_TOPOLOGY)
+    add_executable(test_plan_topology topology/tests/test_plan_topology.c)
+    target_link_libraries(test_plan_topology PRIVATE sitehelper_topology sitehelper_test_support)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(test_plan_topology PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+        target_link_options(test_plan_topology PRIVATE
+            "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+    endif()
+    add_test(NAME plan_topology_tests COMMAND test_plan_topology)
+    add_executable(test_room_region topology/tests/test_room_region.c)
+    target_link_libraries(test_room_region PRIVATE sitehelper_topology sitehelper_test_support
+        sitehelper_editor sitehelper_persistence)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(test_room_region PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+        target_link_options(test_room_region PRIVATE
+            "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+    endif()
+    add_test(NAME room_region_tests COMMAND test_room_region)
+endif()
+
 add_executable(test_project_validation project/tests/test_project_validation.c)
 target_link_libraries(test_project_validation PRIVATE sitehelper_project)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
@@ -549,6 +619,7 @@ target_link_libraries(test_sitehelper_persistence
     PRIVATE
         sitehelper_persistence
         sitehelper_wall
+        sitehelper_test_support
 )
 
 add_test(

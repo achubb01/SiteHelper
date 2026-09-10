@@ -78,13 +78,12 @@ static void fixture_init(Fixture *f)
     sitehelper_command_history_init(&f->history);
     f->room_a = sitehelper_project_add_room(&f->project);
     f->room_b = sitehelper_project_add_room(&f->project);
-    f->wall_id = sitehelper_project_add_wall(&f->project, f->room_a,
+    f->wall_id = sitehelper_project_add_wall(&f->project,
         (WallPlanSegment){{1000, 2000}, {5000, 2000}});
-    f->control_id = sitehelper_project_add_wall(&f->project, f->room_b,
+    f->control_id = sitehelper_project_add_wall(&f->project,
         (WallPlanSegment){{-6000, -1000}, {0, -1000}});
     assert(f->wall_id && f->control_id);
-    assert(room_add_wall_reference(build_find_room_by_id(&f->project.structure,
-        f->room_b), f->wall_id));
+
     Wall *wall = build_find_wall_by_id(&f->project.structure, f->wall_id);
     Opening openings[] = {
         {.id = domain_id_generate(&f->project.domain_ids), .type = OPENING_DOOR,
@@ -379,7 +378,7 @@ static void test_undo_regenerates_with_current_settings(void)
     fixture_destroy(&f);
 }
 
-static void test_moved_segment_persists_in_v4(void)
+static void test_moved_segment_persists_in_v7(void)
 {
     Fixture f;
     fixture_init(&f);
@@ -389,7 +388,7 @@ static void test_moved_segment_persists_in_v4(void)
     FILE *file = fopen(path, "r");
     char header[128];
     assert(file && fgets(header, sizeof header, file));
-    assert(strcmp(header, "sitehelper_project 4\n") == 0);
+    assert(strcmp(header, "sitehelper_project 7\n") == 0);
     assert(fclose(file) == 0);
     SiteHelperProject loaded;
     sitehelper_project_init(&loaded);
@@ -461,7 +460,7 @@ int main(void)
     test_generation_failures_and_retry();
     test_branch_discard_and_state_relocation();
     test_undo_regenerates_with_current_settings();
-    test_moved_segment_persists_in_v4();
+    test_moved_segment_persists_in_v7();
     test_spatial_moves_and_repeated_history();
     test_invalid_moves_preserve_model_framing_and_redo();
     puts("move wall endpoint command tests passed");

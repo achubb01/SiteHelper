@@ -22,6 +22,7 @@ typedef enum
 
 typedef struct
 {
+    /* Independent room navigation; never gates physical wall access. */
     DomainId current_room_id;
     DomainId current_wall_id;
 
@@ -141,10 +142,9 @@ int sitehelper_editor_primary_action(
     EditorAction *action
 );
 
-int sitehelper_editor_primary_action_in_room(
+int sitehelper_editor_primary_action_in_project(
     SiteHelperEditor *editor,
     const BuildStructure *structure,
-    const Room *room,
     Vec2 view_position,
     EditorAction *action
 );

@@ -28,18 +28,16 @@ static int wall_command_build_wall(
 }
 
 int wall_command_create(
-    DomainId room_id,
     WallPlanSegment segment,
     WallCommand *command
 )
 {
-    if (command == NULL || room_id == DOMAIN_ID_INVALID ||
+    if (command == NULL ||
         wall_plan_segment_length_mm(segment) == 0) {
         return 0;
     }
 
     *command = (WallCommand){
-        .room_id = room_id,
         .segment = segment
     };
 
@@ -59,18 +57,8 @@ int wall_command_execute(
     *wall_id_out = DOMAIN_ID_INVALID;
 
     if (project == NULL || command == NULL ||
-        command->room_id == DOMAIN_ID_INVALID ||
         wall_plan_segment_length_mm(command->segment) == 0) {
 
-        return 0;
-    }
-
-    Room *room = build_find_room_by_id(
-        &project->structure,
-        command->room_id
-    );
-
-    if (room == NULL) {
         return 0;
     }
 
@@ -88,13 +76,7 @@ int wall_command_execute(
         return 0;
     }
 
-    if (!room_add_wall_reference(room, wall_id)) {
-        wall_destroy(&candidate);
-        return 0;
-    }
-
     if (!build_append_wall(&project->structure, &candidate)) {
-        (void)room_remove_wall_reference(room, wall_id);
         wall_destroy(&candidate);
         return 0;
     }
@@ -111,7 +93,6 @@ int wall_command_undo(
 )
 {
     if (project == NULL || command == NULL ||
-        command->room_id == DOMAIN_ID_INVALID ||
         wall_id == DOMAIN_ID_INVALID) {
 
         return 0;
@@ -127,19 +108,12 @@ int wall_command_redo(
 )
 {
     if (project == NULL || command == NULL ||
-        command->room_id == DOMAIN_ID_INVALID ||
         wall_id == DOMAIN_ID_INVALID) {
 
         return 0;
     }
 
-    Room *room = build_find_room_by_id(
-        &project->structure,
-        command->room_id
-    );
-
-    if (room == NULL ||
-        build_find_wall_by_id(&project->structure, wall_id) != NULL) {
+    if (build_find_wall_by_id(&project->structure, wall_id) != NULL) {
         return 0;
     }
 
@@ -154,13 +128,7 @@ int wall_command_redo(
         return 0;
     }
 
-    if (!room_add_wall_reference(room, wall_id)) {
-        wall_destroy(&candidate);
-        return 0;
-    }
-
     if (!build_append_wall(&project->structure, &candidate)) {
-        (void)room_remove_wall_reference(room, wall_id);
         wall_destroy(&candidate);
         return 0;
     }

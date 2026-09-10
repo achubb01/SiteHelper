@@ -56,9 +56,6 @@ const Wall *build_find_wall_by_id_const(
     const BuildStructure *structure,
     DomainId wall_id
 );
-int room_add_wall_reference(Room *room, DomainId wall_id);
-int room_remove_wall_reference(Room *room, DomainId wall_id);
-int room_has_wall_id(const Room *room, DomainId wall_id);
 int build_set_stud_spacing(BuildSettings *settings, int spacing);
 /* Invalid geometry returns 0; mutation commits both ordered endpoints at once. */
 int wall_length_mm(const Wall *wall);

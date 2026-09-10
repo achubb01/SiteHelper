@@ -134,9 +134,6 @@ void addRoom(void *context)
     app->editor.current_room_id =
         room_id;
 
-    app->editor.current_wall_id =
-        DOMAIN_ID_INVALID;
-
     printf(
         "Room added. Total rooms: %zu\n",
         app->project.structure.room_count
@@ -151,28 +148,9 @@ void addWall(void *context)
         return;
     }
 
-    if (app->project.structure.room_count == 0) {
-        printf("Create a room before adding a wall\n");
-        return;
-    }
-
-    Room *room =
-        app_current_room(
-            &app->project,
-            &app->editor
-        );
-
-    if (room == NULL) {
-        printf(
-            "Select a valid room before adding a wall\n"
-        );
-        return;
-    }
-
     DomainId wall_id =
         sitehelper_project_add_wall(
             &app->project,
-            app->editor.current_room_id,
             /* Legacy CLI starts with an explicit horizontal 4200 mm segment. */
             (WallPlanSegment){ .end = { .x = 4200 } }
         );
@@ -189,8 +167,8 @@ void addWall(void *context)
         wall_id;
 
     printf(
-        "Wall added. Total walls in current room: %zu\n",
-        room->wall_count
+        "Wall added. Total project walls: %zu\n",
+        app->project.structure.wall_count
     );
 }
 
@@ -387,9 +365,6 @@ void selectRoom(void *context)
     app->editor.current_room_id =
         room->id;
 
-    app->editor.current_wall_id =
-        DOMAIN_ID_INVALID;
-
     printf("Room %ld selected.\n", selection);
 }
 
@@ -402,41 +377,13 @@ void selectWall(void *context)
         return;
     }
 
-    if (app->editor.current_room_id ==
-        DOMAIN_ID_INVALID) {
-
-        printf("Select a room first.\n");
-        return;
-    }
-
-    Room *room =
-        app_current_room(
-            &app->project,
-            &app->editor
-        );
-
-    if (room == NULL) {
-        fprintf(
-            stderr,
-            "Selected room is invalid.\n"
-        );
-
-        app->editor.current_room_id =
-            DOMAIN_ID_INVALID;
-
-        app->editor.current_wall_id =
-            DOMAIN_ID_INVALID;
-
-        return;
-    }
-
-    if (room->wall_count == 0) {
-        printf("The selected room has no walls.\n");
+    if (app->project.structure.wall_count == 0) {
+        printf("The project has no walls.\n");
         return;
     }
 
     for (size_t i = 0;
-         i < room->wall_count;
+         i < app->project.structure.wall_count;
          i++) {
 
         printf(
@@ -458,7 +405,7 @@ void selectWall(void *context)
 
     if (end == buffer ||
         selection < 1 ||
-        selection > (long)room->wall_count) {
+        selection > (long)app->project.structure.wall_count) {
 
         printf("Invalid wall selection.\n");
         return;
@@ -467,15 +414,7 @@ void selectWall(void *context)
     size_t wall_index =
         (size_t)(selection - 1);
 
-    Wall *wall = build_find_wall_by_id(
-        &app->project.structure,
-        room->wall_ids[wall_index]
-    );
-
-    if (wall == NULL) {
-        printf("Wall no longer exists.\n");
-        return;
-    }
+    Wall *wall = &app->project.structure.walls[wall_index];
 
     app->editor.current_wall_id =
         wall->id;
@@ -518,109 +457,84 @@ void describeBuild(void *context)
         app->project.settings.nog_spacing
     );
 
-    for (size_t room_index = 0;
-         room_index < app->project.structure.room_count;
-         room_index++) {
-
-        Room *room =
-            &app->project.structure.rooms[room_index];
+    printf("Project walls: %zu\n", app->project.structure.wall_count);
+    for (size_t wall_index = 0;
+         wall_index < app->project.structure.wall_count;
+         wall_index++) {
+        Wall *wall = &app->project.structure.walls[wall_index];
 
         printf(
-            "\nRoom %zu\n",
-            room_index + 1
+            "\n  Wall %zu\n",
+            wall_index + 1
         );
 
         printf(
-            "  Walls: %zu\n",
-            room->wall_count
+            "    Length: %d mm\n",
+            wall_length_mm(wall)
         );
 
-        for (size_t wall_index = 0;
-            wall_index < room->wall_count;
-            wall_index++) {
+        printf(
+            "    Studs: %zu\n",
+            wall->framing.stud_count
+        );
 
-            Wall *wall = build_find_wall_by_id(
-                &app->project.structure,
-                room->wall_ids[wall_index]
-            );
+        for (size_t stud_index = 0;
+            stud_index < wall->framing.stud_count;
+            stud_index++) {
 
-            if (wall == NULL) {
-                continue;
-            }
-
-            printf(
-                "\n  Wall %zu\n",
-                wall_index + 1
-            );
+            Timber *stud =
+                &wall->framing.studs[stud_index];
 
             printf(
-                "    Length: %d mm\n",
-                wall_length_mm(wall)
+                "      Stud %zu: "
+                "position = %d mm, "
+                "length = %d mm\n",
+                stud_index + 1,
+                stud->position.u,
+                stud->length
             );
+        }
+
+        printf(
+            "    Noggins: %zu\n",
+            wall->framing.nog_count
+        );
+
+        if (wall->framing.nog_count > 0) {
+
+            int current_height =
+                wall->framing.nogs[0].position.z;
 
             printf(
-                "    Studs: %zu\n",
-                wall->framing.stud_count
+                "      Noggin row at %d mm\n",
+                current_height
             );
 
-            for (size_t stud_index = 0;
-                stud_index < wall->framing.stud_count;
-                stud_index++) {
+            for (size_t nog_index = 0;
+                nog_index < wall->framing.nog_count;
+                nog_index++) {
 
-                Timber *stud =
-                    &wall->framing.studs[stud_index];
+                Timber *noggin =
+                    &wall->framing.nogs[nog_index];
 
-                printf(
-                    "      Stud %zu: "
-                    "position = %d mm, "
-                    "length = %d mm\n",
-                    stud_index + 1,
-                    stud->position.u,
-                    stud->length
-                );
-            }
+                int height =
+                    noggin->position.z;
 
-            printf(
-                "    Noggins: %zu\n",
-                wall->framing.nog_count
-            );
+                if (height != current_height) {
 
-            if (wall->framing.nog_count > 0) {
-
-                int current_height =
-                    wall->framing.nogs[0].position.z;
-
-                printf(
-                    "      Noggin row at %d mm\n",
-                    current_height
-                );
-
-                for (size_t nog_index = 0;
-                    nog_index < wall->framing.nog_count;
-                    nog_index++) {
-
-                    Timber *noggin =
-                        &wall->framing.nogs[nog_index];
-
-                    int height =
-                        noggin->position.z;
-
-                    if (height != current_height) {
-
-                        current_height = height;
-
-                        printf(
-                            "\n      Noggin row at %d mm\n",
-                            current_height
-                        );
-                    }
+                    current_height = height;
 
                     printf(
-                        "        Bay %zu: %d mm\n",
-                        noggin->details.noggin.bay + 1,
-                        noggin->length
+                        "\n      Noggin row at %d mm\n",
+                        current_height
                     );
                 }
+
+                printf(
+                    "        Bay %zu: %d mm\n",
+                    noggin->details.noggin.bay + 1,
+                    noggin->length
+                );
             }
         }
     }
@@ -636,29 +550,15 @@ void printCurrentWall(void *context)
         return;
     }
 
-    Room *room =
-        app_current_room(
-            &app->project,
-            &app->editor
-        );
-
     Wall *wall =
         app_current_wall(
             &app->project,
             &app->editor
         );
 
-    if (room == NULL) {
-        printf(
-            "No valid room selected.\n"
-        );
-        return;
-    }
-
     if (wall == NULL) {
         printf(
-            "A room is selected, "
-            "but no valid wall is selected.\n"
+            "No valid wall is selected.\n"
         );
         return;
     }
@@ -803,7 +703,6 @@ void addOpening(void *context)
     OpeningCommand opening_command;
 
     if (!opening_command_create(
-            app->editor.current_room_id,
             app->editor.current_wall_id,
             type,
             (int)position,

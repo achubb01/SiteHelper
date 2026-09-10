@@ -43,19 +43,7 @@ Wall *app_current_wall(
         return NULL;
     }
 
-    Room *room =
-        app_current_room(
-            project,
-            editor
-        );
-
-    if (room == NULL) {
-        return NULL;
-    }
-
-    return room_has_wall_id(room, editor->current_wall_id)
-        ? build_find_wall_by_id(&project->structure, editor->current_wall_id)
-        : NULL;
+    return build_find_wall_by_id(&project->structure, editor->current_wall_id);
 }
 
 const Room *app_current_room_const(
@@ -90,20 +78,5 @@ const Wall *app_current_wall_const(
         return NULL;
     }
 
-    const Room *room =
-        app_current_room_const(
-            project,
-            editor
-        );
-
-    if (room == NULL) {
-        return NULL;
-    }
-
-    return room_has_wall_id(room, editor->current_wall_id)
-        ? build_find_wall_by_id_const(
-            &project->structure,
-            editor->current_wall_id
-        )
-        : NULL;
+    return build_find_wall_by_id_const(&project->structure, editor->current_wall_id);
 }

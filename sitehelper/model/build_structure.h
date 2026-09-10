@@ -2,10 +2,12 @@
 #define BUILD_STRUCTURE_H
 
 #include <stddef.h>
+#include <stdbool.h>
 
 #include "opening.h"
 #include "timber.h"
 #include "wall_plan_segment.h"
+#include "room_separator.h"
 
 typedef struct WallDefinition {
     /* Ordered endpoints are the sole physical longitudinal geometry. */
@@ -44,13 +46,10 @@ typedef struct Room
 {
     DomainId id;
 
-    /*
-     * Unordered wall membership only.  These references do not describe a
-     * boundary, topology, orientation, or ownership of physical walls.
-     */
-    DomainId *wall_ids;
-    size_t wall_count;
-    size_t wall_capacity;
+    /* Intended region contains this authoritative plan point. This is neither
+     * a boundary nor label/layout geometry. When false, location is ignored. */
+    bool has_location;
+    PlanPosition location;
 } Room;
 
 typedef struct
@@ -63,7 +62,23 @@ typedef struct
     Wall *walls;
     size_t wall_count;
     size_t wall_capacity;
+
+    /* Globally owned virtual inputs, separate from physical walls. Stored
+     * order is preserved by persistence; it has no topology meaning. */
+    RoomSeparator *room_separators;
+    size_t room_separator_count;
+    size_t room_separator_capacity;
 } BuildStructure;
+
+/* Identity queries assume coherent authoritative collection metadata. */
+int build_contains_domain_id(const BuildStructure *structure, DomainId id);
+RoomSeparator *build_find_room_separator_by_id(BuildStructure *structure, DomainId id);
+const RoomSeparator *build_find_room_separator_by_id_const(const BuildStructure *structure, DomainId id);
+/* Copies an existing identity at an explicit storage position; for loading and
+ * restoration. Rejects all live identity collisions without allocating IDs. */
+int build_insert_room_separator(BuildStructure *structure,
+    const RoomSeparator *separator, size_t index);
+int build_remove_room_separator_by_id(BuildStructure *structure, DomainId id);
 
 void build_destroy(
     BuildStructure *structure

@@ -16,6 +16,11 @@ struct SiteHelperCommandUndoState
             DomainId wall_id;
             WallPlanSegment segment;
         } moved_wall;
+        RoomLocationCommand previous_room_location;
+        struct {
+            RoomSeparator definition;
+            size_t index; /* Delete undo restores stored collection order. */
+        } room_separator;
     };
 };
 
@@ -28,7 +33,10 @@ int sitehelper_command_capture_undo_state(
     }
     *state = NULL;
     if (command->type != SITEHELPER_COMMAND_DELETE_WALL &&
-        command->type != SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT) {
+        command->type != SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT &&
+        command->type != SITEHELPER_COMMAND_SET_ROOM_LOCATION &&
+        command->type != SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR &&
+        command->type != SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT) {
         return 1;
     }
     SiteHelperCommandUndoState *candidate = calloc(1, sizeof *candidate);
@@ -36,7 +44,32 @@ int sitehelper_command_capture_undo_state(
         return 0;
     }
     candidate->type = command->type;
-    if (command->type == SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT) {
+    if (command->type == SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR ||
+        command->type == SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT) {
+        DomainId id = command->type == SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR
+            ? command->data.delete_room_separator.separator_id
+            : command->data.move_room_separator_endpoint.separator_id;
+        const RoomSeparator *separator = build_find_room_separator_by_id_const(&project->structure, id);
+        if (separator == NULL) {
+            sitehelper_command_destroy_undo_state(candidate);
+            return 0;
+        }
+        candidate->room_separator.definition = *separator;
+        candidate->room_separator.index = (size_t)(separator - project->structure.room_separators);
+    }
+    else if (command->type == SITEHELPER_COMMAND_SET_ROOM_LOCATION) {
+        const Room *room = build_find_room_by_id_const(&project->structure,
+            command->data.room_location.room_id);
+        if (room == NULL) {
+            sitehelper_command_destroy_undo_state(candidate);
+            return 0;
+        }
+        candidate->previous_room_location = (RoomLocationCommand){
+            .room_id = room->id, .has_location = room->has_location,
+            .location = room->has_location ? room->location : (PlanPosition){0}
+        };
+    }
+    else if (command->type == SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT) {
         const Wall *wall = build_find_wall_by_id_const(&project->structure,
             command->data.move_wall_endpoint.wall_id);
         if (wall == NULL) {
@@ -72,6 +105,30 @@ int sitehelper_command_undo_with_state(
 {
     if (project == NULL || command == NULL || result == NULL || command->type != result->type) {
         return 0;
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR ||
+        command->type == SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT) {
+        DomainId id = command->type == SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR
+            ? command->data.delete_room_separator.separator_id
+            : command->data.move_room_separator_endpoint.separator_id;
+        if (state == NULL || state->type != command->type ||
+            state->room_separator.definition.id != id || result->data.room_separator.separator_id != id) {
+            return 0;
+        }
+        if (command->type == SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR) {
+            return build_insert_room_separator(&project->structure,
+                &state->room_separator.definition, state->room_separator.index);
+        }
+        return sitehelper_project_set_room_separator_segment(project, id,
+            state->room_separator.definition.segment);
+    }
+    if (command->type == SITEHELPER_COMMAND_SET_ROOM_LOCATION) {
+        if (state == NULL || state->type != command->type ||
+            state->previous_room_location.room_id != command->data.room_location.room_id ||
+            state->previous_room_location.room_id != result->data.room_location.room_id) {
+            return 0;
+        }
+        return room_location_command_execute(project, &state->previous_room_location);
     }
     if (command->type == SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT) {
         if (state == NULL || state->type != command->type ||
@@ -116,6 +173,40 @@ int sitehelper_command_from_move_wall_endpoint(
         .type = SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT,
         .data.move_wall_endpoint = *move
     };
+    return 1;
+}
+
+int sitehelper_command_from_room_location(
+    const RoomLocationCommand *placement, SiteHelperCommand *command)
+{
+    if (placement == NULL || command == NULL) {
+        return 0;
+    }
+    *command = (SiteHelperCommand){
+        .type = SITEHELPER_COMMAND_SET_ROOM_LOCATION,
+        .data.room_location = *placement
+    };
+    return 1;
+}
+
+int sitehelper_command_from_add_room_separator(const AddRoomSeparatorCommand *add, SiteHelperCommand *command)
+{
+    if (add == NULL || command == NULL) { return 0; }
+    *command = (SiteHelperCommand){.type = SITEHELPER_COMMAND_ADD_ROOM_SEPARATOR, .data.add_room_separator = *add};
+    return 1;
+}
+
+int sitehelper_command_from_delete_room_separator(const DeleteRoomSeparatorCommand *deletion, SiteHelperCommand *command)
+{
+    if (deletion == NULL || command == NULL) { return 0; }
+    *command = (SiteHelperCommand){.type = SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR, .data.delete_room_separator = *deletion};
+    return 1;
+}
+
+int sitehelper_command_from_move_room_separator_endpoint(const MoveRoomSeparatorEndpointCommand *move, SiteHelperCommand *command)
+{
+    if (move == NULL || command == NULL) { return 0; }
+    *command = (SiteHelperCommand){.type = SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT, .data.move_room_separator_endpoint = *move};
     return 1;
 }
 
@@ -204,8 +295,6 @@ int sitehelper_command_execute(
                         SITEHELPER_COMMAND_ADD_OPENING,
 
                     .data.add_opening = {
-                        .room_id =
-                            command->data.opening.room_id,
 
                         .wall_id =
                             command->data.opening.wall_id,
@@ -233,7 +322,6 @@ int sitehelper_command_execute(
             *result = (SiteHelperCommandResult){
                 .type = SITEHELPER_COMMAND_ADD_WALL,
                 .data.add_wall = {
-                    .room_id = command->data.wall.room_id,
                     .wall_id = wall_id
                 }
             };
@@ -259,6 +347,33 @@ int sitehelper_command_execute(
                 .type = SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT,
                 .data.move_wall_endpoint.wall_id = command->data.move_wall_endpoint.wall_id
             };
+            return 1;
+
+        case SITEHELPER_COMMAND_SET_ROOM_LOCATION:
+            if (!room_location_command_execute(project, &command->data.room_location)) {
+                return 0;
+            }
+            *result = (SiteHelperCommandResult){
+                .type = SITEHELPER_COMMAND_SET_ROOM_LOCATION,
+                .data.room_location.room_id = command->data.room_location.room_id
+            };
+            return 1;
+
+        case SITEHELPER_COMMAND_ADD_ROOM_SEPARATOR: {
+            DomainId id;
+            if (!add_room_separator_command_execute(project, &command->data.add_room_separator, &id)) { return 0; }
+            *result = (SiteHelperCommandResult){.type = command->type, .data.room_separator.separator_id = id};
+            return 1;
+        }
+        case SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR:
+            if (!delete_room_separator_command_execute(project, &command->data.delete_room_separator)) { return 0; }
+            *result = (SiteHelperCommandResult){.type = command->type,
+                .data.room_separator.separator_id = command->data.delete_room_separator.separator_id};
+            return 1;
+        case SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT:
+            if (!move_room_separator_endpoint_command_execute(project, &command->data.move_room_separator_endpoint)) { return 0; }
+            *result = (SiteHelperCommandResult){.type = command->type,
+                .data.room_separator.separator_id = command->data.move_room_separator_endpoint.separator_id};
             return 1;
 
         case SITEHELPER_COMMAND_NONE:
@@ -291,6 +406,9 @@ int sitehelper_command_undo(
 
     switch (command->type) {
 
+        case SITEHELPER_COMMAND_ADD_ROOM_SEPARATOR:
+            return sitehelper_project_remove_room_separator_by_id(project, result->data.room_separator.separator_id);
+
         case SITEHELPER_COMMAND_ADD_OPENING:
 
             return opening_command_undo(
@@ -308,6 +426,9 @@ int sitehelper_command_undo(
 
         case SITEHELPER_COMMAND_DELETE_WALL:
         case SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT:
+        case SITEHELPER_COMMAND_SET_ROOM_LOCATION:
+        case SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR:
+        case SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT:
             return 0; /* Requires history-owned state, never a public result. */
 
         case SITEHELPER_COMMAND_NONE:
@@ -340,6 +461,19 @@ int sitehelper_command_redo(
 
     switch (command->type) {
 
+        case SITEHELPER_COMMAND_ADD_ROOM_SEPARATOR: {
+            RoomSeparator separator = {.id = result->data.room_separator.separator_id,
+                .segment = command->data.add_room_separator.segment};
+            return build_insert_room_separator(&project->structure, &separator,
+                project->structure.room_separator_count);
+        }
+        case SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR:
+            if (command->data.delete_room_separator.separator_id != result->data.room_separator.separator_id) { return 0; }
+            return delete_room_separator_command_execute(project, &command->data.delete_room_separator);
+        case SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT:
+            if (command->data.move_room_separator_endpoint.separator_id != result->data.room_separator.separator_id) { return 0; }
+            return move_room_separator_endpoint_command_execute(project, &command->data.move_room_separator_endpoint);
+
         case SITEHELPER_COMMAND_ADD_OPENING:
 
             return opening_command_redo(
@@ -366,6 +500,12 @@ int sitehelper_command_redo(
                 return 0;
             }
             return move_wall_endpoint_command_execute(project, &command->data.move_wall_endpoint);
+
+        case SITEHELPER_COMMAND_SET_ROOM_LOCATION:
+            if (command->data.room_location.room_id != result->data.room_location.room_id) {
+                return 0;
+            }
+            return room_location_command_execute(project, &command->data.room_location);
 
         case SITEHELPER_COMMAND_NONE:
         case SITEHELPER_COMMAND_COUNT:

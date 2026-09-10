@@ -28,6 +28,11 @@ static int duplicate_id(const BuildStructure *structure, DomainId id)
             }
         }
     }
+    for (size_t i = 0; i < structure->room_separator_count; i++) {
+        if (structure->room_separators[i].id == id && seen++) {
+            return 1;
+        }
+    }
     return 0;
 }
 
@@ -64,15 +69,12 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
         (structure->wall_count != 0 && structure->walls == NULL)) {
         return validation(SITEHELPER_PROJECT_INVALID_WALL_COLLECTION, 0, 0);
     }
-    /* Establish safe metadata for the entire graph before any lookup or ID
-     * scan can follow a reference into a later collection. */
-    for (size_t i = 0; i < structure->room_count; i++) {
-        const Room *room = &structure->rooms[i];
-        if (room->wall_count > room->wall_capacity ||
-            (room->wall_count != 0 && room->wall_ids == NULL)) {
-            return validation(SITEHELPER_PROJECT_INVALID_ROOM_REFERENCE_COLLECTION, room->id, 0);
-        }
+    if (structure->room_separator_count > structure->room_separator_capacity ||
+        (structure->room_separator_count != 0 && structure->room_separators == NULL)) {
+        return validation(SITEHELPER_PROJECT_INVALID_ROOM_SEPARATOR_COLLECTION, 0, 0);
     }
+    /* Establish safe metadata for all authoritative collections before any lookup or ID
+     * scan can inspect a later collection. */
     for (size_t i = 0; i < structure->wall_count; i++) {
         const Wall *wall = &structure->walls[i];
         if (wall->definition.opening_count > wall->definition.opening_capacity ||
@@ -103,22 +105,15 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
             }
         }
     }
+    for (size_t i = 0; i < structure->room_separator_count; i++) {
+        SiteHelperProjectValidation result = validate_id(structure, structure->room_separators[i].id,
+            SITEHELPER_PROJECT_INVALID_ROOM_SEPARATOR_ID, 0, &maximum);
+        if (result.code != SITEHELPER_PROJECT_VALID) {
+            return result;
+        }
+    }
     if (project->domain_ids.next == DOMAIN_ID_INVALID || project->domain_ids.next <= maximum) {
         return validation(SITEHELPER_PROJECT_INVALID_ID_GENERATOR, maximum, 0);
-    }
-    for (size_t i = 0; i < structure->room_count; i++) {
-        const Room *room = &structure->rooms[i];
-        for (size_t j = 0; j < room->wall_count; j++) {
-            DomainId wall_id = room->wall_ids[j];
-            if (build_find_wall_by_id_const(structure, wall_id) == NULL) {
-                return validation(SITEHELPER_PROJECT_UNRESOLVED_WALL_REFERENCE, room->id, wall_id);
-            }
-            for (size_t previous = 0; previous < j; previous++) {
-                if (room->wall_ids[previous] == wall_id) {
-                    return validation(SITEHELPER_PROJECT_DUPLICATE_WALL_REFERENCE, room->id, wall_id);
-                }
-            }
-        }
     }
     for (size_t i = 0; i < structure->wall_count; i++) {
         const Wall *wall = &structure->walls[i];
@@ -146,6 +141,12 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
                 return validation(SITEHELPER_PROJECT_INVALID_OPENING, opening->id, wall->id);
             }
             prefix.definition.opening_count++;
+        }
+    }
+    for (size_t i = 0; i < structure->room_separator_count; i++) {
+        const RoomSeparator *separator = &structure->room_separators[i];
+        if (!plan_segment_valid(separator->segment)) {
+            return validation(SITEHELPER_PROJECT_INVALID_ROOM_SEPARATOR_GEOMETRY, separator->id, 0);
         }
     }
     return validation(SITEHELPER_PROJECT_VALID, 0, 0);

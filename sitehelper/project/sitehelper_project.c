@@ -74,25 +74,43 @@ DomainId sitehelper_project_add_room(
     return room_id;
 }
 
+int sitehelper_project_set_room_location(SiteHelperProject *project,
+    DomainId room_id, PlanPosition location)
+{
+    if (project == NULL) {
+        return 0;
+    }
+    Room *room = build_find_room_by_id(&project->structure, room_id);
+    if (room == NULL) {
+        return 0;
+    }
+    room->location = location;
+    room->has_location = true;
+    return 1;
+}
+
+int sitehelper_project_clear_room_location(SiteHelperProject *project,
+    DomainId room_id)
+{
+    if (project == NULL) {
+        return 0;
+    }
+    Room *room = build_find_room_by_id(&project->structure, room_id);
+    if (room == NULL) {
+        return 0;
+    }
+    room->has_location = false;
+    room->location = (PlanPosition){0};
+    return 1;
+}
+
 DomainId sitehelper_project_add_wall(
     SiteHelperProject *project,
-    DomainId room_id,
     WallPlanSegment segment
 )
 {
-    if (project == NULL ||
-        room_id == DOMAIN_ID_INVALID) {
+    if (project == NULL) {
 
-        return DOMAIN_ID_INVALID;
-    }
-
-    Room *room =
-        build_find_room_by_id(
-            &project->structure,
-            room_id
-        );
-
-    if (room == NULL) {
         return DOMAIN_ID_INVALID;
     }
 
@@ -108,12 +126,7 @@ DomainId sitehelper_project_add_wall(
         return DOMAIN_ID_INVALID;
     }
 
-    if (!room_add_wall_reference(room, wall_id)) {
-        return DOMAIN_ID_INVALID;
-    }
-
     if (!build_append_wall(&project->structure, &wall)) {
-        (void)room_remove_wall_reference(room, wall_id);
 
         return DOMAIN_ID_INVALID;
     }

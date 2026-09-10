@@ -57,15 +57,11 @@ static void fixture_init(Fixture *f)
     f->room_a = sitehelper_project_add_room(&f->project);
     f->room_b = sitehelper_project_add_room(&f->project);
     f->room_c = sitehelper_project_add_room(&f->project);
-    f->wall_id = sitehelper_project_add_wall(&f->project, f->room_a,
+    f->wall_id = sitehelper_project_add_wall(&f->project,
         (WallPlanSegment){{4600, 6800}, {1000, 2000}});
-    f->control_id = sitehelper_project_add_wall(&f->project, f->room_c,
+    f->control_id = sitehelper_project_add_wall(&f->project,
         (WallPlanSegment){{-6000, -1000}, {0, -1000}});
     assert(f->wall_id && f->control_id);
-    assert(room_add_wall_reference(build_find_room_by_id(&f->project.structure,
-        f->room_b), f->wall_id));
-    assert(room_add_wall_reference(build_find_room_by_id(&f->project.structure,
-        f->room_a), f->control_id));
     Wall *wall = build_find_wall_by_id(&f->project.structure, f->wall_id);
     Opening openings[] = {
         {.id = domain_id_generate(&f->project.domain_ids), .type = OPENING_DOOR,
@@ -101,15 +97,13 @@ static void assert_deleted(Fixture *f)
     assert(!build_find_wall_by_id(&f->project.structure, f->wall_id));
     assert(f->project.structure.wall_count == 1);
     assert(f->project.domain_ids.next == f->original.domain_ids.next);
+    assert(f->project.structure.room_count == f->original.structure.room_count);
     for (size_t i = 0; i < f->project.structure.room_count; i++) {
-        assert(!room_has_wall_id(&f->project.structure.rooms[i], f->wall_id));
+        assert(f->project.structure.rooms[i].id == f->original.structure.rooms[i].id);
     }
     test_assert_wall_definition_equal(
         build_find_wall_by_id(&f->original.structure, f->control_id),
         build_find_wall_by_id(&f->project.structure, f->control_id));
-    assert(build_find_room_by_id(&f->project.structure, f->room_a)->wall_count == 1);
-    assert(build_find_room_by_id(&f->project.structure, f->room_b)->wall_count == 0);
-    assert(build_find_room_by_id(&f->project.structure, f->room_c)->wall_count == 1);
 }
 
 static void execute_delete(Fixture *f)
@@ -121,7 +115,7 @@ static void execute_delete(Fixture *f)
     assert_deleted(f);
 }
 
-static void test_delete_undo_redo_identity_and_memberships(void)
+static void test_delete_undo_redo_identity_and_independent_rooms(void)
 {
     Fixture f;
     fixture_init(&f);
@@ -204,11 +198,6 @@ static void test_undo_failures_are_transactional_and_retryable(void)
     Fixture f;
     fixture_init(&f);
     execute_delete(&f);
-    Room *room = build_find_room_by_id(&f.project.structure, f.room_b);
-    room->id = f.project.domain_ids.next + 100; /* Saved room no longer resolves. */
-    assert_failed_undo_unchanged(&f);
-    room->id = f.room_b;
-
     Wall collision = {.id = f.wall_id, .definition.segment = {{0, 0}, {4200, 0}}};
     assert(build_append_wall(&f.project.structure, &collision));
     assert_failed_undo_unchanged(&f);
@@ -241,7 +230,7 @@ static void test_discard_redo_and_history_reallocation(void)
     assert(sitehelper_command_history_undo(&f.history, &f.project));
     SiteHelperCommand add;
     WallCommand wall;
-    assert(wall_command_create(f.room_a, (WallPlanSegment){{0, 0}, {4200, 0}}, &wall));
+    assert(wall_command_create((WallPlanSegment){{0, 0}, {4200, 0}}, &wall));
     assert(sitehelper_command_from_wall(&wall, &add));
     SiteHelperCommandResult result;
     assert(sitehelper_command_history_execute(&f.history, &f.project, &add, &result));
@@ -280,26 +269,20 @@ static void test_redo_preserves_original_snapshot_and_failed_redo(void)
     fixture_destroy(&f);
 }
 
-static void test_direct_execute_and_unreferenced_wall(void)
+static void test_direct_execute(void)
 {
     Fixture f;
     fixture_init(&f);
-    for (size_t i = 0; i < f.project.structure.room_count; i++) {
-        (void)room_remove_wall_reference(&f.project.structure.rooms[i], f.wall_id);
-    }
     SiteHelperCommandResult result;
     assert(sitehelper_command_history_execute(&f.history, &f.project, &f.command, &result));
     assert(sitehelper_command_history_undo(&f.history, &f.project));
     assert(build_find_wall_by_id(&f.project.structure, f.wall_id));
-    for (size_t i = 0; i < f.project.structure.room_count; i++) {
-        assert(!room_has_wall_id(&f.project.structure.rooms[i], f.wall_id));
-    }
     assert(sitehelper_command_execute(&f.project, &f.command, &result));
     assert_deleted(&f);
     fixture_destroy(&f);
 }
 
-static void test_empty_wall_without_room_membership(void)
+static void test_empty_wall_without_rooms(void)
 {
     SiteHelperProject project;
     SiteHelperCommandHistory history;
@@ -356,15 +339,12 @@ static void test_allocation_failures_preserve_execute_and_undo(void)
         Fixture f;
         fixture_init(&f);
         execute_delete(&f);
-        /* Fill retained capacity so restoration must allocate wall storage
-         * and both membership arrays, including after successful insertion. */
-        DomainId extra = sitehelper_project_add_wall(&f.project, f.room_a,
+        /* Fill retained capacity so restoration must allocate global wall storage. */
+        DomainId extra = sitehelper_project_add_wall(&f.project,
             (WallPlanSegment){{0, 0}, {4200, 0}});
         assert(extra != DOMAIN_ID_INVALID);
-        Room *room_b = build_find_room_by_id(&f.project.structure, f.room_b);
-        assert(room_add_wall_reference(room_b, extra));
+
         assert(f.project.structure.wall_count == f.project.structure.wall_capacity);
-        assert(room_b->wall_count == room_b->wall_capacity);
         SiteHelperProject before;
         test_clone_project_authoritative(&f.project, &before);
         allocation_failed = 0;
@@ -384,16 +364,14 @@ static void test_allocation_failures_preserve_execute_and_undo(void)
         assert(f.project.domain_ids.next == before.domain_ids.next);
         test_assert_wall_definition_equal(build_find_wall_by_id(&f.original.structure, f.wall_id),
             build_find_wall_by_id(&f.project.structure, f.wall_id));
-        assert(room_has_wall_id(build_find_room_by_id(&f.project.structure, f.room_a), f.wall_id));
-        assert(room_has_wall_id(build_find_room_by_id(&f.project.structure, f.room_b), f.wall_id));
         sitehelper_project_destroy(&before);
         fixture_destroy(&f);
         if (success) {
             break;
         }
     }
-    assert(execute_failures >= 4); /* History, state, openings, memberships. */
-    assert(undo_failures > 3); /* Definitions/framing, insertion, memberships. */
+    assert(execute_failures >= 3); /* History, state, openings. */
+    assert(undo_failures > 3); /* Definitions/framing and global insertion. */
     printf("allocation failures checked: execute=%zu, undo=%zu\n",
         execute_failures, undo_failures);
 }
@@ -404,14 +382,14 @@ int main(void)
 #ifdef SITEHELPER_TEST_WRAP_ALLOC
     test_allocation_failures_preserve_execute_and_undo();
 #endif
-    test_empty_wall_without_room_membership();
-    test_delete_undo_redo_identity_and_memberships();
+    test_empty_wall_without_rooms();
+    test_delete_undo_redo_identity_and_independent_rooms();
     test_undo_regenerates_using_current_settings();
     test_invalid_and_missing_delete_preserve_model_and_redo();
     test_undo_failures_are_transactional_and_retryable();
     test_discard_redo_and_history_reallocation();
     test_redo_preserves_original_snapshot_and_failed_redo();
-    test_direct_execute_and_unreferenced_wall();
+    test_direct_execute();
     puts("delete wall command tests passed");
     return 0;
 }

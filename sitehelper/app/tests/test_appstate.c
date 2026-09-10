@@ -6,14 +6,13 @@
 #include "appstate.h"
 #include "wall.h"
 
-static void add_wall_reference(
+static void append_test_wall(
     BuildStructure *structure,
-    Room *room,
     DomainId wall_id
 )
 {
     Wall wall = { .id = wall_id };
-    assert(room_add_wall_reference(room, wall_id));
+
     assert(build_append_wall(structure, &wall));
 }
 
@@ -203,7 +202,7 @@ sitehelper_editor_init(
 
     assert(room != NULL);
 
-    add_wall_reference(&app.project.structure, room, wall_id);
+    append_test_wall(&app.project.structure, wall_id);
 
     app.editor.current_room_id =
         room_id;
@@ -340,21 +339,21 @@ sitehelper_editor_init(
 
     assert(room != NULL);
 
-    add_wall_reference(&app.project.structure, room, selected_wall_id);
+    append_test_wall(&app.project.structure, selected_wall_id);
 
     app.editor.current_wall_id =
         selected_wall_id;
 
     /*
-     * Force Room.walls through several
+     * Force BuildStructure.walls through several
      * reallocations after the selection
      * has already been stored.
      */
-    add_wall_reference(&app.project.structure, room, 30);
+    append_test_wall(&app.project.structure, 30);
 
-    add_wall_reference(&app.project.structure, room, 40);
+    append_test_wall(&app.project.structure, 40);
 
-    add_wall_reference(&app.project.structure, room, 50);
+    append_test_wall(&app.project.structure, 50);
 
     Wall *wall =
         app_current_wall(
@@ -419,7 +418,7 @@ sitehelper_editor_init(
 
     assert(room != NULL);
 
-    add_wall_reference(&app.project.structure, room, selected_wall_id);
+    append_test_wall(&app.project.structure, selected_wall_id);
 
     app.editor.current_room_id =
         selected_room_id;

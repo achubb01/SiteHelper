@@ -209,6 +209,14 @@ static inline void test_assert_project_model_equal(
     test_assert_build_settings_equal(&expected->settings, &actual->settings);
     assert(expected->structure.room_count == actual->structure.room_count);
     assert(expected->structure.wall_count == actual->structure.wall_count);
+    assert(expected->structure.room_separator_count == actual->structure.room_separator_count);
+    for (size_t i = 0; i < expected->structure.room_separator_count; i++) {
+        const RoomSeparator *a = &expected->structure.room_separators[i];
+        const RoomSeparator *b = &actual->structure.room_separators[i];
+        assert(a->id == b->id);
+        assert(a->segment.start.x == b->segment.start.x && a->segment.start.y == b->segment.start.y);
+        assert(a->segment.end.x == b->segment.end.x && a->segment.end.y == b->segment.end.y);
+    }
 
     for (size_t i = 0; i < expected->structure.room_count; i++) {
         const Room *expected_room = &expected->structure.rooms[i];
@@ -218,10 +226,10 @@ static inline void test_assert_project_model_equal(
         );
 
         assert(actual_room != NULL);
-        assert(expected_room->wall_count == actual_room->wall_count);
-
-        for (size_t j = 0; j < expected_room->wall_count; j++) {
-            assert(room_has_wall_id(actual_room, expected_room->wall_ids[j]));
+        assert(expected_room->has_location == actual_room->has_location);
+        if (expected_room->has_location) {
+            assert(expected_room->location.x == actual_room->location.x);
+            assert(expected_room->location.y == actual_room->location.y);
         }
     }
 
@@ -315,13 +323,13 @@ static inline void test_clone_project_authoritative(
         );
 
         assert(destination_room != NULL);
-
-        for (size_t j = 0; j < source_room->wall_count; j++) {
-            assert(room_add_wall_reference(
-                destination_room,
-                source_room->wall_ids[j]
-            ));
+        if (source_room->has_location) {
+            assert(sitehelper_project_set_room_location(destination,
+                source_room->id, source_room->location));
         }
+    }
+    for (size_t i = 0; i < source->structure.room_separator_count; i++) {
+        assert(build_insert_room_separator(&destination->structure, &source->structure.room_separators[i], i));
     }
 }
 

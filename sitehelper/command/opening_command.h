@@ -6,7 +6,7 @@
 
 typedef struct
 {
-    DomainId room_id;
+
     DomainId wall_id;
 
     OpeningType type;
@@ -19,7 +19,6 @@ typedef struct
 } OpeningCommand;
 
 int opening_command_create(
-    DomainId room_id,
     DomainId wall_id,
     OpeningType type,
     int frame_position,

@@ -4,15 +4,13 @@
 #include "delete_wall_command.h"
 
 /* Exclusively owned authoritative copies; no borrowed project storage/framing.
- * Room membership is unordered. The snapshot survives both undo and redo. */
+ * The snapshot survives both undo and redo. */
 typedef struct
 {
     DomainId wall_id;
     WallPlanSegment segment;
     Opening *openings;
     size_t opening_count;
-    DomainId *room_ids;
-    size_t room_count;
 } DeletedWallSnapshot;
 
 /* Output must be zero initialized. Failure releases partial allocations. */
