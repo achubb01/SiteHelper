@@ -1,11 +1,12 @@
 #include <stdlib.h>
 #include "plan_topology.h"
+#include "storey.h"
 
-PlanTopologyResult plan_topology_build_from_project(const SiteHelperProject *project,
+PlanTopologyResult plan_topology_build_from_storey(const Storey *storey,
     PlanTopology *output)
 {
-    if (project == NULL || output == NULL) { return (PlanTopologyResult){PLAN_TOPOLOGY_INVALID_ARGUMENT, 0, 0}; }
-    const BuildStructure *structure = &project->structure;
+    if (storey == NULL || output == NULL) { return (PlanTopologyResult){PLAN_TOPOLOGY_INVALID_ARGUMENT, 0, 0}; }
+    const BuildStructure *structure = &storey->structure;
     if (structure->wall_count > structure->wall_capacity ||
         structure->room_separator_count > structure->room_separator_capacity ||
         (structure->wall_count != 0 && structure->walls == NULL) ||

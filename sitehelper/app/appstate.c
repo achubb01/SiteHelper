@@ -8,7 +8,8 @@ Room *app_current_room(
     const SiteHelperEditor *editor
 )
 {
-    if (project == NULL ||
+    Storey *storey = editor == NULL ? NULL : sitehelper_project_find_storey_by_id(project, editor->current_storey_id);
+    if (storey == NULL ||
         editor == NULL) {
 
         return NULL;
@@ -21,7 +22,7 @@ Room *app_current_room(
     }
 
     return build_find_room_by_id(
-        &project->structure,
+        &storey->structure,
         editor->current_room_id
     );
 }
@@ -31,7 +32,8 @@ Wall *app_current_wall(
     const SiteHelperEditor *editor
 )
 {
-    if (project == NULL ||
+    Storey *storey = editor == NULL ? NULL : sitehelper_project_find_storey_by_id(project, editor->current_storey_id);
+    if (storey == NULL ||
         editor == NULL) {
 
         return NULL;
@@ -43,7 +45,7 @@ Wall *app_current_wall(
         return NULL;
     }
 
-    return build_find_wall_by_id(&project->structure, editor->current_wall_id);
+    return build_find_wall_by_id(&storey->structure, editor->current_wall_id);
 }
 
 const Room *app_current_room_const(
@@ -51,7 +53,8 @@ const Room *app_current_room_const(
     const SiteHelperEditor *editor
 )
 {
-    if (project == NULL ||
+    const Storey *storey = editor == NULL ? NULL : sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
+    if (storey == NULL ||
         editor == NULL ||
         editor->current_room_id ==
             DOMAIN_ID_INVALID) {
@@ -60,7 +63,7 @@ const Room *app_current_room_const(
     }
 
     return build_find_room_by_id_const(
-        &project->structure,
+        &storey->structure,
         editor->current_room_id
     );
 }
@@ -70,7 +73,8 @@ const Wall *app_current_wall_const(
     const SiteHelperEditor *editor
 )
 {
-    if (project == NULL ||
+    const Storey *storey = editor == NULL ? NULL : sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
+    if (storey == NULL ||
         editor == NULL ||
         editor->current_wall_id ==
             DOMAIN_ID_INVALID) {
@@ -78,5 +82,5 @@ const Wall *app_current_wall_const(
         return NULL;
     }
 
-    return build_find_wall_by_id_const(&project->structure, editor->current_wall_id);
+    return build_find_wall_by_id_const(&storey->structure, editor->current_wall_id);
 }

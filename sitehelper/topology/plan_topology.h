@@ -1,7 +1,12 @@
 #ifndef PLAN_TOPOLOGY_H
 #define PLAN_TOPOLOGY_H
 
-#include "sitehelper_project.h"
+#include <stddef.h>
+#include <stdbool.h>
+#include "domain_id.h"
+#include "plan_segment.h"
+
+struct Storey;
 
 /* Exact reduced rational: (-1)^negative * numerator / denominator. Limbs
  * encode lo + hi * 2^64; denominator is positive, zero is nonnegative / 1.
@@ -91,7 +96,7 @@ PlanTopologyResult plan_topology_build(const PlanTopologySource *sources,
 /* Reads only Wall/separator collections, IDs and ordered plan endpoints.
  * Does not read Rooms, openings, framing, settings, or allocator state and
  * does not call whole-project validation. */
-PlanTopologyResult plan_topology_build_from_project(const SiteHelperProject *project,
+PlanTopologyResult plan_topology_build_from_storey(const struct Storey *storey,
     PlanTopology *output);
 void plan_topology_destroy(PlanTopology *topology);
 

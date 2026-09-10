@@ -20,7 +20,7 @@ int move_wall_endpoint_command_execute(SiteHelperProject *project,
     if (project == NULL || command == NULL) {
         return 0;
     }
-    Wall *wall = build_find_wall_by_id(&project->structure, command->wall_id);
+    Wall *wall = sitehelper_project_find_wall_by_id(project, command->wall_id);
     if (wall == NULL) {
         return 0;
     }

@@ -15,6 +15,10 @@ int main(void)
         &context.editor
     );
 
+    DomainId storey_id = sitehelper_project_add_storey(&context.project, 0);
+    if (storey_id == DOMAIN_ID_INVALID) { return 1; }
+    sitehelper_editor_set_current_storey(&context.editor, &context.project, storey_id);
+
     sitehelper_command_history_init(
         &context.history
     );

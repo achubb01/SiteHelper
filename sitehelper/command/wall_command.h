@@ -6,10 +6,12 @@
 typedef struct
 {
 
+    DomainId storey_id;
     WallPlanSegment segment;
 } WallCommand;
 
 int wall_command_create(
+    DomainId storey_id,
     WallPlanSegment segment,
     WallCommand *command
 );

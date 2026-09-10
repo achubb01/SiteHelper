@@ -9,7 +9,8 @@
 static void setup_project(SiteHelperProject *project)
 {
     sitehelper_project_init(project);
-    assert(project->structure.room_count == 0);
+    assert(sitehelper_project_add_storey(project, 0));
+    assert(project->storeys[0].structure.room_count == 0);
 }
 
 static SiteHelperCommand add_wall_command(
@@ -21,7 +22,7 @@ static SiteHelperCommand add_wall_command(
     WallCommand wall;
     SiteHelperCommand command;
 
-    assert(wall_command_create(
+    assert(wall_command_create(1,
         (WallPlanSegment){ .start = {x, y}, .end = {x + length, y} },
         &wall
     ));
@@ -40,9 +41,9 @@ static void test_execute_undo_redo_preserves_identity(void)
     assert(sitehelper_command_execute(&project, &command, &result));
     assert(result.type == SITEHELPER_COMMAND_ADD_WALL);
     assert(result.data.add_wall.wall_id == next_before);
-    assert(project.structure.wall_count == 1);
+    assert(project.storeys[0].structure.wall_count == 1);
 
-    Wall *wall = build_find_wall_by_id(&project.structure, next_before);
+    Wall *wall = build_find_wall_by_id(&project.storeys[0].structure, next_before);
     assert(wall != NULL);
     assert(wall->definition.segment.start.x == 5000);
     assert(wall->definition.segment.start.y == 3000);
@@ -51,13 +52,13 @@ static void test_execute_undo_redo_preserves_identity(void)
 
     DomainId next_after_execute = project.domain_ids.next;
     assert(sitehelper_command_undo(&project, &command, &result));
-    assert(project.structure.wall_count == 0);
-    assert(build_find_wall_by_id(&project.structure, next_before) == NULL);
+    assert(project.storeys[0].structure.wall_count == 0);
+    assert(build_find_wall_by_id(&project.storeys[0].structure, next_before) == NULL);
 
     assert(sitehelper_command_redo(&project, &command, &result));
-    assert(project.structure.wall_count == 1);
+    assert(project.storeys[0].structure.wall_count == 1);
     assert(project.domain_ids.next == next_after_execute);
-    assert(build_find_wall_by_id(&project.structure, next_before) != NULL);
+    assert(build_find_wall_by_id(&project.storeys[0].structure, next_before) != NULL);
 
     sitehelper_project_destroy(&project);
 }
@@ -76,17 +77,17 @@ static void test_failure_does_not_consume_identity(void)
     next = project.domain_ids.next;
 
     /* Constructing an invalid command is intentionally rejected. */
-    assert(!wall_command_create((WallPlanSegment){0},
+    assert(!wall_command_create(1, (WallPlanSegment){0},
         &invalid.data.wall));
 
-    invalid.data.wall = (WallCommand){0};
+    invalid.data.wall = (WallCommand){.storey_id = 1};
     invalid.type = SITEHELPER_COMMAND_ADD_WALL;
 
     assert(!sitehelper_command_execute(&project, &invalid, &result));
     assert(result.type == SITEHELPER_COMMAND_NONE);
     assert(project.domain_ids.next == next);
 
-    Wall *wall = build_find_wall_by_id(&project.structure, existing_wall_id);
+    Wall *wall = build_find_wall_by_id(&project.storeys[0].structure, existing_wall_id);
     assert(wall != NULL);
     assert(wall_length_mm(wall) == 4200);
     assert(wall->definition.segment.start.x == 0);
@@ -109,14 +110,14 @@ static void test_diagonal_commands_preserve_order_through_history(void)
         WallCommand wall_command;
         SiteHelperCommand command;
         SiteHelperCommandResult result;
-        assert(wall_command_create(segments[i], &wall_command));
+        assert(wall_command_create(1, segments[i], &wall_command));
         assert(sitehelper_command_from_wall(&wall_command, &command));
         DomainId id = project.domain_ids.next;
         assert(sitehelper_command_history_execute(&history, &project, &command, &result));
         assert(result.data.add_wall.wall_id == id);
         DomainId next = project.domain_ids.next;
         for (int pass = 0; pass < 2; pass++) {
-            const Wall *wall = build_find_wall_by_id_const(&project.structure, id);
+            const Wall *wall = build_find_wall_by_id_const(&project.storeys[0].structure, id);
             assert(wall != NULL && wall->id == id);
             assert(wall->definition.segment.start.x == segments[i].start.x);
             assert(wall->definition.segment.start.y == segments[i].start.y);
@@ -127,7 +128,7 @@ static void test_diagonal_commands_preserve_order_through_history(void)
             assert(wall->framing.bottomplate.position.z == 0);
             if (pass == 0) {
                 assert(sitehelper_command_history_undo(&history, &project));
-                assert(project.structure.wall_count == 0);
+                assert(project.storeys[0].structure.wall_count == 0);
 
                 assert(sitehelper_command_history_redo(&history, &project));
                 assert(project.domain_ids.next == next);
@@ -145,16 +146,16 @@ static void test_overflow_segment_command_is_transactional(void)
     DomainId next = project.domain_ids.next;
     WallPlanSegment segment = { .start = {INT_MIN, 0}, .end = {INT_MAX, 0} };
     WallCommand command = { .segment = segment };
-    assert(!wall_command_create(segment, &command));
+    assert(!wall_command_create(1, segment, &command));
     DomainId id = 42;
     assert(!wall_command_execute(&project, &command, &id));
     assert(id == DOMAIN_ID_INVALID);
     assert(project.domain_ids.next == next);
-    assert(project.structure.wall_count == 0);
-    assert(project.structure.room_count == 0);
+    assert(project.storeys[0].structure.wall_count == 0);
+    assert(project.storeys[0].structure.room_count == 0);
 
     assert(!wall_command_redo(&project, &command, next));
-    assert(project.structure.wall_count == 0);
+    assert(project.storeys[0].structure.wall_count == 0);
     assert(project.domain_ids.next == next);
     sitehelper_project_destroy(&project);
 }
@@ -181,9 +182,9 @@ static void test_history_interleaving_keeps_wall_ids(void)
     assert(sitehelper_command_history_redo(&history, &project));
 
     assert(build_find_wall_by_id(
-        &project.structure, first_result.data.add_wall.wall_id));
+        &project.storeys[0].structure, first_result.data.add_wall.wall_id));
     assert(build_find_wall_by_id(
-        &project.structure, second_result.data.add_wall.wall_id));
+        &project.storeys[0].structure, second_result.data.add_wall.wall_id));
 
     sitehelper_command_history_destroy(&history);
     sitehelper_project_destroy(&project);

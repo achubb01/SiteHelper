@@ -14,8 +14,8 @@ static Wall *add_wall(
 {
     Wall candidate = { .id = wall_id };
 
-    assert(build_append_wall(&project->structure, &candidate));
-    Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
+    assert(build_append_wall(&project->storeys[0].structure, &candidate));
+    Wall *wall = build_find_wall_by_id(&project->storeys[0].structure, wall_id);
     assert(wall_set_plan_segment(wall, (WallPlanSegment){
         .start = origin, .end = { .x = origin.x + 4200, .y = origin.y }
     }));
@@ -28,22 +28,24 @@ static void test_positioned_walls_select_by_stable_identity(void)
     SiteHelperProject project;
     SiteHelperEditor editor;
     sitehelper_project_init(&project);
-    DomainId room_id = sitehelper_project_add_room(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
+    DomainId room_id = sitehelper_project_add_room(&project, project.storeys[0].id);
     add_wall(&project, 20, (PlanPosition){ 0, 0 });
     add_wall(&project, 30, (PlanPosition){ 5000, 3000 });
 
     sitehelper_editor_init(&editor);
+    editor.current_storey_id = 1;
     editor.current_room_id = room_id;
     EditorAction action;
 
     assert(sitehelper_editor_primary_action_in_project(
-        &editor, &project.structure, (Vec2){ 10, 10 }, &action));
+        &editor, &project, (Vec2){ 10, 10 }, &action));
     assert(editor_selection_is_empty(&editor.selection));
     assert(editor.current_wall_id == 20);
     assert(editor_selection_get_wall_member(&editor.selection, 30) == NULL);
 
     assert(sitehelper_editor_primary_action_in_project(
-        &editor, &project.structure, (Vec2){ 5010, 3010 }, &action));
+        &editor, &project, (Vec2){ 5010, 3010 }, &action));
     assert(editor_selection_is_empty(&editor.selection));
     assert(editor.current_wall_id == 30);
     assert(editor_selection_get_wall_member(&editor.selection, 20) == NULL);
@@ -52,9 +54,9 @@ static void test_positioned_walls_select_by_stable_identity(void)
         add_wall(&project, id, (PlanPosition){ (int)id * 1000, 0 });
     }
 
-    assert(build_find_room_by_id(&project.structure, room_id));
+    assert(build_find_room_by_id(&project.storeys[0].structure, room_id));
     assert(build_find_wall_by_id(
-        &project.structure, editor.current_wall_id)->id == 30);
+        &project.storeys[0].structure, editor.current_wall_id)->id == 30);
     assert(editor_selection_is_empty(&editor.selection));
 
     sitehelper_project_destroy(&project);
@@ -65,12 +67,14 @@ static void test_opening_path_uses_positioned_wall_local_coordinates(void)
     SiteHelperProject project;
     SiteHelperEditor editor;
     sitehelper_project_init(&project);
-    DomainId room_id = sitehelper_project_add_room(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
+    DomainId room_id = sitehelper_project_add_room(&project, project.storeys[0].id);
     Wall *wall = add_wall(
         &project, 20, (PlanPosition){ 5000, 3000 }
     );
 
     sitehelper_editor_init(&editor);
+    editor.current_storey_id = 1;
     editor.current_room_id = room_id;
     editor.current_wall_id = wall->id;
     assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
@@ -91,7 +95,7 @@ static void test_opening_path_uses_positioned_wall_local_coordinates(void)
     EditorAction action;
     assert(sitehelper_editor_primary_action_in_project(
         &editor,
-        &project.structure,
+        &project,
         (Vec2){ 1600, 800 },
         &action
     ));
@@ -110,17 +114,19 @@ static void test_reconcile_clears_removed_wall_navigation_and_selection(void)
     SiteHelperCommand command;
     SiteHelperCommandResult result;
     sitehelper_project_init(&project);
-    DomainId room_id = sitehelper_project_add_room(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
+    DomainId room_id = sitehelper_project_add_room(&project, project.storeys[0].id);
     WallCommand wall_command;
-    assert(wall_command_create(
+    assert(wall_command_create(1,
         (WallPlanSegment){ .end = { .x = 4200 } }, &wall_command));
     assert(sitehelper_command_from_wall(&wall_command, &command));
     sitehelper_command_history_init(&history);
     assert(sitehelper_command_history_execute(&history, &project, &command, &result));
 
     Wall *wall = build_find_wall_by_id(
-        &project.structure, result.data.add_wall.wall_id);
+        &project.storeys[0].structure, result.data.add_wall.wall_id);
     sitehelper_editor_init(&editor);
+    editor.current_storey_id = 1;
     editor.current_room_id = room_id;
     editor.current_wall_id = wall->id;
     sitehelper_editor_select_wall_member_at_position(
@@ -143,12 +149,14 @@ static void test_delete_wall_reconciliation_does_not_restore_transient_state(voi
     SiteHelperEditor editor;
     SiteHelperCommandHistory history;
     sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
     sitehelper_editor_init(&editor);
+    editor.current_storey_id = 1;
     sitehelper_command_history_init(&history);
-    DomainId room_id = sitehelper_project_add_room(&project);
-    DomainId wall_id = sitehelper_project_add_wall(&project,
+    DomainId room_id = sitehelper_project_add_room(&project, project.storeys[0].id);
+    DomainId wall_id = sitehelper_project_add_wall(&project, project.storeys[0].id,
         (WallPlanSegment){{4600, 6800}, {1000, 2000}});
-    Wall *wall = build_find_wall_by_id(&project.structure, wall_id);
+    Wall *wall = build_find_wall_by_id(&project.storeys[0].structure, wall_id);
     assert(wall != NULL);
     assert(wall_add_opening(wall, &project.settings,
         domain_id_generate(&project.domain_ids), OPENING_WINDOW, 1500, 900, 1000, 1000));
@@ -175,7 +183,7 @@ static void test_delete_wall_reconciliation_does_not_restore_transient_state(voi
     assert(!editor.opening_placement.has_candidate);
     assert(sitehelper_command_history_undo(&history, &project));
     sitehelper_editor_reconcile(&editor, &project);
-    assert(build_find_wall_by_id(&project.structure, wall_id) != NULL);
+    assert(build_find_wall_by_id(&project.storeys[0].structure, wall_id) != NULL);
     assert(editor.current_wall_id == DOMAIN_ID_INVALID);
     assert(editor_selection_is_empty(&editor.selection));
     sitehelper_command_history_destroy(&history);
@@ -186,6 +194,7 @@ static void test_wall_preview_and_command_preserve_diagonal_clicks(void)
 {
     SiteHelperEditor editor;
     sitehelper_editor_init(&editor);
+    editor.current_storey_id = 1;
     editor.current_room_id = 1;
     assert(sitehelper_editor_set_active_tool(&editor, EDITOR_TOOL_WALL));
     EditorAction action;
@@ -212,6 +221,7 @@ static void test_wall_second_click_sets_endpoint_without_pointer_move(void)
 {
     SiteHelperEditor editor;
     sitehelper_editor_init(&editor);
+    editor.current_storey_id = 1;
     editor.current_room_id = 1;
     assert(sitehelper_editor_set_active_tool(&editor, EDITOR_TOOL_WALL));
     EditorAction action;
@@ -232,12 +242,14 @@ static void test_endpoint_move_reconciles_regenerated_selection(void)
     SiteHelperEditor editor;
     SiteHelperCommandHistory history;
     sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
     sitehelper_editor_init(&editor);
+    editor.current_storey_id = 1;
     sitehelper_command_history_init(&history);
-    DomainId room_id = sitehelper_project_add_room(&project);
-    DomainId wall_id = sitehelper_project_add_wall(&project,
+    DomainId room_id = sitehelper_project_add_room(&project, project.storeys[0].id);
+    DomainId wall_id = sitehelper_project_add_wall(&project, project.storeys[0].id,
         (WallPlanSegment){{1000, 2000}, {5000, 2000}});
-    Wall *wall = build_find_wall_by_id(&project.structure, wall_id);
+    Wall *wall = build_find_wall_by_id(&project.storeys[0].structure, wall_id);
     assert(wall);
     assert(wall_generate(wall, &project.settings));
     editor.current_room_id = room_id;

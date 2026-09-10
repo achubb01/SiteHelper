@@ -16,16 +16,14 @@ static Wall *add_test_wall(
 )
 {
     DomainId room_id =
-        sitehelper_project_add_room(
-            project
-        );
+        sitehelper_project_add_room(project, project->storeys[0].id);
 
     assert(
         room_id != DOMAIN_ID_INVALID
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(project, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(project, project->storeys[0].id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id != DOMAIN_ID_INVALID
@@ -33,13 +31,13 @@ static Wall *add_test_wall(
 
     Room *room =
         build_find_room_by_id(
-            &project->structure,
+            &project->storeys[0].structure,
             room_id
         );
 
     assert(room != NULL);
 
-    Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
+    Wall *wall = build_find_wall_by_id(&project->storeys[0].structure, wall_id);
 
     assert(wall != NULL);
 
@@ -186,6 +184,7 @@ static void test_execute_adds_opening_to_wall(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -319,6 +318,7 @@ static void test_execute_failure_preserves_wall_state(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -403,6 +403,7 @@ static void test_execute_preserves_existing_openings(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -628,6 +629,7 @@ test_execute_resolves_wall_after_storage_relocation(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -664,7 +666,7 @@ test_execute_resolves_wall_after_storage_relocation(void)
 
     Room *room =
         build_find_room_by_id(
-            &project.structure,
+            &project.storeys[0].structure,
             room_id
         );
 
@@ -674,11 +676,11 @@ test_execute_resolves_wall_after_storage_relocation(void)
         original_wall;
 
     relocate_build_wall_storage(
-        &project.structure
+        &project.storeys[0].structure
     );
 
     Wall *relocated_wall =
-        build_find_wall_by_id(&project.structure, wall_id);
+        build_find_wall_by_id(&project.storeys[0].structure, wall_id);
 
     assert(relocated_wall != NULL);
 
@@ -721,7 +723,7 @@ test_execute_resolves_wall_after_storage_relocation(void)
     * The command itself must not depend on
     * any Wall pointer captured previously.
     */
-    relocated_wall = build_find_wall_by_id(&project.structure, wall_id);
+    relocated_wall = build_find_wall_by_id(&project.storeys[0].structure, wall_id);
 
     assert(relocated_wall != NULL);
 
@@ -761,6 +763,7 @@ test_failed_execute_does_not_consume_domain_id(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -841,6 +844,7 @@ test_execute_rejects_null_opening_id_output(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -890,6 +894,7 @@ test_undo_removes_created_opening(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -980,6 +985,7 @@ test_undo_failure_preserves_wall_state(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -1082,6 +1088,7 @@ test_redo_restores_created_opening_with_same_identity(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -1208,6 +1215,7 @@ test_redo_failure_preserves_wall_state(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -1329,6 +1337,7 @@ static void test_execute_rejects_overlapping_opening_without_mutation(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;

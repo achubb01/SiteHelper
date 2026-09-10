@@ -117,10 +117,13 @@ void addRoom(void *context)
     if (app == NULL) {
         return;
     }
+    Storey *storey = sitehelper_project_find_storey_by_id(&app->project, app->editor.current_storey_id);
+    if (storey == NULL) { printf("No active Storey.\n"); return; }
+
 
     DomainId room_id =
         sitehelper_project_add_room(
-            &app->project
+            &app->project, app->editor.current_storey_id
         );
 
     if (room_id == DOMAIN_ID_INVALID) {
@@ -136,7 +139,7 @@ void addRoom(void *context)
 
     printf(
         "Room added. Total rooms: %zu\n",
-        app->project.structure.room_count
+        storey->structure.room_count
     );
 }
 
@@ -147,10 +150,13 @@ void addWall(void *context)
     if (app == NULL) {
         return;
     }
+    Storey *storey = sitehelper_project_find_storey_by_id(&app->project, app->editor.current_storey_id);
+    if (storey == NULL) { printf("No active Storey.\n"); return; }
+
 
     DomainId wall_id =
         sitehelper_project_add_wall(
-            &app->project,
+            &app->project, app->editor.current_storey_id,
             /* Legacy CLI starts with an explicit horizontal 4200 mm segment. */
             (WallPlanSegment){ .end = { .x = 4200 } }
         );
@@ -167,8 +173,8 @@ void addWall(void *context)
         wall_id;
 
     printf(
-        "Wall added. Total project walls: %zu\n",
-        app->project.structure.wall_count
+        "Wall added. Total Storey walls: %zu\n",
+        storey->structure.wall_count
     );
 }
 
@@ -319,14 +325,17 @@ void selectRoom(void *context)
     if (app == NULL) {
         return;
     }
+    Storey *storey = sitehelper_project_find_storey_by_id(&app->project, app->editor.current_storey_id);
+    if (storey == NULL) { printf("No active Storey.\n"); return; }
 
-    if (app->project.structure.room_count == 0) {
+
+    if (storey->structure.room_count == 0) {
         printf("No rooms currently built.\n");
         return;
     }
 
     for (size_t i = 0;
-         i < app->project.structure.room_count;
+         i < storey->structure.room_count;
          i++) {
 
         printf(
@@ -348,7 +357,7 @@ void selectRoom(void *context)
 
     if (end == buffer ||
         selection < 1 ||
-        selection > (long)app->project.structure.room_count) {
+        selection > (long)storey->structure.room_count) {
 
         printf("Invalid room selection.\n");
         return;
@@ -358,7 +367,7 @@ void selectRoom(void *context)
         (size_t)(selection - 1);
 
     Room *room =
-        &app->project.structure.rooms[
+        &storey->structure.rooms[
             room_index
         ];
 
@@ -376,14 +385,17 @@ void selectWall(void *context)
     if (app == NULL) {
         return;
     }
+    Storey *storey = sitehelper_project_find_storey_by_id(&app->project, app->editor.current_storey_id);
+    if (storey == NULL) { printf("No active Storey.\n"); return; }
 
-    if (app->project.structure.wall_count == 0) {
+
+    if (storey->structure.wall_count == 0) {
         printf("The project has no walls.\n");
         return;
     }
 
     for (size_t i = 0;
-         i < app->project.structure.wall_count;
+         i < storey->structure.wall_count;
          i++) {
 
         printf(
@@ -405,7 +417,7 @@ void selectWall(void *context)
 
     if (end == buffer ||
         selection < 1 ||
-        selection > (long)app->project.structure.wall_count) {
+        selection > (long)storey->structure.wall_count) {
 
         printf("Invalid wall selection.\n");
         return;
@@ -414,7 +426,7 @@ void selectWall(void *context)
     size_t wall_index =
         (size_t)(selection - 1);
 
-    Wall *wall = &app->project.structure.walls[wall_index];
+    Wall *wall = &storey->structure.walls[wall_index];
 
     app->editor.current_wall_id =
         wall->id;
@@ -432,12 +444,15 @@ void describeBuild(void *context)
     if (app == NULL) {
         return;
     }
+    Storey *storey = sitehelper_project_find_storey_by_id(&app->project, app->editor.current_storey_id);
+    if (storey == NULL) { printf("No active Storey.\n"); return; }
+
 
     printf("\n=== BUILD DESCRIPTION ===\n");
 
     printf(
         "Rooms: %zu\n",
-        app->project.structure.room_count
+        storey->structure.room_count
     );
 
     printf(
@@ -457,11 +472,11 @@ void describeBuild(void *context)
         app->project.settings.nog_spacing
     );
 
-    printf("Project walls: %zu\n", app->project.structure.wall_count);
+    printf("Storey walls: %zu\n", storey->structure.wall_count);
     for (size_t wall_index = 0;
-         wall_index < app->project.structure.wall_count;
+         wall_index < storey->structure.wall_count;
          wall_index++) {
-        Wall *wall = &app->project.structure.walls[wall_index];
+        Wall *wall = &storey->structure.walls[wall_index];
 
         printf(
             "\n  Wall %zu\n",

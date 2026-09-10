@@ -11,10 +11,10 @@ static Wall *add_generated_wall(
     DomainId *wall_id_out
 )
 {
-    DomainId wall_id = sitehelper_project_add_wall(project, (WallPlanSegment){ .end = { .x = 4200 } });
+    DomainId wall_id = sitehelper_project_add_wall(project, project->storeys[0].id, (WallPlanSegment){ .end = { .x = 4200 } });
     assert(wall_id != DOMAIN_ID_INVALID);
 
-    Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
+    Wall *wall = build_find_wall_by_id(&project->storeys[0].structure, wall_id);
     assert(wall != NULL);
     assert(wall_set_plan_segment(wall, (WallPlanSegment){
         .start = origin, .end = { .x = origin.x + length, .y = origin.y }
@@ -36,8 +36,9 @@ static void setup_opening_project(
 )
 {
     sitehelper_project_init(project);
+    assert(sitehelper_project_add_storey(project, 0));
 
-    DomainId room_id = sitehelper_project_add_room(project);
+    DomainId room_id = sitehelper_project_add_room(project, project->storeys[0].id);
     assert(room_id != DOMAIN_ID_INVALID);
 
     Wall *target = add_generated_wall(
@@ -116,34 +117,34 @@ static void test_success_only_changes_intended_authoritative_state(void)
     assert(result.data.add_opening.opening_id == next_before);
     assert(project.domain_ids.next == next_before + 1);
 
-    assert(project.structure.room_count == before.structure.room_count);
-    assert(project.structure.wall_count == before.structure.wall_count);
+    assert(project.storeys[0].structure.room_count == before.storeys[0].structure.room_count);
+    assert(project.storeys[0].structure.wall_count == before.storeys[0].structure.wall_count);
     test_assert_build_settings_equal(&before.settings, &project.settings);
 
     const Room *before_room = build_find_room_by_id_const(
-        &before.structure,
+        &before.storeys[0].structure,
         room_id
     );
     const Room *after_room = build_find_room_by_id_const(
-        &project.structure,
+        &project.storeys[0].structure,
         room_id
     );
 
     assert(before_room != NULL && after_room != NULL);
 
     const Wall *before_other = build_find_wall_by_id_const(
-        &before.structure,
+        &before.storeys[0].structure,
         other_wall_id
     );
     const Wall *after_other = build_find_wall_by_id_const(
-        &project.structure,
+        &project.storeys[0].structure,
         other_wall_id
     );
 
     test_assert_wall_definition_equal(before_other, after_other);
 
     const Wall *target = build_find_wall_by_id_const(
-        &project.structure,
+        &project.storeys[0].structure,
         target_wall_id
     );
 
@@ -177,7 +178,7 @@ static void test_failure_leaves_full_authoritative_state_unchanged(void)
     );
 
     Wall *target = build_find_wall_by_id(
-        &project.structure,
+        &project.storeys[0].structure,
         target_wall_id
     );
     assert(target != NULL);
@@ -262,7 +263,7 @@ static void test_undo_restores_and_redo_recreates_exact_authoritative_state(void
     test_assert_project_authoritative_equal(&committed, &project);
 
     const Wall *target = build_find_wall_by_id_const(
-        &project.structure,
+        &project.storeys[0].structure,
         target_wall_id
     );
 

@@ -3,7 +3,7 @@
 
 #include "sitehelper_project.h"
 
-typedef struct { PlanSegment segment; } AddRoomSeparatorCommand;
+typedef struct { DomainId storey_id; PlanSegment segment; } AddRoomSeparatorCommand;
 typedef struct { DomainId separator_id; } DeleteRoomSeparatorCommand;
 typedef enum {
     ROOM_SEPARATOR_ENDPOINT_START,
@@ -15,7 +15,7 @@ typedef struct {
     PlanPosition new_position;
 } MoveRoomSeparatorEndpointCommand;
 
-int add_room_separator_command_create(PlanSegment segment, AddRoomSeparatorCommand *command);
+int add_room_separator_command_create(DomainId storey_id, PlanSegment segment, AddRoomSeparatorCommand *command);
 int add_room_separator_command_execute(SiteHelperProject *project,
     const AddRoomSeparatorCommand *command, DomainId *id_out);
 int delete_room_separator_command_create(DomainId id, DeleteRoomSeparatorCommand *command);

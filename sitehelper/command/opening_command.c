@@ -126,7 +126,7 @@ int opening_command_execute(
         return 0;
     }
 
-    Wall *wall = build_find_wall_by_id(&project->structure, command->wall_id);
+    Wall *wall = sitehelper_project_find_wall_by_id(project, command->wall_id);
 
     if (wall == NULL) {
         return 0;
@@ -154,7 +154,7 @@ int opening_command_execute(
             &candidate_ids
         );
 
-    if (opening_id == DOMAIN_ID_INVALID || build_contains_domain_id(&project->structure, opening_id)) {
+    if (opening_id == DOMAIN_ID_INVALID || candidate_ids.next == DOMAIN_ID_INVALID || sitehelper_project_contains_domain_id(project, opening_id)) {
         wall_destroy(
             &candidate
         );
@@ -230,7 +230,7 @@ int opening_command_undo(
         return 0;
     }
 
-    Wall *wall = build_find_wall_by_id(&project->structure, command->wall_id);
+    Wall *wall = sitehelper_project_find_wall_by_id(project, command->wall_id);
 
     if (wall == NULL) {
         return 0;
@@ -293,7 +293,7 @@ int opening_command_redo(
         return 0;
     }
 
-    Wall *wall = build_find_wall_by_id(&project->structure, command->wall_id);
+    Wall *wall = sitehelper_project_find_wall_by_id(project, command->wall_id);
 
     if (wall == NULL) {
         return 0;
@@ -303,7 +303,7 @@ int opening_command_redo(
      * Redo is only valid after the
      * original opening has been undone.
      */
-    if (build_contains_domain_id(&project->structure, opening_id)) {
+    if (sitehelper_project_contains_domain_id(project, opening_id)) {
         return 0;
     }
 

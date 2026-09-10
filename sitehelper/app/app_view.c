@@ -46,8 +46,10 @@ void app_render_walls(
         }
         return;
     }
-    for (size_t i = 0; i < project->structure.wall_count; i++) {
-        const Wall *wall = &project->structure.walls[i];
+    const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
+    if (storey == NULL) { return; }
+    for (size_t i = 0; i < storey->structure.wall_count; i++) {
+        const Wall *wall = &storey->structure.walls[i];
         wall_plan_render(renderer, wall, wall->id == editor->current_wall_id
             ? style->selected_colour : style->timber_colour);
     }

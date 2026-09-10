@@ -63,7 +63,7 @@ typedef struct
     size_t wall_count;
     size_t wall_capacity;
 
-    /* Globally owned virtual inputs, separate from physical walls. Stored
+    /* Storey-owned virtual inputs, separate from physical walls. Stored
      * order is preserved by persistence; it has no topology meaning. */
     RoomSeparator *room_separators;
     size_t room_separator_count;

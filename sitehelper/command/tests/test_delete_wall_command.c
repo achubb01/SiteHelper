@@ -53,16 +53,17 @@ static void fixture_init(Fixture *f)
 {
     *f = (Fixture){0};
     sitehelper_project_init(&f->project);
+    assert(sitehelper_project_add_storey(&f->project, 0));
     sitehelper_command_history_init(&f->history);
-    f->room_a = sitehelper_project_add_room(&f->project);
-    f->room_b = sitehelper_project_add_room(&f->project);
-    f->room_c = sitehelper_project_add_room(&f->project);
-    f->wall_id = sitehelper_project_add_wall(&f->project,
+    f->room_a = sitehelper_project_add_room(&f->project, f->project.storeys[0].id);
+    f->room_b = sitehelper_project_add_room(&f->project, f->project.storeys[0].id);
+    f->room_c = sitehelper_project_add_room(&f->project, f->project.storeys[0].id);
+    f->wall_id = sitehelper_project_add_wall(&f->project, f->project.storeys[0].id,
         (WallPlanSegment){{4600, 6800}, {1000, 2000}});
-    f->control_id = sitehelper_project_add_wall(&f->project,
+    f->control_id = sitehelper_project_add_wall(&f->project, f->project.storeys[0].id,
         (WallPlanSegment){{-6000, -1000}, {0, -1000}});
     assert(f->wall_id && f->control_id);
-    Wall *wall = build_find_wall_by_id(&f->project.structure, f->wall_id);
+    Wall *wall = build_find_wall_by_id(&f->project.storeys[0].structure, f->wall_id);
     Opening openings[] = {
         {.id = domain_id_generate(&f->project.domain_ids), .type = OPENING_DOOR,
          .frame_position = 500, .width = 800, .height = 2000},
@@ -74,7 +75,7 @@ static void fixture_init(Fixture *f)
         assert(wall_add_opening_definition(wall, &f->project.settings, &openings[i]));
     }
     assert(wall_generate(wall, &f->project.settings));
-    Wall *control = build_find_wall_by_id(&f->project.structure, f->control_id);
+    Wall *control = build_find_wall_by_id(&f->project.storeys[0].structure, f->control_id);
     assert(wall_add_opening(control, &f->project.settings,
         domain_id_generate(&f->project.domain_ids), OPENING_WINDOW, 1500, 900, 1000, 1000));
     assert(wall_generate(control, &f->project.settings));
@@ -94,16 +95,16 @@ static void fixture_destroy(Fixture *f)
 
 static void assert_deleted(Fixture *f)
 {
-    assert(!build_find_wall_by_id(&f->project.structure, f->wall_id));
-    assert(f->project.structure.wall_count == 1);
+    assert(!build_find_wall_by_id(&f->project.storeys[0].structure, f->wall_id));
+    assert(f->project.storeys[0].structure.wall_count == 1);
     assert(f->project.domain_ids.next == f->original.domain_ids.next);
-    assert(f->project.structure.room_count == f->original.structure.room_count);
-    for (size_t i = 0; i < f->project.structure.room_count; i++) {
-        assert(f->project.structure.rooms[i].id == f->original.structure.rooms[i].id);
+    assert(f->project.storeys[0].structure.room_count == f->original.storeys[0].structure.room_count);
+    for (size_t i = 0; i < f->project.storeys[0].structure.room_count; i++) {
+        assert(f->project.storeys[0].structure.rooms[i].id == f->original.storeys[0].structure.rooms[i].id);
     }
     test_assert_wall_definition_equal(
-        build_find_wall_by_id(&f->original.structure, f->control_id),
-        build_find_wall_by_id(&f->project.structure, f->control_id));
+        build_find_wall_by_id(&f->original.storeys[0].structure, f->control_id),
+        build_find_wall_by_id(&f->project.storeys[0].structure, f->control_id));
 }
 
 static void execute_delete(Fixture *f)
@@ -139,9 +140,9 @@ static void test_undo_regenerates_using_current_settings(void)
     f.project.settings.stud_spacing = 450;
     assert(sitehelper_command_history_undo(&f.history, &f.project));
     Wall expected;
-    test_clone_wall_definition(build_find_wall_by_id(&f.original.structure, f.wall_id), &expected);
+    test_clone_wall_definition(build_find_wall_by_id(&f.original.storeys[0].structure, f.wall_id), &expected);
     assert(wall_generate(&expected, &f.project.settings));
-    Wall *restored = build_find_wall_by_id(&f.project.structure, f.wall_id);
+    Wall *restored = build_find_wall_by_id(&f.project.storeys[0].structure, f.wall_id);
     test_assert_wall_definition_equal(&expected, restored);
     test_assert_framing_semantically_equal(&expected.framing, &restored->framing);
     assert(restored->framing.topplate.position.z == 2800);
@@ -199,14 +200,14 @@ static void test_undo_failures_are_transactional_and_retryable(void)
     fixture_init(&f);
     execute_delete(&f);
     Wall collision = {.id = f.wall_id, .definition.segment = {{0, 0}, {4200, 0}}};
-    assert(build_append_wall(&f.project.structure, &collision));
+    assert(build_append_wall(&f.project.storeys[0].structure, &collision));
     assert_failed_undo_unchanged(&f);
-    assert(build_remove_wall_by_id(&f.project.structure, f.wall_id));
+    assert(build_remove_wall_by_id(&f.project.storeys[0].structure, f.wall_id));
 
-    Opening *control_opening = &build_find_wall_by_id(&f.project.structure,
+    Opening *control_opening = &build_find_wall_by_id(&f.project.storeys[0].structure,
         f.control_id)->definition.openings[0];
     DomainId saved_id = control_opening->id;
-    control_opening->id = build_find_wall_by_id(&f.original.structure,
+    control_opening->id = build_find_wall_by_id(&f.original.storeys[0].structure,
         f.wall_id)->definition.openings[0].id;
     assert_failed_undo_unchanged(&f); /* Opening identity is already in use. */
     control_opening->id = saved_id;
@@ -230,7 +231,7 @@ static void test_discard_redo_and_history_reallocation(void)
     assert(sitehelper_command_history_undo(&f.history, &f.project));
     SiteHelperCommand add;
     WallCommand wall;
-    assert(wall_command_create((WallPlanSegment){{0, 0}, {4200, 0}}, &wall));
+    assert(wall_command_create(1, (WallPlanSegment){{0, 0}, {4200, 0}}, &wall));
     assert(sitehelper_command_from_wall(&wall, &add));
     SiteHelperCommandResult result;
     assert(sitehelper_command_history_execute(&f.history, &f.project, &add, &result));
@@ -246,8 +247,8 @@ static void test_discard_redo_and_history_reallocation(void)
     for (int i = 0; i < 13; i++) {
         assert(sitehelper_command_history_undo(&f.history, &f.project));
     }
-    test_assert_wall_definition_equal(build_find_wall_by_id(&f.original.structure, f.wall_id),
-        build_find_wall_by_id(&f.project.structure, f.wall_id));
+    test_assert_wall_definition_equal(build_find_wall_by_id(&f.original.storeys[0].structure, f.wall_id),
+        build_find_wall_by_id(&f.project.storeys[0].structure, f.wall_id));
     fixture_destroy(&f);
 }
 
@@ -257,12 +258,12 @@ static void test_redo_preserves_original_snapshot_and_failed_redo(void)
     fixture_init(&f);
     execute_delete(&f);
     assert(sitehelper_command_history_undo(&f.history, &f.project));
-    Wall *wall = build_find_wall_by_id(&f.project.structure, f.wall_id);
+    Wall *wall = build_find_wall_by_id(&f.project.storeys[0].structure, f.wall_id);
     assert(wall_set_plan_segment(wall, (WallPlanSegment){{0, 0}, {6000, 0}}));
     assert(sitehelper_command_history_redo(&f.history, &f.project));
     assert(sitehelper_command_history_undo(&f.history, &f.project));
     test_assert_project_authoritative_equal(&f.original, &f.project);
-    assert(build_remove_wall_by_id(&f.project.structure, f.wall_id));
+    assert(build_remove_wall_by_id(&f.project.storeys[0].structure, f.wall_id));
     assert(!sitehelper_command_history_redo(&f.history, &f.project));
     assert(f.history.cursor == 0 && f.history.count == 1);
     assert_deleted(&f);
@@ -276,7 +277,7 @@ static void test_direct_execute(void)
     SiteHelperCommandResult result;
     assert(sitehelper_command_history_execute(&f.history, &f.project, &f.command, &result));
     assert(sitehelper_command_history_undo(&f.history, &f.project));
-    assert(build_find_wall_by_id(&f.project.structure, f.wall_id));
+    assert(build_find_wall_by_id(&f.project.storeys[0].structure, f.wall_id));
     assert(sitehelper_command_execute(&f.project, &f.command, &result));
     assert_deleted(&f);
     fixture_destroy(&f);
@@ -287,20 +288,21 @@ static void test_empty_wall_without_rooms(void)
     SiteHelperProject project;
     SiteHelperCommandHistory history;
     sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
     sitehelper_command_history_init(&history);
     DomainId wall_id = domain_id_generate(&project.domain_ids);
     Wall wall = {.id = wall_id, .definition.segment = {{1000, 2000}, {4600, 6800}}};
     assert(wall_generate(&wall, &project.settings));
-    assert(build_append_wall(&project.structure, &wall));
+    assert(build_append_wall(&project.storeys[0].structure, &wall));
     DomainId next = project.domain_ids.next;
     SiteHelperCommand command = {.type = SITEHELPER_COMMAND_DELETE_WALL,
         .data.delete_wall.wall_id = wall_id};
     SiteHelperCommandResult result;
     assert(sitehelper_command_history_execute(&history, &project, &command, &result));
-    assert(project.structure.wall_count == 0);
+    assert(project.storeys[0].structure.wall_count == 0);
     assert(sitehelper_command_history_undo(&history, &project));
-    assert(project.structure.wall_count == 1 && project.structure.room_count == 0);
-    assert(build_find_wall_by_id(&project.structure, wall_id)->definition.opening_count == 0);
+    assert(project.storeys[0].structure.wall_count == 1 && project.storeys[0].structure.room_count == 0);
+    assert(build_find_wall_by_id(&project.storeys[0].structure, wall_id)->definition.opening_count == 0);
     assert(project.domain_ids.next == next);
     sitehelper_command_history_destroy(&history);
     sitehelper_project_destroy(&project);
@@ -340,11 +342,11 @@ static void test_allocation_failures_preserve_execute_and_undo(void)
         fixture_init(&f);
         execute_delete(&f);
         /* Fill retained capacity so restoration must allocate global wall storage. */
-        DomainId extra = sitehelper_project_add_wall(&f.project,
+        DomainId extra = sitehelper_project_add_wall(&f.project, f.project.storeys[0].id,
             (WallPlanSegment){{0, 0}, {4200, 0}});
         assert(extra != DOMAIN_ID_INVALID);
 
-        assert(f.project.structure.wall_count == f.project.structure.wall_capacity);
+        assert(f.project.storeys[0].structure.wall_count == f.project.storeys[0].structure.wall_capacity);
         SiteHelperProject before;
         test_clone_project_authoritative(&f.project, &before);
         allocation_failed = 0;
@@ -362,8 +364,8 @@ static void test_allocation_failures_preserve_execute_and_undo(void)
             assert(!allocation_failed);
         }
         assert(f.project.domain_ids.next == before.domain_ids.next);
-        test_assert_wall_definition_equal(build_find_wall_by_id(&f.original.structure, f.wall_id),
-            build_find_wall_by_id(&f.project.structure, f.wall_id));
+        test_assert_wall_definition_equal(build_find_wall_by_id(&f.original.storeys[0].structure, f.wall_id),
+            build_find_wall_by_id(&f.project.storeys[0].structure, f.wall_id));
         sitehelper_project_destroy(&before);
         fixture_destroy(&f);
         if (success) {

@@ -7,6 +7,7 @@
  * The snapshot survives both undo and redo. */
 typedef struct
 {
+    DomainId storey_id;
     DomainId wall_id;
     WallPlanSegment segment;
     Opening *openings;

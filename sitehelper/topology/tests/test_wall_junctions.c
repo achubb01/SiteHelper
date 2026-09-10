@@ -264,7 +264,7 @@ static void rebuild_project(const SiteHelperProject *project, PlanTopology *topo
     WallJunctionSet *set, size_t count)
 {
     assert(sitehelper_project_validate(project).code == SITEHELPER_PROJECT_VALID);
-    assert(plan_topology_build_from_project(project, topology).code == PLAN_TOPOLOGY_SUCCESS);
+    assert(plan_topology_build_from_storey(&project->storeys[0], topology).code == PLAN_TOPOLOGY_SUCCESS);
     assert(wall_junctions_build(topology, set) == WALL_JUNCTION_SUCCESS);
     assert(set->junction_count == count);
     consistent(set);
@@ -273,18 +273,20 @@ static void rebuild_project(const SiteHelperProject *project, PlanTopology *topo
 static void test_project_history_persistence_and_staleness(void)
 {
     SiteHelperProject project, before, loaded;
-    sitehelper_project_init(&project); sitehelper_project_init(&loaded);
+    sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0)); sitehelper_project_init(&loaded);
+    assert(sitehelper_project_add_storey(&loaded, 0));
     SiteHelperCommandHistory history;
     sitehelper_command_history_init(&history);
     PlanTopology topology = {0};
     WallJunctionSet set = {0};
-    DomainId through = sitehelper_project_add_wall(&project, (WallPlanSegment){{0, 0}, {6000, 0}});
+    DomainId through = sitehelper_project_add_wall(&project, project.storeys[0].id, (WallPlanSegment){{0, 0}, {6000, 0}});
     assert(through);
     rebuild_project(&project, &topology, &set, 0);
     WallCommand wall;
     SiteHelperCommand command;
     SiteHelperCommandResult result;
-    assert(wall_command_create((WallPlanSegment){{2000, 3000}, {2000, 0}}, &wall));
+    assert(wall_command_create(1, (WallPlanSegment){{2000, 3000}, {2000, 0}}, &wall));
     assert(sitehelper_command_from_wall(&wall, &command));
     assert(sitehelper_command_history_execute(&history, &project, &command, &result));
     DomainId terminating = result.data.add_wall.wall_id;
@@ -327,8 +329,8 @@ static void test_project_history_persistence_and_staleness(void)
     rebuild_project(&project, &topology, &set, 1);
     WallJunctionSet expected = {0};
     assert(wall_junctions_build(&topology, &expected) == WALL_JUNCTION_SUCCESS);
-    Wall swap = project.structure.walls[0];
-    project.structure.walls[0] = project.structure.walls[1]; project.structure.walls[1] = swap;
+    Wall swap = project.storeys[0].structure.walls[0];
+    project.storeys[0].structure.walls[0] = project.storeys[0].structure.walls[1]; project.storeys[0].structure.walls[1] = swap;
     test_clone_project_authoritative(&project, &before);
     rebuild_project(&project, &topology, &set, 1);
     equivalent(&expected, &set);
@@ -342,9 +344,9 @@ static void test_project_history_persistence_and_staleness(void)
     equivalent(&expected, &set);
     /* Unsupported overlap remains valid authoritative geometry. A failed
      * topology rebuild preserves its old snapshot; no stale fallback occurs. */
-    assert(sitehelper_project_add_wall(&loaded, (WallPlanSegment){{1000, 0}, {4000, 0}}));
+    assert(sitehelper_project_add_wall(&loaded, loaded.storeys[0].id, (WallPlanSegment){{1000, 0}, {4000, 0}}));
     assert(sitehelper_project_validate(&loaded).code == SITEHELPER_PROJECT_VALID);
-    assert(plan_topology_build_from_project(&loaded, &topology).code == PLAN_TOPOLOGY_UNSUPPORTED_OVERLAP);
+    assert(plan_topology_build_from_storey(&loaded.storeys[0], &topology).code == PLAN_TOPOLOGY_UNSUPPORTED_OVERLAP);
     equivalent(&expected, &set);
     sitehelper_command_history_destroy(&history);
     sitehelper_project_destroy(&project); sitehelper_project_destroy(&before); sitehelper_project_destroy(&loaded);

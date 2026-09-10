@@ -66,10 +66,11 @@ static void unchanged(const TopologySnapshot *s, const PlanTopology *t)
 static void rectangle_project(SiteHelperProject *project)
 {
     sitehelper_project_init(project);
-    assert(sitehelper_project_add_wall(project, (WallPlanSegment){{0, 0}, {6000, 0}}));
-    assert(sitehelper_project_add_wall(project, (WallPlanSegment){{6000, 0}, {6000, 4000}}));
-    assert(sitehelper_project_add_room_separator(project, (PlanSegment){{6000, 4000}, {0, 4000}}));
-    assert(sitehelper_project_add_room_separator(project, (PlanSegment){{0, 4000}, {0, 0}}));
+    assert(sitehelper_project_add_storey(project, 0));
+    assert(sitehelper_project_add_wall(project, project->storeys[0].id, (WallPlanSegment){{0, 0}, {6000, 0}}));
+    assert(sitehelper_project_add_wall(project, project->storeys[0].id, (WallPlanSegment){{6000, 0}, {6000, 4000}}));
+    assert(sitehelper_project_add_room_separator(project, project->storeys[0].id, (PlanSegment){{6000, 4000}, {0, 4000}}));
+    assert(sitehelper_project_add_room_separator(project, project->storeys[0].id, (PlanSegment){{0, 4000}, {0, 0}}));
 }
 
 static PlanTopologyPointResult classify(const PlanTopology *t, PlanPosition p, PlanTopologyPointState expected)
@@ -86,14 +87,15 @@ static void test_room_states(void)
 {
     SiteHelperProject project;
     sitehelper_project_init(&project);
-    DomainId room = sitehelper_project_add_room(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
+    DomainId room = sitehelper_project_add_room(&project, project.storeys[0].id);
     RoomRegionResult r = room_region_resolve(&project, room, NULL);
     assert(r.code == ROOM_REGION_UNPLACED && r.face_index == SIZE_MAX && r.topology == NULL);
     assert(room_region_build_and_resolve(&project, room, NULL).code == ROOM_REGION_UNPLACED);
-    assert(sitehelper_project_add_wall(&project, (WallPlanSegment){{0, 0}, {6000, 0}}));
-    assert(sitehelper_project_add_wall(&project, (WallPlanSegment){{6000, 0}, {6000, 4000}}));
-    assert(sitehelper_project_add_room_separator(&project, (PlanSegment){{6000, 4000}, {0, 4000}}));
-    assert(sitehelper_project_add_room_separator(&project, (PlanSegment){{0, 4000}, {0, 0}}));
+    assert(sitehelper_project_add_wall(&project, project.storeys[0].id, (WallPlanSegment){{0, 0}, {6000, 0}}));
+    assert(sitehelper_project_add_wall(&project, project.storeys[0].id, (WallPlanSegment){{6000, 0}, {6000, 4000}}));
+    assert(sitehelper_project_add_room_separator(&project, project.storeys[0].id, (PlanSegment){{6000, 4000}, {0, 4000}}));
+    assert(sitehelper_project_add_room_separator(&project, project.storeys[0].id, (PlanSegment){{0, 4000}, {0, 0}}));
     PlanTopology topology = {0};
     assert(sitehelper_project_set_room_location(&project, room, (PlanPosition){1000, 1000}));
     r = room_region_build_and_resolve(&project, room, &topology);
@@ -116,7 +118,8 @@ static void test_empty_open_and_invalid_queries(void)
 {
     SiteHelperProject project;
     sitehelper_project_init(&project);
-    DomainId room = sitehelper_project_add_room(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
+    DomainId room = sitehelper_project_add_room(&project, project.storeys[0].id);
     PlanTopology t = {0};
     assert(plan_topology_find_face_at_plan_position(&t, (PlanPosition){0, 0}).code == PLAN_TOPOLOGY_INVALID_ARGUMENT);
     assert(plan_topology_find_face_at_plan_position(NULL, (PlanPosition){0, 0}).state == PLAN_TOPOLOGY_POINT_UNCLASSIFIED);
@@ -129,14 +132,14 @@ static void test_empty_open_and_invalid_queries(void)
     assert(r.face_index == SIZE_MAX && r.topology == NULL);
     r = room_region_build_and_resolve(&project, room, &t);
     assert(r.code == ROOM_REGION_UNBOUNDED && r.face_index == 0);
-    assert(sitehelper_project_add_wall(&project, (WallPlanSegment){{0, 0}, {6000, 0}}));
+    assert(sitehelper_project_add_wall(&project, project.storeys[0].id, (WallPlanSegment){{0, 0}, {6000, 0}}));
     assert(room_region_build_and_resolve(&project, room, &t).code == ROOM_REGION_UNBOUNDED);
     classify(&t, (PlanPosition){3000, 0}, PLAN_TOPOLOGY_POINT_ON_BOUNDARY);
     classify(&t, (PlanPosition){7000, 0}, PLAN_TOPOLOGY_POINT_UNBOUNDED); /* Supporting line beyond segment. */
-    BuildStructure saved = project.structure;
-    project.structure.rooms = NULL;
+    BuildStructure saved = project.storeys[0].structure;
+    project.storeys[0].structure.rooms = NULL;
     assert(room_region_resolve(&project, room, &t).code == ROOM_REGION_INVALID_ARGUMENT);
-    project.structure = saved;
+    project.storeys[0].structure = saved;
     assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
     plan_topology_destroy(&t);
     sitehelper_project_destroy(&project);
@@ -192,9 +195,10 @@ static void test_exact_rational_geometry_and_symmetries(void)
      * representable coordinates (3,3), so a Room can lie exactly on it. */
     SiteHelperProject project;
     sitehelper_project_init(&project);
-    assert(sitehelper_project_add_room_separator(&project, (PlanSegment){{0, 0}, {6, 6}}));
-    assert(sitehelper_project_add_room_separator(&project, (PlanSegment){{0, 6}, {6, 0}}));
-    DomainId room = sitehelper_project_add_room(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
+    assert(sitehelper_project_add_room_separator(&project, project.storeys[0].id, (PlanSegment){{0, 0}, {6, 6}}));
+    assert(sitehelper_project_add_room_separator(&project, project.storeys[0].id, (PlanSegment){{0, 6}, {6, 0}}));
+    DomainId room = sitehelper_project_add_room(&project, project.storeys[0].id);
     assert(sitehelper_project_set_room_location(&project, room, (PlanPosition){3, 3}));
     PlanTopology t = {0};
     assert(room_region_build_and_resolve(&project, room, &t).code == ROOM_REGION_ON_BOUNDARY);
@@ -269,23 +273,24 @@ static void test_multiple_rooms_read_only_and_lifetime(void)
 {
     SiteHelperProject project, before;
     rectangle_project(&project);
-    DomainId a = sitehelper_project_add_room(&project), b = sitehelper_project_add_room(&project);
+    DomainId a = sitehelper_project_add_room(&project, project.storeys[0].id), b = sitehelper_project_add_room(&project, project.storeys[0].id);
     assert(sitehelper_project_set_room_location(&project, a, (PlanPosition){1000, 1000}));
     assert(sitehelper_project_set_room_location(&project, b, (PlanPosition){5000, 1000}));
     PlanTopology t = {0};
-    assert(plan_topology_build_from_project(&project, &t).code == PLAN_TOPOLOGY_SUCCESS);
+    assert(plan_topology_build_from_storey(&project.storeys[0], &t).code == PLAN_TOPOLOGY_SUCCESS);
     TopologySnapshot saved = snapshot(&t);
     test_clone_project_authoritative(&project, &before);
     const char *file_a = "room_region_before.tmp", *file_b = "room_region_after.tmp";
     assert(sitehelper_project_save_file(&project, file_a) == SITEHELPER_PERSISTENCE_SUCCESS);
     SiteHelperEditor editor;
     sitehelper_editor_init(&editor);
-    editor.current_wall_id = project.structure.walls[0].id;
+    editor.current_storey_id = 1;
+    editor.current_wall_id = project.storeys[0].structure.walls[0].id;
     const DomainId navigation[] = {a, b, DOMAIN_ID_INVALID};
     for (size_t i = 0; i < 3; i++) {
         editor.current_room_id = navigation[i];
         sitehelper_editor_reconcile(&editor, &project);
-        assert(editor.current_wall_id == project.structure.walls[0].id);
+        assert(editor.current_wall_id == project.storeys[0].structure.walls[0].id);
         RoomRegionResult ra = room_region_resolve(&project, a, &t), rb = room_region_resolve(&project, b, &t);
         assert(ra.room_id == a && rb.room_id == b && ra.face_index == rb.face_index);
         check_rectangle_boundary(ra);
@@ -303,29 +308,29 @@ static void test_multiple_rooms_read_only_and_lifetime(void)
     same_files(file_a, file_b);
     plan_topology_destroy(&saved.copy);
     sitehelper_project_destroy(&before);
-    Wall wall = project.structure.walls[0]; project.structure.walls[0] = project.structure.walls[1]; project.structure.walls[1] = wall;
-    RoomSeparator separator = project.structure.room_separators[0];
-    project.structure.room_separators[0] = project.structure.room_separators[1]; project.structure.room_separators[1] = separator;
-    for (size_t i = 0; i < project.structure.wall_count; i++) {
-        WallPlanSegment *s = &project.structure.walls[i].definition.segment;
+    Wall wall = project.storeys[0].structure.walls[0]; project.storeys[0].structure.walls[0] = project.storeys[0].structure.walls[1]; project.storeys[0].structure.walls[1] = wall;
+    RoomSeparator separator = project.storeys[0].structure.room_separators[0];
+    project.storeys[0].structure.room_separators[0] = project.storeys[0].structure.room_separators[1]; project.storeys[0].structure.room_separators[1] = separator;
+    for (size_t i = 0; i < project.storeys[0].structure.wall_count; i++) {
+        WallPlanSegment *s = &project.storeys[0].structure.walls[i].definition.segment;
         PlanPosition p = s->start; s->start = s->end; s->end = p;
     }
-    for (size_t i = 0; i < project.structure.room_separator_count; i++) {
-        PlanSegment *s = &project.structure.room_separators[i].segment;
+    for (size_t i = 0; i < project.storeys[0].structure.room_separator_count; i++) {
+        PlanSegment *s = &project.storeys[0].structure.room_separators[i].segment;
         PlanPosition p = s->start; s->start = s->end; s->end = p;
     }
-    assert(plan_topology_build_from_project(&project, &t).code == PLAN_TOPOLOGY_SUCCESS);
+    assert(plan_topology_build_from_storey(&project.storeys[0], &t).code == PLAN_TOPOLOGY_SUCCESS);
     check_rectangle_boundary(room_region_resolve(&project, a, &t));
-    assert(sitehelper_project_add_room_separator(&project, (PlanSegment){{3000, 0}, {3000, 4000}}));
+    assert(sitehelper_project_add_room_separator(&project, project.storeys[0].id, (PlanSegment){{3000, 0}, {3000, 4000}}));
     /* Existing output intentionally still describes its original snapshot. */
     assert(room_region_resolve(&project, a, &t).face_index == room_region_resolve(&project, b, &t).face_index);
-    assert(plan_topology_build_from_project(&project, &t).code == PLAN_TOPOLOGY_SUCCESS);
+    assert(plan_topology_build_from_storey(&project.storeys[0], &t).code == PLAN_TOPOLOGY_SUCCESS);
     RoomRegionResult ra = room_region_resolve(&project, a, &t), rb = room_region_resolve(&project, b, &t);
     assert(ra.code == ROOM_REGION_BOUNDED && rb.code == ROOM_REGION_BOUNDED && ra.face_index != rb.face_index);
     size_t left_face = ra.face_index, right_face = rb.face_index;
-    separator = project.structure.room_separators[0];
-    project.structure.room_separators[0] = project.structure.room_separators[2]; project.structure.room_separators[2] = separator;
-    assert(plan_topology_build_from_project(&project, &t).code == PLAN_TOPOLOGY_SUCCESS);
+    separator = project.storeys[0].structure.room_separators[0];
+    project.storeys[0].structure.room_separators[0] = project.storeys[0].structure.room_separators[2]; project.storeys[0].structure.room_separators[2] = separator;
+    assert(plan_topology_build_from_storey(&project.storeys[0], &t).code == PLAN_TOPOLOGY_SUCCESS);
     ra = room_region_resolve(&project, a, &t); rb = room_region_resolve(&project, b, &t);
     assert(ra.face_index == left_face && rb.face_index == right_face); /* Equivalent snapshot ordering. */
     assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
@@ -342,7 +347,7 @@ static void test_topology_failures_are_not_spatial_answers(void)
 {
     SiteHelperProject project, before;
     rectangle_project(&project);
-    DomainId room = sitehelper_project_add_room(&project);
+    DomainId room = sitehelper_project_add_room(&project, project.storeys[0].id);
     assert(sitehelper_project_set_room_location(&project, room, (PlanPosition){1000, 1000}));
     PlanTopology t = {0};
     assert(room_region_build_and_resolve(&project, room, &t).code == ROOM_REGION_BOUNDED);
@@ -356,12 +361,12 @@ static void test_topology_failures_are_not_spatial_answers(void)
     assert(rejected_allocations == 1);
     unchanged(&saved, &t);
 #endif
-    DomainId overlap = sitehelper_project_add_room_separator(&project, (PlanSegment){{0, 0}, {3000, 0}});
+    DomainId overlap = sitehelper_project_add_room_separator(&project, project.storeys[0].id, (PlanSegment){{0, 0}, {3000, 0}});
     assert(overlap);
     test_clone_project_authoritative(&project, &before);
     RoomRegionResult r = room_region_build_and_resolve(&project, room, &t);
     assert(r.code == ROOM_REGION_TOPOLOGY_FAILED && r.topology_result.code == PLAN_TOPOLOGY_UNSUPPORTED_OVERLAP);
-    assert(r.topology_result.source_id == project.structure.walls[0].id && r.topology_result.related_source_id == overlap);
+    assert(r.topology_result.source_id == project.storeys[0].structure.walls[0].id && r.topology_result.related_source_id == overlap);
     assert(r.topology == NULL && r.face_index == SIZE_MAX);
     unchanged(&saved, &t);
     test_assert_project_authoritative_equal(&before, &project);
@@ -371,12 +376,12 @@ static void test_topology_failures_are_not_spatial_answers(void)
     unchanged(&saved, &t); /* Unsupported geometry was not examined for unplaced Room. */
     assert(sitehelper_project_set_room_location(&project, room, (PlanPosition){1000, 1000}));
     assert(sitehelper_project_remove_room_separator_by_id(&project, overlap));
-    DomainId inside = sitehelper_project_add_room_separator(&project, (PlanSegment){{2000, 2000}, {2500, 2500}});
+    DomainId inside = sitehelper_project_add_room_separator(&project, project.storeys[0].id, (PlanSegment){{2000, 2000}, {2500, 2500}});
     r = room_region_build_and_resolve(&project, room, &t);
     assert(r.code == ROOM_REGION_TOPOLOGY_FAILED && r.topology_result.code == PLAN_TOPOLOGY_UNSUPPORTED_NESTING);
     unchanged(&saved, &t);
     assert(sitehelper_project_remove_room_separator_by_id(&project, inside));
-    assert(sitehelper_project_add_room_separator(&project, (PlanSegment){{0, 2000}, {2000, 2000}}));
+    assert(sitehelper_project_add_room_separator(&project, project.storeys[0].id, (PlanSegment){{0, 2000}, {2000, 2000}}));
     r = room_region_build_and_resolve(&project, room, &t);
     assert(r.code == ROOM_REGION_TOPOLOGY_FAILED && r.topology_result.code == PLAN_TOPOLOGY_UNSUPPORTED_NON_SIMPLE_FACE);
     unchanged(&saved, &t);

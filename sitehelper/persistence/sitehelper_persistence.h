@@ -16,12 +16,10 @@ typedef enum
 } SiteHelperPersistenceResult;
 
 /*
- * Version 7 stores each room's optional semantic plan placement explicitly:
- * "room ID placement unplaced" or "room ID placement placed X Y", followed by
- * "end_room". Physical walls remain global. After rooms, "room_separators N"
- * introduces N "room_separator ID segment X1 Y1 X2 Y2" records in stored order.
- * Saving observes the authoritative project only. It does not generate
- * framing or allocate domain IDs.
+ * Version 8 stores ordered Storeys, each as "storey ID elevation MM", followed
+ * by its walls/openings, rooms/placements and room_separators, then end_storey.
+ * Settings and the DomainId watermark remain project-wide. No derived state
+ * is saved. Save validates all authoritative state before opening the file.
  */
 SiteHelperPersistenceResult sitehelper_project_save_file(
     const SiteHelperProject *project,
@@ -29,14 +27,15 @@ SiteHelperPersistenceResult sitehelper_project_save_file(
 );
 
 /*
- * Loads versions 1-7. Versions 1-2 promote nested wall definitions to global
- * walls; versions 3-4 validate then discard legacy room wall references.
- * IDs, ordered geometry, openings and the allocator watermark are preserved.
- * No topology is inferred from legacy membership.
- * Rooms loaded from versions 1-5 are unplaced; no location is synthesized.
- * Versions 1-6 load with zero room separators; none are inferred from geometry.
- * destination must have been initialized with sitehelper_project_init().
- * On failure, destination remains unchanged.
+ * Loads versions 1-8 transactionally into an initialized destination. Parse,
+ * authoritative validation and framing regeneration must all succeed before
+ * replacing it. On failure destination remains unchanged.
+ * Versions 1-7 migrate into one elevation-zero Storey. Existing entity IDs
+ * and ordered geometry are preserved. The old watermark supplies the fresh
+ * Storey ID and advances once; collision/exhaustion fails without wrapping.
+ * Versions 1-2 promote nested walls into Storey-global storage; 3-4 validate
+ * and discard Room wall references. Versions 1-5 leave Rooms unplaced, and
+ * versions 1-6 have no virtual separators. No spatial relationship is inferred.
  */
 SiteHelperPersistenceResult sitehelper_project_load_file(
     SiteHelperProject *destination,

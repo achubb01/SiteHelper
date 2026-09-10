@@ -2,13 +2,14 @@
 #define SITEHELPER_PROJECT_H
 
 #include "build_settings.h"
-#include "build_structure.h"
+#include "storey.h"
 #include "domain_id.h"
 
 typedef struct
 {
     BuildSettings settings;
-    BuildStructure structure;
+    Storey *storeys;
+    size_t storey_count, storey_capacity;
     DomainIdGenerator domain_ids;
 } SiteHelperProject;
 
@@ -16,6 +17,8 @@ typedef enum
 {
     SITEHELPER_PROJECT_VALID = 0,
     SITEHELPER_PROJECT_INVALID_ARGUMENT,
+    SITEHELPER_PROJECT_INVALID_STOREY_COLLECTION,
+    SITEHELPER_PROJECT_INVALID_STOREY_ID,
     SITEHELPER_PROJECT_INVALID_SETTINGS,
     SITEHELPER_PROJECT_INVALID_ROOM_COLLECTION,
     SITEHELPER_PROJECT_INVALID_WALL_COLLECTION,
@@ -51,8 +54,10 @@ typedef struct
  * and region association are not project-integrity invariants.
  * Returns the first failure in deterministic order: settings, all collection
  * metadata, identities/allocator, then wall geometry/openings and separators.
- * Within each pass, collections are visited in stored order (rooms before
- * walls, each wall before its openings, then separators). Metadata checks cannot establish the
+ * Within each pass, Storeys are visited in stored order. Identity order is
+ * Storey, Rooms, Walls (each before its openings), then separators. All nested
+ * collection metadata is checked before any global identity traversal.
+ * Metadata checks cannot establish the
  * actual allocation size or validity of arbitrary non-null C pointers. */
 SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject *project);
 
@@ -65,7 +70,7 @@ void sitehelper_project_destroy(
 );
 
 DomainId sitehelper_project_add_room(
-    SiteHelperProject *project
+    SiteHelperProject *project, DomainId storey_id
 );
 
 /* Rooms start unplaced. These allocation-free mutations resolve a stable ID,
@@ -76,17 +81,49 @@ int sitehelper_project_set_room_location(SiteHelperProject *project,
 int sitehelper_project_clear_room_location(SiteHelperProject *project,
     DomainId room_id);
 
-/* Adds an authoritative global wall; no room or generated framing is required. */
+/* Adds an authoritative Storey-local wall; no room or generated framing is required. */
 DomainId sitehelper_project_add_wall(
-    SiteHelperProject *project,
+    SiteHelperProject *project, DomainId storey_id,
     WallPlanSegment segment
 );
 
 /* Independent virtual input. Failed mutations preserve project state and IDs.
  * Segment replacement is atomic and never inspects physical geometry. */
-DomainId sitehelper_project_add_room_separator(SiteHelperProject *project, PlanSegment segment);
+DomainId sitehelper_project_add_room_separator(SiteHelperProject *project, DomainId storey_id, PlanSegment segment);
 int sitehelper_project_remove_room_separator_by_id(SiteHelperProject *project, DomainId id);
 int sitehelper_project_set_room_separator_segment(SiteHelperProject *project,
     DomainId id, PlanSegment segment);
+
+/* Init allocates nothing; an empty project is valid. Storeys own their arrays
+ * exclusively. All borrowed lookup pointers must be reacquired after mutation
+ * or project replacement. IDs survive collection reallocation and persistence.
+ * Core creation never chooses a Storey implicitly. Failure preserves state/IDs. */
+DomainId sitehelper_project_add_storey(SiteHelperProject *project, int elevation_mm);
+Storey *sitehelper_project_find_storey_by_id(SiteHelperProject *project, DomainId id);
+const Storey *sitehelper_project_find_storey_by_id_const(const SiteHelperProject *project, DomainId id);
+/* Append an empty Storey with an existing ID for loading/restoration. Does not
+ * allocate an ID or advance the watermark; caller must establish it. */
+int sitehelper_project_insert_storey(SiteHelperProject *project, DomainId id, int elevation_mm);
+
+/* Queries assume coherent authoritative collection metadata. The owner query
+ * accepts any nested entity ID, including openings, or the Storey's own ID. */
+int sitehelper_project_contains_domain_id(const SiteHelperProject *project, DomainId id);
+Storey *sitehelper_project_find_owning_storey(SiteHelperProject *project, DomainId id);
+const Storey *sitehelper_project_find_owning_storey_const(const SiteHelperProject *project, DomainId id);
+Room *sitehelper_project_find_room_by_id(SiteHelperProject *project, DomainId id);
+const Room *sitehelper_project_find_room_by_id_const(const SiteHelperProject *project, DomainId id);
+/* Room-only lookup with optional borrowed owner output (cleared on miss).
+ * Does not inspect Walls/Openings/separators, so Room queries remain independent
+ * of physical geometry. Collection metadata must be coherent. */
+const Room *sitehelper_project_find_room_with_owner_const(const SiteHelperProject *project,
+    DomainId id, const Storey **owner);
+Wall *sitehelper_project_find_wall_by_id(SiteHelperProject *project, DomainId id);
+const Wall *sitehelper_project_find_wall_by_id_const(const SiteHelperProject *project, DomainId id);
+RoomSeparator *sitehelper_project_find_room_separator_by_id(SiteHelperProject *project, DomainId id);
+const RoomSeparator *sitehelper_project_find_room_separator_by_id_const(const SiteHelperProject *project, DomainId id);
+int sitehelper_project_remove_wall_by_id(SiteHelperProject *project, DomainId id);
+/* Existing-identity insertion checks the entire project namespace. */
+int sitehelper_project_insert_room_separator(SiteHelperProject *project, DomainId storey_id,
+    const RoomSeparator *separator, size_t index);
 
 #endif

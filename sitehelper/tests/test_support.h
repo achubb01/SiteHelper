@@ -207,41 +207,46 @@ static inline void test_assert_project_model_equal(
     assert(actual != NULL);
 
     test_assert_build_settings_equal(&expected->settings, &actual->settings);
-    assert(expected->structure.room_count == actual->structure.room_count);
-    assert(expected->structure.wall_count == actual->structure.wall_count);
-    assert(expected->structure.room_separator_count == actual->structure.room_separator_count);
-    for (size_t i = 0; i < expected->structure.room_separator_count; i++) {
-        const RoomSeparator *a = &expected->structure.room_separators[i];
-        const RoomSeparator *b = &actual->structure.room_separators[i];
-        assert(a->id == b->id);
-        assert(a->segment.start.x == b->segment.start.x && a->segment.start.y == b->segment.start.y);
-        assert(a->segment.end.x == b->segment.end.x && a->segment.end.y == b->segment.end.y);
-    }
-
-    for (size_t i = 0; i < expected->structure.room_count; i++) {
-        const Room *expected_room = &expected->structure.rooms[i];
-        const Room *actual_room = build_find_room_by_id_const(
-            &actual->structure,
-            expected_room->id
-        );
-
-        assert(actual_room != NULL);
-        assert(expected_room->has_location == actual_room->has_location);
-        if (expected_room->has_location) {
-            assert(expected_room->location.x == actual_room->location.x);
-            assert(expected_room->location.y == actual_room->location.y);
+    assert(expected->storey_count == actual->storey_count);
+    for (size_t level = 0; level < expected->storey_count; level++) {
+        assert(expected->storeys[level].id == actual->storeys[level].id);
+        assert(expected->storeys[level].elevation_mm == actual->storeys[level].elevation_mm);
+        assert(expected->storeys[level].structure.room_count == actual->storeys[level].structure.room_count);
+        assert(expected->storeys[level].structure.wall_count == actual->storeys[level].structure.wall_count);
+        assert(expected->storeys[level].structure.room_separator_count == actual->storeys[level].structure.room_separator_count);
+        for (size_t i = 0; i < expected->storeys[level].structure.room_separator_count; i++) {
+            const RoomSeparator *a = &expected->storeys[level].structure.room_separators[i];
+            const RoomSeparator *b = &actual->storeys[level].structure.room_separators[i];
+            assert(a->id == b->id);
+            assert(a->segment.start.x == b->segment.start.x && a->segment.start.y == b->segment.start.y);
+            assert(a->segment.end.x == b->segment.end.x && a->segment.end.y == b->segment.end.y);
         }
-    }
 
-    for (size_t i = 0; i < expected->structure.wall_count; i++) {
-        const Wall *expected_wall = &expected->structure.walls[i];
-        const Wall *actual_wall = build_find_wall_by_id_const(
-            &actual->structure,
-            expected_wall->id
-        );
+        for (size_t i = 0; i < expected->storeys[level].structure.room_count; i++) {
+            const Room *expected_room = &expected->storeys[level].structure.rooms[i];
+            const Room *actual_room = build_find_room_by_id_const(
+                &actual->storeys[level].structure,
+                expected_room->id
+            );
 
-        assert(actual_wall != NULL);
-        test_assert_wall_definition_equal(expected_wall, actual_wall);
+            assert(actual_room != NULL);
+            assert(expected_room->has_location == actual_room->has_location);
+            if (expected_room->has_location) {
+                assert(expected_room->location.x == actual_room->location.x);
+                assert(expected_room->location.y == actual_room->location.y);
+            }
+        }
+
+        for (size_t i = 0; i < expected->storeys[level].structure.wall_count; i++) {
+            const Wall *expected_wall = &expected->storeys[level].structure.walls[i];
+            const Wall *actual_wall = build_find_wall_by_id_const(
+                &actual->storeys[level].structure,
+                expected_wall->id
+            );
+
+            assert(actual_wall != NULL);
+            test_assert_wall_definition_equal(expected_wall, actual_wall);
+        }
     }
 }
 
@@ -306,30 +311,34 @@ static inline void test_clone_project_authoritative(
         .domain_ids = source->domain_ids
     };
 
-    for (size_t i = 0; i < source->structure.wall_count; i++) {
-        Wall wall = {0};
-        test_clone_wall_definition(&source->structure.walls[i], &wall);
-        assert(build_append_wall(&destination->structure, &wall));
-    }
-
-    for (size_t i = 0; i < source->structure.room_count; i++) {
-        const Room *source_room = &source->structure.rooms[i];
-
-        assert(build_add_room(&destination->structure, source_room->id));
-
-        Room *destination_room = build_find_room_by_id(
-            &destination->structure,
-            source_room->id
-        );
-
-        assert(destination_room != NULL);
-        if (source_room->has_location) {
-            assert(sitehelper_project_set_room_location(destination,
-                source_room->id, source_room->location));
+    for (size_t level = 0; level < source->storey_count; level++) {
+        assert(sitehelper_project_insert_storey(destination, source->storeys[level].id,
+            source->storeys[level].elevation_mm));
+        for (size_t i = 0; i < source->storeys[level].structure.wall_count; i++) {
+            Wall wall = {0};
+            test_clone_wall_definition(&source->storeys[level].structure.walls[i], &wall);
+            assert(build_append_wall(&destination->storeys[level].structure, &wall));
         }
-    }
-    for (size_t i = 0; i < source->structure.room_separator_count; i++) {
-        assert(build_insert_room_separator(&destination->structure, &source->structure.room_separators[i], i));
+
+        for (size_t i = 0; i < source->storeys[level].structure.room_count; i++) {
+            const Room *source_room = &source->storeys[level].structure.rooms[i];
+
+            assert(build_add_room(&destination->storeys[level].structure, source_room->id));
+
+            Room *destination_room = build_find_room_by_id(
+                &destination->storeys[level].structure,
+                source_room->id
+            );
+
+            assert(destination_room != NULL);
+            if (source_room->has_location) {
+                assert(sitehelper_project_set_room_location(destination,
+                    source_room->id, source_room->location));
+            }
+        }
+        for (size_t i = 0; i < source->storeys[level].structure.room_separator_count; i++) {
+            assert(build_insert_room_separator(&destination->storeys[level].structure, &source->storeys[level].structure.room_separators[i], i));
+        }
     }
 }
 

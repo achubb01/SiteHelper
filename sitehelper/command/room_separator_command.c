@@ -1,9 +1,9 @@
 #include "room_separator_command.h"
 
-int add_room_separator_command_create(PlanSegment segment, AddRoomSeparatorCommand *command)
+int add_room_separator_command_create(DomainId storey_id, PlanSegment segment, AddRoomSeparatorCommand *command)
 {
-    if (command == NULL || !plan_segment_valid(segment)) { return 0; }
-    *command = (AddRoomSeparatorCommand){.segment = segment};
+    if (command == NULL || storey_id == DOMAIN_ID_INVALID || !plan_segment_valid(segment)) { return 0; }
+    *command = (AddRoomSeparatorCommand){.storey_id = storey_id, .segment = segment};
     return 1;
 }
 
@@ -13,7 +13,7 @@ int add_room_separator_command_execute(SiteHelperProject *project,
     if (id_out == NULL) { return 0; }
     *id_out = DOMAIN_ID_INVALID;
     if (command == NULL) { return 0; }
-    *id_out = sitehelper_project_add_room_separator(project, command->segment);
+    *id_out = sitehelper_project_add_room_separator(project, command->storey_id, command->segment);
     return *id_out != DOMAIN_ID_INVALID;
 }
 
@@ -47,7 +47,7 @@ int move_room_separator_endpoint_command_execute(SiteHelperProject *project,
     const MoveRoomSeparatorEndpointCommand *command)
 {
     if (project == NULL || command == NULL) { return 0; }
-    const RoomSeparator *separator = build_find_room_separator_by_id_const(&project->structure, command->separator_id);
+    const RoomSeparator *separator = sitehelper_project_find_room_separator_by_id_const(project, command->separator_id);
     if (separator == NULL) { return 0; }
     PlanSegment segment = separator->segment;
     switch (command->endpoint) {

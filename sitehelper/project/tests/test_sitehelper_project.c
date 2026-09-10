@@ -32,9 +32,9 @@ static void test_project_init_sets_defaults(void)
         STUD_SPACING_MAXIMISE
     );
 
-    assert(project.structure.rooms == NULL);
-    assert(project.structure.room_count == 0);
-    assert(project.structure.room_capacity == 0);
+    assert(project.storeys == NULL);
+    assert(project.storey_count == 0);
+    assert(project.storey_capacity == 0);
 }
 
 static void test_project_init_initialises_domain_ids(void)
@@ -63,16 +63,17 @@ static void test_add_wall_without_room(void)
     SiteHelperProject project;
 
     sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId next_before = project.domain_ids.next;
 
-    DomainId wall_id = sitehelper_project_add_wall(&project,
+    DomainId wall_id = sitehelper_project_add_wall(&project, project.storeys[0].id,
         (WallPlanSegment){ .end = { .x = 4200 } });
     assert(wall_id == next_before);
     assert(project.domain_ids.next == next_before + 1);
-    assert(project.structure.room_count == 0);
-    assert(project.structure.wall_count == 1);
-    assert(build_find_wall_by_id(&project.structure, wall_id));
+    assert(project.storeys[0].structure.room_count == 0);
+    assert(project.storeys[0].structure.wall_count == 1);
+    assert(build_find_wall_by_id(&project.storeys[0].structure, wall_id));
     assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
 
     sitehelper_project_destroy(&project);
@@ -82,23 +83,24 @@ static void test_add_wall_requires_valid_ordered_geometry(void)
 {
     SiteHelperProject project;
     sitehelper_project_init(&project);
-    DomainId room_id = sitehelper_project_add_room(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
+    DomainId room_id = sitehelper_project_add_room(&project, project.storeys[0].id);
     assert(room_id != DOMAIN_ID_INVALID);
     DomainId next = project.domain_ids.next;
-    assert(sitehelper_project_add_wall(&project, (WallPlanSegment){0}) ==
+    assert(sitehelper_project_add_wall(&project, project.storeys[0].id, (WallPlanSegment){0}) ==
         DOMAIN_ID_INVALID);
     assert(project.domain_ids.next == next);
-    assert(project.structure.wall_count == 0);
+    assert(project.storeys[0].structure.wall_count == 0);
 
     WallPlanSegment segment = { .start = {5000, 5000}, .end = {1000, 2000} };
-    assert(sitehelper_project_add_wall(&project, segment) == next);
-    const Wall *wall = build_find_wall_by_id_const(&project.structure, next);
+    assert(sitehelper_project_add_wall(&project, project.storeys[0].id, segment) == next);
+    const Wall *wall = build_find_wall_by_id_const(&project.storeys[0].structure, next);
     assert(wall != NULL);
     assert(wall->definition.segment.start.x == 5000);
     assert(wall->definition.segment.start.y == 5000);
     assert(wall->definition.segment.end.x == 1000);
     assert(wall->definition.segment.end.y == 2000);
-    assert(build_find_room_by_id(&project.structure, room_id));
+    assert(build_find_room_by_id(&project.storeys[0].structure, room_id));
     sitehelper_project_destroy(&project);
 }
 
@@ -109,6 +111,7 @@ static void test_project_destroy_releases_structure(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id =
         domain_id_generate(
@@ -117,14 +120,14 @@ static void test_project_destroy_releases_structure(void)
 
     assert(
         build_add_room(
-            &project.structure,
+            &project.storeys[0].structure,
             room_id
         )
     );
 
     Room *room =
         build_find_room_by_id(
-            &project.structure,
+            &project.storeys[0].structure,
             room_id
         );
 
@@ -137,9 +140,9 @@ static void test_project_destroy_releases_structure(void)
 
     Wall candidate = { .id = wall_id };
 
-    assert(build_append_wall(&project.structure, &candidate));
+    assert(build_append_wall(&project.storeys[0].structure, &candidate));
 
-    Wall *wall = build_find_wall_by_id(&project.structure, wall_id);
+    Wall *wall = build_find_wall_by_id(&project.storeys[0].structure, wall_id);
 
     assert(wall != NULL);
 
@@ -166,9 +169,9 @@ static void test_project_destroy_releases_structure(void)
         &project
     );
 
-    assert(project.structure.rooms == NULL);
-    assert(project.structure.room_count == 0);
-    assert(project.structure.room_capacity == 0);
+    assert(project.storeys == NULL);
+    assert(project.storey_count == 0);
+    assert(project.storey_capacity == 0);
 }
 
 static void test_project_destroy_handles_empty_project(void)
@@ -178,6 +181,7 @@ static void test_project_destroy_handles_empty_project(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     sitehelper_project_destroy(
         &project

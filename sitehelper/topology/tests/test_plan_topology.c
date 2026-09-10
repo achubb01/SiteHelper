@@ -456,10 +456,11 @@ static void test_explicit_failures_and_numeric_limits(void)
 static void project_rectangle(SiteHelperProject *project)
 {
     sitehelper_project_init(project);
-    assert(sitehelper_project_add_wall(project, (WallPlanSegment){{0, 0}, {6000, 0}}));
-    assert(sitehelper_project_add_wall(project, (WallPlanSegment){{6000, 0}, {6000, 4000}}));
-    assert(sitehelper_project_add_room_separator(project, (PlanSegment){{6000, 4000}, {0, 4000}}));
-    assert(sitehelper_project_add_room_separator(project, (PlanSegment){{0, 4000}, {0, 0}}));
+    assert(sitehelper_project_add_storey(project, 0));
+    assert(sitehelper_project_add_wall(project, project->storeys[0].id, (WallPlanSegment){{0, 0}, {6000, 0}}));
+    assert(sitehelper_project_add_wall(project, project->storeys[0].id, (WallPlanSegment){{6000, 0}, {6000, 4000}}));
+    assert(sitehelper_project_add_room_separator(project, project->storeys[0].id, (PlanSegment){{6000, 4000}, {0, 4000}}));
+    assert(sitehelper_project_add_room_separator(project, project->storeys[0].id, (PlanSegment){{0, 4000}, {0, 0}}));
 }
 
 static void test_project_adapter_ignores_rooms_and_derived_state(void)
@@ -467,48 +468,48 @@ static void test_project_adapter_ignores_rooms_and_derived_state(void)
     SiteHelperProject project, before;
     project_rectangle(&project);
     PlanTopology t = {0}, expected = {0};
-    assert(plan_topology_build_from_project(&project, &expected).code == PLAN_TOPOLOGY_SUCCESS);
+    assert(plan_topology_build_from_storey(&project.storeys[0], &expected).code == PLAN_TOPOLOGY_SUCCESS);
     assert(expected.face_count == 2);
-    DomainId room = sitehelper_project_add_room(&project);
-    assert(sitehelper_project_add_room(&project));
+    DomainId room = sitehelper_project_add_room(&project, project.storeys[0].id);
+    assert(sitehelper_project_add_room(&project, project.storeys[0].id));
     assert(sitehelper_project_set_room_location(&project, room, (PlanPosition){INT_MIN, INT_MAX}));
     test_clone_project_authoritative(&project, &before);
-    assert(plan_topology_build_from_project(&project, &t).code == PLAN_TOPOLOGY_SUCCESS);
+    assert(plan_topology_build_from_storey(&project.storeys[0], &t).code == PLAN_TOPOLOGY_SUCCESS);
     equivalent(&expected, &t, true);
     test_assert_project_authoritative_equal(&before, &project);
-    Wall swap = project.structure.walls[0]; project.structure.walls[0] = project.structure.walls[1]; project.structure.walls[1] = swap;
-    RoomSeparator sep = project.structure.room_separators[0];
-    project.structure.room_separators[0] = project.structure.room_separators[1]; project.structure.room_separators[1] = sep;
-    assert(plan_topology_build_from_project(&project, &t).code == PLAN_TOPOLOGY_SUCCESS);
+    Wall swap = project.storeys[0].structure.walls[0]; project.storeys[0].structure.walls[0] = project.storeys[0].structure.walls[1]; project.storeys[0].structure.walls[1] = swap;
+    RoomSeparator sep = project.storeys[0].structure.room_separators[0];
+    project.storeys[0].structure.room_separators[0] = project.storeys[0].structure.room_separators[1]; project.storeys[0].structure.room_separators[1] = sep;
+    assert(plan_topology_build_from_storey(&project.storeys[0], &t).code == PLAN_TOPOLOGY_SUCCESS);
     equivalent(&expected, &t, true);
     /* Deliberately unreadable unrelated metadata proves no Room/definition
      * validator or generator is invoked by this geometry-only query. */
-    BuildStructure saved = project.structure;
-    Wall saved_wall = project.structure.walls[0];
-    project.structure.rooms = NULL; project.structure.room_count = SIZE_MAX;
-    project.structure.walls[0].definition.opening_count = SIZE_MAX;
-    project.structure.walls[0].framing.stud_count = SIZE_MAX;
-    assert(plan_topology_build_from_project(&project, &t).code == PLAN_TOPOLOGY_SUCCESS);
+    BuildStructure saved = project.storeys[0].structure;
+    Wall saved_wall = project.storeys[0].structure.walls[0];
+    project.storeys[0].structure.rooms = NULL; project.storeys[0].structure.room_count = SIZE_MAX;
+    project.storeys[0].structure.walls[0].definition.opening_count = SIZE_MAX;
+    project.storeys[0].structure.walls[0].framing.stud_count = SIZE_MAX;
+    assert(plan_topology_build_from_storey(&project.storeys[0], &t).code == PLAN_TOPOLOGY_SUCCESS);
     equivalent(&expected, &t, true);
-    project.structure = saved;
-    project.structure.walls[0] = saved_wall; /* Restore nested mutations, not just the array pointer. */
+    project.storeys[0].structure = saved;
+    project.storeys[0].structure.walls[0] = saved_wall; /* Restore nested mutations, not just the array pointer. */
     assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
-    project.structure.walls = NULL;
-    assert(plan_topology_build_from_project(&project, &t).code == PLAN_TOPOLOGY_INVALID_SOURCE);
-    project.structure = saved;
+    project.storeys[0].structure.walls = NULL;
+    assert(plan_topology_build_from_storey(&project.storeys[0], &t).code == PLAN_TOPOLOGY_INVALID_SOURCE);
+    project.storeys[0].structure = saved;
     equivalent(&expected, &t, true);
-    project.structure.wall_count = project.structure.wall_capacity + 1;
-    assert(plan_topology_build_from_project(&project, &t).code == PLAN_TOPOLOGY_INVALID_SOURCE);
-    project.structure = saved;
-    project.structure.room_separators = NULL;
-    assert(plan_topology_build_from_project(&project, &t).code == PLAN_TOPOLOGY_INVALID_SOURCE);
-    project.structure = saved;
-    project.structure.room_separator_count = project.structure.room_separator_capacity + 1;
-    assert(plan_topology_build_from_project(&project, &t).code == PLAN_TOPOLOGY_INVALID_SOURCE);
-    project.structure = saved;
+    project.storeys[0].structure.wall_count = project.storeys[0].structure.wall_capacity + 1;
+    assert(plan_topology_build_from_storey(&project.storeys[0], &t).code == PLAN_TOPOLOGY_INVALID_SOURCE);
+    project.storeys[0].structure = saved;
+    project.storeys[0].structure.room_separators = NULL;
+    assert(plan_topology_build_from_storey(&project.storeys[0], &t).code == PLAN_TOPOLOGY_INVALID_SOURCE);
+    project.storeys[0].structure = saved;
+    project.storeys[0].structure.room_separator_count = project.storeys[0].structure.room_separator_capacity + 1;
+    assert(plan_topology_build_from_storey(&project.storeys[0], &t).code == PLAN_TOPOLOGY_INVALID_SOURCE);
+    project.storeys[0].structure = saved;
     equivalent(&expected, &t, true);
-    assert(plan_topology_build_from_project(NULL, &t).code == PLAN_TOPOLOGY_INVALID_ARGUMENT);
-    assert(plan_topology_build_from_project(&project, NULL).code == PLAN_TOPOLOGY_INVALID_ARGUMENT);
+    assert(plan_topology_build_from_storey(NULL, &t).code == PLAN_TOPOLOGY_INVALID_ARGUMENT);
+    assert(plan_topology_build_from_storey(&project.storeys[0], NULL).code == PLAN_TOPOLOGY_INVALID_ARGUMENT);
     /* The previous topology owns its coordinates after all source storage dies. */
     sitehelper_project_destroy(&project); sitehelper_project_destroy(&before);
     equivalent(&expected, &t, true);
@@ -521,7 +522,7 @@ static void test_allocation_failure_transactions(void)
 {
     SiteHelperProject project, before;
     project_rectangle(&project);
-    assert(sitehelper_project_add_room_separator(&project, (PlanSegment){{0, 0}, {6000, 4000}}));
+    assert(sitehelper_project_add_room_separator(&project, project.storeys[0].id, (PlanSegment){{0, 0}, {6000, 4000}}));
     test_clone_project_authoritative(&project, &before);
     PlanTopologySource one = SOURCE(100, -1, 0, 1, 0);
     size_t failures = 0;
@@ -530,7 +531,7 @@ static void test_allocation_failure_transactions(void)
         PlanTopology saved = t;
         allocation_failed = 0;
         allocations_before_failure = fail_at;
-        PlanTopologyResult status = plan_topology_build_from_project(&project, &t);
+        PlanTopologyResult status = plan_topology_build_from_storey(&project.storeys[0], &t);
         allocations_before_failure = SIZE_MAX;
         test_assert_project_authoritative_equal(&before, &project);
         if (allocation_failed) {
@@ -539,7 +540,7 @@ static void test_allocation_failure_transactions(void)
             assert(t.vertices == saved.vertices && t.edges == saved.edges && t.faces == saved.faces);
             assert(t.boundaries == saved.boundaries && t.steps == saved.steps);
             equivalent(&expected, &t, true);
-            assert(plan_topology_build_from_project(&project, &t).code == PLAN_TOPOLOGY_SUCCESS);
+            assert(plan_topology_build_from_storey(&project.storeys[0], &t).code == PLAN_TOPOLOGY_SUCCESS);
         }
         else { assert(status.code == PLAN_TOPOLOGY_SUCCESS); }
         consistent(&t);

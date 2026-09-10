@@ -18,6 +18,7 @@ struct SiteHelperCommandUndoState
         } moved_wall;
         RoomLocationCommand previous_room_location;
         struct {
+            DomainId storey_id;
             RoomSeparator definition;
             size_t index; /* Delete undo restores stored collection order. */
         } room_separator;
@@ -49,16 +50,18 @@ int sitehelper_command_capture_undo_state(
         DomainId id = command->type == SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR
             ? command->data.delete_room_separator.separator_id
             : command->data.move_room_separator_endpoint.separator_id;
-        const RoomSeparator *separator = build_find_room_separator_by_id_const(&project->structure, id);
+        const RoomSeparator *separator = sitehelper_project_find_room_separator_by_id_const(project, id);
         if (separator == NULL) {
             sitehelper_command_destroy_undo_state(candidate);
             return 0;
         }
+        const Storey *storey = sitehelper_project_find_owning_storey_const(project, id);
+        candidate->room_separator.storey_id = storey->id;
         candidate->room_separator.definition = *separator;
-        candidate->room_separator.index = (size_t)(separator - project->structure.room_separators);
+        candidate->room_separator.index = (size_t)(separator - storey->structure.room_separators);
     }
     else if (command->type == SITEHELPER_COMMAND_SET_ROOM_LOCATION) {
-        const Room *room = build_find_room_by_id_const(&project->structure,
+        const Room *room = sitehelper_project_find_room_by_id_const(project,
             command->data.room_location.room_id);
         if (room == NULL) {
             sitehelper_command_destroy_undo_state(candidate);
@@ -70,7 +73,7 @@ int sitehelper_command_capture_undo_state(
         };
     }
     else if (command->type == SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT) {
-        const Wall *wall = build_find_wall_by_id_const(&project->structure,
+        const Wall *wall = sitehelper_project_find_wall_by_id_const(project,
             command->data.move_wall_endpoint.wall_id);
         if (wall == NULL) {
             sitehelper_command_destroy_undo_state(candidate);
@@ -116,7 +119,7 @@ int sitehelper_command_undo_with_state(
             return 0;
         }
         if (command->type == SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR) {
-            return build_insert_room_separator(&project->structure,
+            return sitehelper_project_insert_room_separator(project, state->room_separator.storey_id,
                 &state->room_separator.definition, state->room_separator.index);
         }
         return sitehelper_project_set_room_separator_segment(project, id,
@@ -136,7 +139,7 @@ int sitehelper_command_undo_with_state(
             state->moved_wall.wall_id != result->data.move_wall_endpoint.wall_id) {
             return 0;
         }
-        Wall *wall = build_find_wall_by_id(&project->structure, state->moved_wall.wall_id);
+        Wall *wall = sitehelper_project_find_wall_by_id(project, state->moved_wall.wall_id);
         return wall_apply_plan_segment(wall, &project->settings, state->moved_wall.segment);
     }
     if (command->type == SITEHELPER_COMMAND_DELETE_WALL) {
@@ -406,8 +409,10 @@ int sitehelper_command_undo(
 
     switch (command->type) {
 
-        case SITEHELPER_COMMAND_ADD_ROOM_SEPARATOR:
-            return sitehelper_project_remove_room_separator_by_id(project, result->data.room_separator.separator_id);
+        case SITEHELPER_COMMAND_ADD_ROOM_SEPARATOR: {
+            Storey *storey = sitehelper_project_find_storey_by_id(project, command->data.add_room_separator.storey_id);
+            return storey != NULL && build_remove_room_separator_by_id(&storey->structure, result->data.room_separator.separator_id);
+        }
 
         case SITEHELPER_COMMAND_ADD_OPENING:
 
@@ -464,8 +469,9 @@ int sitehelper_command_redo(
         case SITEHELPER_COMMAND_ADD_ROOM_SEPARATOR: {
             RoomSeparator separator = {.id = result->data.room_separator.separator_id,
                 .segment = command->data.add_room_separator.segment};
-            return build_insert_room_separator(&project->structure, &separator,
-                project->structure.room_separator_count);
+            Storey *storey = sitehelper_project_find_storey_by_id(project, command->data.add_room_separator.storey_id);
+            return storey != NULL && sitehelper_project_insert_room_separator(project, storey->id, &separator,
+                storey->structure.room_separator_count);
         }
         case SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR:
             if (command->data.delete_room_separator.separator_id != result->data.room_separator.separator_id) { return 0; }

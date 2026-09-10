@@ -22,6 +22,7 @@ typedef enum
 
 typedef struct
 {
+    DomainId current_storey_id;
     /* Independent room navigation; never gates physical wall access. */
     DomainId current_room_id;
     DomainId current_wall_id;
@@ -40,6 +41,11 @@ typedef struct
 void sitehelper_editor_init(
     SiteHelperEditor *editor
 );
+
+/* Switching clears Room/Wall navigation, selection and previews. Invalid ID
+ * clears active Storey; a missing nonzero ID fails without changing state. */
+int sitehelper_editor_set_current_storey(SiteHelperEditor *editor,
+    const SiteHelperProject *project, DomainId storey_id);
 
 int sitehelper_editor_tool_available(EditorView view, EditorTool tool);
 int sitehelper_editor_set_active_view(SiteHelperEditor *editor, EditorView view);
@@ -144,7 +150,7 @@ int sitehelper_editor_primary_action(
 
 int sitehelper_editor_primary_action_in_project(
     SiteHelperEditor *editor,
-    const BuildStructure *structure,
+    const SiteHelperProject *project,
     Vec2 view_position,
     EditorAction *action
 );

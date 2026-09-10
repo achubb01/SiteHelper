@@ -232,7 +232,7 @@ static int sitehelper_app_init(
             .b = 48,
             .a = 255
         },
-        
+
         .button_idle_colour = {
             .r = 55,
             .g = 55,
@@ -267,7 +267,7 @@ static int sitehelper_app_init(
             .b = 35,
             .a = 255
         }
-    
+
     };
 
     sitehelper_project_init(
@@ -277,6 +277,10 @@ static int sitehelper_app_init(
     sitehelper_editor_init(
         &app->editor
     );
+
+    DomainId storey_id = sitehelper_project_add_storey(&app->project, 0);
+    if (storey_id == DOMAIN_ID_INVALID) { sitehelper_app_destroy(app); return 0; }
+    sitehelper_editor_set_current_storey(&app->editor, &app->project, storey_id);
 
     sitehelper_app_layout_gui(app);
 
@@ -659,7 +663,7 @@ static void sitehelper_app_process_events(
 
                         if (!sitehelper_editor_primary_action_in_project(
                             &app->editor,
-                            &app->project.structure,
+                            &app->project,
                             view_position,
                             &action)) {
                             continue;

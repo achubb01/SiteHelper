@@ -3,13 +3,13 @@
 `sitehelper_topology` is an on-demand, read-only query over ordered physical
 Wall and virtual RoomSeparator segments. It produces an owned temporary result;
 it is not project state, persistence, history, an editor cache, or Room topology.
-The project adapter reads only source collections, IDs and segments. It ignores
+The Storey adapter reads only source collections, IDs and segments. It ignores
 Rooms, Room placement, openings, framing, settings and the allocator watermark.
 
 ## API and ownership
 
 `plan_topology_build(sources, count, output)` builds from `PlanTopologySource[]`.
-`plan_topology_build_from_project(project, output)` copies authoritative source
+`plan_topology_build_from_storey(storey, output)` copies authoritative source
 geometry before invoking the same builder. `output` must be zero-initialized or
 an existing successful result. Success destroys/replaces that result. Failure
 preserves all its arrays and values. Neither entry point mutates input.
@@ -242,7 +242,7 @@ After placement changes, query again using the desired geometry snapshot. Failed
 rebuilds leave an older snapshot alive, so always inspect the returned status.
 
 Multiple Rooms may return the same face. No spatial uniqueness policy, enclosure
-requirement or Room adjacency is introduced. Project validation, persistence v7,
+requirement or Room adjacency is introduced. Project validation, persistence,
 commands/history, and production editor/rendering policy are unchanged.
 
 Boundary-step direction together with original source t direction and source
@@ -258,7 +258,7 @@ topology or validate the project. Build topology once and reuse it for Room
 resolution and wall-junction queries:
 
 ```text
-SiteHelperProject (WallDefinition.segment and virtual RoomSeparators)
+Storey (WallDefinition.segment and virtual RoomSeparators)
     -> PlanTopology (exact geometry and provenance)
         -> WallJunctionSet (distinct physical Walls meeting at a vertex)
 ```
@@ -270,7 +270,7 @@ refer to existing physical sources. Adding/deleting a wall, moving an endpoint,
 undoing/redoing an edit, or loading a project changes the relationships obtained
 by rebuilding. Intersections are valid project geometry; unsupported
 positive-length collinear overlaps remain topology limitations, not project
-validation failures. Persistence stays at version 7.
+validation failures. Persistence v8 stores Storey containment only; junctions remain derived.
 
 ### Owned snapshot and errors
 
@@ -388,3 +388,25 @@ Topology has no dependency on junction semantics, editor, commands, persistence
 or rendering. Command/persistence dependencies belong only to the integration
 test executable. The `SITEHELPER_BUILD_TOPOLOGY` compiler/backend policy is
 unchanged.
+
+## Storey scope (Priority 9A)
+
+`plan_topology_build_from_storey(const Storey *, PlanTopology *)` replaces the
+former project-wide adapter. It copies only the supplied Storey's Walls and
+RoomSeparators. Other Storeys may contain identical or intersecting X/Y sources
+without contributing overlaps, intersections, faces or junctions to this result.
+Elevation does not enter the 2D numeric engine. A null Storey fails; an empty
+Storey builds successfully. No Storey ID is added to derived geometry.
+
+The generic builder remains independent of project ownership; its header uses
+model geometry types and forward-declares Storey for the adapter. The exact
+intersection engine and WallJunctionSet implementation are unchanged.
+
+RoomRegion supplied-topology queries require a snapshot from the Room's owning
+Storey. The caller must enforce that contract; no cache/provenance scheme is
+introduced to prove it. `room_region_build_and_resolve` finds the Room by global
+ID, resolves its owning Storey and builds only that Storey's topology. Build once
+per Storey to resolve multiple Rooms or build junctions from the same snapshot.
+Snapshots retain the existing transactional ownership and staleness contracts.
+
+See [Storey ownership and settings direction](../project/README.md).

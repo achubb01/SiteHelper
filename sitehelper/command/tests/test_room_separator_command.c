@@ -23,7 +23,7 @@ static SiteHelperCommand add(PlanSegment segment)
 {
     AddRoomSeparatorCommand value;
     SiteHelperCommand command;
-    assert(add_room_separator_command_create(segment, &value));
+    assert(add_room_separator_command_create(1, segment, &value));
     assert(sitehelper_command_from_add_room_separator(&value, &command));
     return command;
 }
@@ -45,7 +45,7 @@ static SiteHelperCommand move(DomainId id, RoomSeparatorEndpoint endpoint, PlanP
 }
 static void check(const SiteHelperProject *project, DomainId id, PlanSegment segment, DomainId next)
 {
-    const RoomSeparator *separator = build_find_room_separator_by_id_const(&project->structure, id);
+    const RoomSeparator *separator = build_find_room_separator_by_id_const(&project->storeys[0].structure, id);
     assert(separator && separator->id == id);
     assert(separator->segment.start.x == segment.start.x && separator->segment.start.y == segment.start.y);
     assert(separator->segment.end.x == segment.end.x && separator->segment.end.y == segment.end.y);
@@ -58,6 +58,7 @@ static void test_history_and_independence(void)
     SiteHelperProject project, before, deleted;
     SiteHelperCommandHistory history;
     sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
     sitehelper_command_history_init(&history);
     PlanSegment original = {{5000, 6000}, {1000, 2000}};
     SiteHelperCommand command = add(original);
@@ -65,11 +66,11 @@ static void test_history_and_independence(void)
     DomainId id = project.domain_ids.next;
     assert(sitehelper_command_history_execute(&history, &project, &command, &result));
     assert(result.type == SITEHELPER_COMMAND_ADD_ROOM_SEPARATOR && result.data.room_separator.separator_id == id);
-    assert(project.structure.room_count == 0 && project.structure.wall_count == 0);
+    assert(project.storeys[0].structure.room_count == 0 && project.storeys[0].structure.wall_count == 0);
     DomainId next = project.domain_ids.next;
     for (int i = 0; i < 4; i++) {
         assert(sitehelper_command_history_undo(&history, &project));
-        assert(project.structure.room_separator_count == 0 && project.domain_ids.next == next);
+        assert(project.storeys[0].structure.room_separator_count == 0 && project.domain_ids.next == next);
         assert(sitehelper_command_history_redo(&history, &project));
         check(&project, id, original, next);
     }
@@ -78,11 +79,11 @@ static void test_history_and_independence(void)
     DomainId opening_id = 123;
     assert(!opening_command_execute(&project, &opening, &opening_id));
     assert(opening_id == DOMAIN_ID_INVALID && project.domain_ids.next == next);
-    assert(!build_find_wall_by_id(&project.structure, id));
+    assert(!build_find_wall_by_id(&project.storeys[0].structure, id));
 
-    DomainId room = sitehelper_project_add_room(&project);
+    DomainId room = sitehelper_project_add_room(&project, project.storeys[0].id);
     assert(sitehelper_project_set_room_location(&project, room, (PlanPosition){-12, 34}));
-    DomainId other = sitehelper_project_add_room_separator(&project, original);
+    DomainId other = sitehelper_project_add_room_separator(&project, project.storeys[0].id, original);
     next = project.domain_ids.next;
     test_clone_project_authoritative(&project, &before);
     PlanSegment end_moved = {original.start, {INT_MIN, INT_MAX}};
@@ -109,32 +110,32 @@ static void test_history_and_independence(void)
     for (int i = 0; i < 4; i++) {
         assert(sitehelper_command_history_undo(&history, &project));
         test_assert_project_authoritative_equal(&before, &project);
-        assert(project.structure.room_separators[0].id == id && project.structure.room_separators[1].id == other);
+        assert(project.storeys[0].structure.room_separators[0].id == id && project.storeys[0].structure.room_separators[1].id == other);
         assert(sitehelper_command_history_redo(&history, &project));
         test_assert_project_authoritative_equal(&deleted, &project);
     }
     /* A live claim of the saved ID prevents restoration, leaving history retryable. */
-    assert(build_add_room(&project.structure, id));
+    assert(build_add_room(&project.storeys[0].structure, id));
     size_t cursor = history.cursor;
     assert(!sitehelper_command_history_undo(&history, &project));
     assert(history.cursor == cursor && project.domain_ids.next == next);
-    project.structure.room_count--; /* Remove the injected independent ID claim. */
+    project.storeys[0].structure.room_count--; /* Remove the injected independent ID claim. */
     assert(sitehelper_command_history_undo(&history, &project));
     test_assert_project_authoritative_equal(&before, &project);
-    RoomSeparator restored = project.structure.room_separators[0];
+    RoomSeparator restored = project.storeys[0].structure.room_separators[0];
     assert(sitehelper_project_remove_room_separator_by_id(&project, id));
     cursor = history.cursor;
     assert(!sitehelper_command_history_redo(&history, &project));
     assert(history.cursor == cursor && project.domain_ids.next == next);
-    assert(build_insert_room_separator(&project.structure, &restored, 0));
+    assert(build_insert_room_separator(&project.storeys[0].structure, &restored, 0));
     test_assert_project_authoritative_equal(&before, &project);
     /* Discard deletion's redo snapshot, preserving independent room placement. */
     command = move(other, ROOM_SEPARATOR_ENDPOINT_END, (PlanPosition){0, 0});
     assert(sitehelper_command_history_execute(&history, &project, &command, &result));
     assert(!sitehelper_command_history_redo(&history, &project));
-    assert(build_find_room_by_id(&project.structure, room)->has_location);
-    assert(build_find_room_by_id(&project.structure, room)->location.x == -12);
-    assert(build_find_room_by_id(&project.structure, room)->location.y == 34);
+    assert(build_find_room_by_id(&project.storeys[0].structure, room)->has_location);
+    assert(build_find_room_by_id(&project.storeys[0].structure, room)->location.x == -12);
+    assert(build_find_room_by_id(&project.storeys[0].structure, room)->location.y == 34);
     /* History and separator array relocation cannot invalidate captured geometry. */
     for (int i = 0; i < 20; i++) {
         command = add((PlanSegment){{i, i}, {i + 1, i}});
@@ -155,18 +156,19 @@ static void test_physical_command_restoration_rejects_separator_id_collisions(vo
     SiteHelperCommandHistory history;
     SiteHelperCommandResult result;
     sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
     sitehelper_command_history_init(&history);
     WallCommand wall_command;
     SiteHelperCommand wall_add;
-    assert(wall_command_create((WallPlanSegment){{0, 0}, {6000, 0}}, &wall_command));
+    assert(wall_command_create(1, (WallPlanSegment){{0, 0}, {6000, 0}}, &wall_command));
     assert(sitehelper_command_from_wall(&wall_command, &wall_add));
     assert(sitehelper_command_history_execute(&history, &project, &wall_add, &result));
     DomainId wall_id = result.data.add_wall.wall_id;
     assert(sitehelper_command_history_undo(&history, &project));
     RoomSeparator claim = {.id = wall_id, .segment = {{0, 1}, {2, 3}}};
-    assert(build_insert_room_separator(&project.structure, &claim, 0));
+    assert(build_insert_room_separator(&project.storeys[0].structure, &claim, 0));
     assert(!sitehelper_command_history_redo(&history, &project));
-    assert(history.cursor == 0 && project.structure.wall_count == 0);
+    assert(history.cursor == 0 && project.storeys[0].structure.wall_count == 0);
     assert(sitehelper_project_remove_room_separator_by_id(&project, wall_id));
     assert(sitehelper_command_history_redo(&history, &project));
     OpeningCommand opening;
@@ -177,9 +179,9 @@ static void test_physical_command_restoration_rejects_separator_id_collisions(vo
     DomainId opening_id = result.data.add_opening.opening_id;
     assert(sitehelper_command_history_undo(&history, &project));
     claim.id = opening_id;
-    assert(build_insert_room_separator(&project.structure, &claim, 0));
+    assert(build_insert_room_separator(&project.storeys[0].structure, &claim, 0));
     assert(!sitehelper_command_history_redo(&history, &project));
-    assert(history.cursor == 1 && project.structure.walls[0].definition.opening_count == 0);
+    assert(history.cursor == 1 && project.storeys[0].structure.walls[0].definition.opening_count == 0);
     assert(sitehelper_project_remove_room_separator_by_id(&project, opening_id));
     assert(sitehelper_command_history_redo(&history, &project));
     DeleteWallCommand deletion;
@@ -190,14 +192,14 @@ static void test_physical_command_restoration_rejects_separator_id_collisions(vo
     DomainId next = project.domain_ids.next;
     for (int i = 0; i < 2; i++) {
         claim.id = i == 0 ? wall_id : opening_id;
-        assert(build_insert_room_separator(&project.structure, &claim, 0));
+        assert(build_insert_room_separator(&project.storeys[0].structure, &claim, 0));
         assert(!sitehelper_command_history_undo(&history, &project));
-        assert(history.cursor == 3 && project.structure.wall_count == 0);
+        assert(history.cursor == 3 && project.storeys[0].structure.wall_count == 0);
         assert(project.domain_ids.next == next);
         assert(sitehelper_project_remove_room_separator_by_id(&project, claim.id));
     }
     assert(sitehelper_command_history_undo(&history, &project));
-    assert(wall_find_opening_by_id_const(&project.structure.walls[0], opening_id));
+    assert(wall_find_opening_by_id_const(&project.storeys[0].structure.walls[0], opening_id));
     assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
     sitehelper_command_history_destroy(&history);
     sitehelper_project_destroy(&project);
@@ -209,23 +211,24 @@ static void test_invalid_mutations_and_failed_move_history(void)
     SiteHelperCommandHistory history;
     SiteHelperCommandResult result;
     sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
     sitehelper_command_history_init(&history);
     PlanSegment segment = {{1000, 2000}, {4000, 6000}};
-    DomainId id = sitehelper_project_add_room_separator(&project, segment);
+    DomainId id = sitehelper_project_add_room_separator(&project, project.storeys[0].id, segment);
     DomainId next = project.domain_ids.next;
     SiteHelperCommand command = move(id, ROOM_SEPARATOR_ENDPOINT_START, (PlanPosition){0});
     assert(sitehelper_command_history_execute(&history, &project, &command, &result));
-    RoomSeparator saved = *build_find_room_separator_by_id(&project.structure, id);
+    RoomSeparator saved = *build_find_room_separator_by_id(&project.storeys[0].structure, id);
     assert(sitehelper_project_remove_room_separator_by_id(&project, id));
     assert(!sitehelper_command_history_undo(&history, &project));
     assert(history.cursor == 1 && project.domain_ids.next == next);
-    assert(build_insert_room_separator(&project.structure, &saved, 0));
+    assert(build_insert_room_separator(&project.storeys[0].structure, &saved, 0));
     assert(sitehelper_command_history_undo(&history, &project));
-    saved = *build_find_room_separator_by_id(&project.structure, id);
+    saved = *build_find_room_separator_by_id(&project.storeys[0].structure, id);
     assert(sitehelper_project_remove_room_separator_by_id(&project, id));
     assert(!sitehelper_command_history_redo(&history, &project));
     assert(history.cursor == 0 && project.domain_ids.next == next);
-    assert(build_insert_room_separator(&project.structure, &saved, 0));
+    assert(build_insert_room_separator(&project.storeys[0].structure, &saved, 0));
     test_clone_project_authoritative(&project, &before);
     SiteHelperCommand invalid[] = {
         {.type = SITEHELPER_COMMAND_ADD_ROOM_SEPARATOR, .data.add_room_separator.segment = {{0, 0}, {0, 0}}},
@@ -243,8 +246,8 @@ static void test_invalid_mutations_and_failed_move_history(void)
     AddRoomSeparatorCommand a;
     DeleteRoomSeparatorCommand d;
     MoveRoomSeparatorEndpointCommand m;
-    assert(!add_room_separator_command_create((PlanSegment){0}, &a));
-    assert(!add_room_separator_command_create(segment, NULL));
+    assert(!add_room_separator_command_create(1, (PlanSegment){0}, &a));
+    assert(!add_room_separator_command_create(1, segment, NULL));
     assert(!delete_room_separator_command_create(0, &d));
     assert(!delete_room_separator_command_create(id, NULL));
     assert(!move_room_separator_endpoint_command_create(id, (RoomSeparatorEndpoint)99, (PlanPosition){0}, &m));
@@ -266,6 +269,7 @@ static void test_allocation_failures(void)
         SiteHelperProject project;
         SiteHelperCommandHistory history;
         sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
         sitehelper_command_history_init(&history);
         SiteHelperCommand command = add(segment);
         SiteHelperCommandResult result;
@@ -273,7 +277,7 @@ static void test_allocation_failures(void)
         allocations_before_failure = fail_at; /* History reserve then collection growth. */
         assert(!sitehelper_command_history_execute(&history, &project, &command, &result));
         allocations_before_failure = SIZE_MAX;
-        assert(project.structure.room_separator_count == 0 && project.domain_ids.next == next);
+        assert(project.storeys[0].structure.room_separator_count == 0 && project.domain_ids.next == next);
         assert(history.cursor == 0 && history.count == 0);
         assert(sitehelper_command_history_execute(&history, &project, &command, &result));
         DomainId id = result.data.room_separator.separator_id;
@@ -284,12 +288,12 @@ static void test_allocation_failures(void)
         allocations_before_failure = SIZE_MAX;
         check(&project, id, segment, next);
         assert(sitehelper_command_history_execute(&history, &project, &removal, &result));
-        assert(sitehelper_project_add_room_separator(&project, segment)); /* Fill retained capacity. */
+        assert(sitehelper_project_add_room_separator(&project, project.storeys[0].id, segment)); /* Fill retained capacity. */
         next = project.domain_ids.next;
         allocations_before_failure = 0;
         assert(!sitehelper_command_history_undo(&history, &project));
         allocations_before_failure = SIZE_MAX;
-        assert(history.cursor == 2 && project.structure.room_separator_count == 1);
+        assert(history.cursor == 2 && project.storeys[0].structure.room_separator_count == 1);
         assert(project.domain_ids.next == next);
         assert(sitehelper_command_history_undo(&history, &project));
         check(&project, id, segment, next);
@@ -303,19 +307,20 @@ static void test_allocation_failures(void)
     SiteHelperProject project;
     SiteHelperCommandHistory history;
     sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
     sitehelper_command_history_init(&history);
     SiteHelperCommand command = add(segment);
     SiteHelperCommandResult result;
     assert(sitehelper_command_history_execute(&history, &project, &command, &result));
     DomainId id = result.data.room_separator.separator_id, next = project.domain_ids.next;
     assert(sitehelper_command_history_undo(&history, &project));
-    free(project.structure.room_separators); /* Valid empty collection forces redo to allocate. */
-    project.structure.room_separators = NULL;
-    project.structure.room_separator_capacity = 0;
+    free(project.storeys[0].structure.room_separators); /* Valid empty collection forces redo to allocate. */
+    project.storeys[0].structure.room_separators = NULL;
+    project.storeys[0].structure.room_separator_capacity = 0;
     allocations_before_failure = 0;
     assert(!sitehelper_command_history_redo(&history, &project));
     allocations_before_failure = SIZE_MAX;
-    assert(history.cursor == 0 && project.structure.room_separator_count == 0 && project.domain_ids.next == next);
+    assert(history.cursor == 0 && project.storeys[0].structure.room_separator_count == 0 && project.domain_ids.next == next);
     assert(sitehelper_command_history_redo(&history, &project));
     command = move(id, ROOM_SEPARATOR_ENDPOINT_END, (PlanPosition){0});
     allocations_before_failure = 0;

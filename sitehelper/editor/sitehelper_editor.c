@@ -5,6 +5,21 @@
 #include "wall_plan_transform.h"
 #include "wall_snap.h"
 
+int sitehelper_editor_set_current_storey(SiteHelperEditor *editor,
+    const SiteHelperProject *project, DomainId storey_id)
+{
+    if (editor == NULL || project == NULL || (storey_id != DOMAIN_ID_INVALID &&
+        sitehelper_project_find_storey_by_id_const(project, storey_id) == NULL)) { return 0; }
+    if (editor->current_storey_id != storey_id) {
+        editor->current_storey_id = storey_id;
+        editor->current_room_id = editor->current_wall_id = DOMAIN_ID_INVALID;
+        sitehelper_editor_clear_selection(editor);
+        sitehelper_editor_invalidate_transient_state(editor);
+    }
+    sitehelper_editor_reconcile(editor, project);
+    return 1;
+}
+
 int sitehelper_editor_tool_available(EditorView view, EditorTool tool)
 {
     return (view == EDITOR_VIEW_PLAN &&
@@ -217,7 +232,9 @@ void sitehelper_editor_reconcile(
         return;
     }
 
-    if (project == NULL) {
+    const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
+    if (storey == NULL) {
+        editor->current_storey_id = DOMAIN_ID_INVALID;
         editor->current_room_id = DOMAIN_ID_INVALID;
         editor->current_wall_id = DOMAIN_ID_INVALID;
         sitehelper_editor_clear_selection(editor);
@@ -225,11 +242,11 @@ void sitehelper_editor_reconcile(
         return;
     }
 
-    if (build_find_room_by_id_const(&project->structure, editor->current_room_id) == NULL) {
+    if (build_find_room_by_id_const(&storey->structure, editor->current_room_id) == NULL) {
         editor->current_room_id = DOMAIN_ID_INVALID;
     }
     const Wall *current_wall = build_find_wall_by_id_const(
-        &project->structure, editor->current_wall_id);
+        &storey->structure, editor->current_wall_id);
 
     if (current_wall == NULL) {
         editor->current_wall_id = DOMAIN_ID_INVALID;
@@ -239,7 +256,7 @@ void sitehelper_editor_reconcile(
 
     if (selection->kind == EDITOR_SELECTION_WALL_MEMBER) {
         const Wall *selected_wall = build_find_wall_by_id_const(
-            &project->structure, selection->wall_id);
+            &storey->structure, selection->wall_id);
 
         if (selected_wall == NULL) {
             sitehelper_editor_clear_selection(editor);
@@ -619,7 +636,7 @@ int sitehelper_editor_primary_action(
 
             return 1;
         }
-        
+
         case EDITOR_TOOL_WALL:
         {
             const SnapResult *snap_result = editor_snap_state_get_result(
@@ -642,7 +659,7 @@ int sitehelper_editor_primary_action(
                     &editor->wall_tool,
                     &segment) ||
                 !wall_command_create(
-                    segment,
+                    editor->current_storey_id, segment,
                     &wall_command) ||
                 !sitehelper_command_from_wall(
                     &wall_command,
@@ -662,14 +679,18 @@ int sitehelper_editor_primary_action(
 
 int sitehelper_editor_primary_action_in_project(
     SiteHelperEditor *editor,
-    const BuildStructure *structure,
+    const SiteHelperProject *project,
     Vec2 view_position,
     EditorAction *action
 )
 {
-    if (editor == NULL || structure == NULL || action == NULL) {
+    if (editor == NULL || project == NULL || action == NULL) {
         return 0;
     }
+
+    const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
+    if (storey == NULL) { return 0; }
+    const BuildStructure *structure = &storey->structure;
 
     if (editor->active_view == EDITOR_VIEW_PLAN &&
         editor->active_tool == EDITOR_TOOL_SELECT) {
@@ -781,7 +802,9 @@ void sitehelper_editor_complete_action(
             break;
 
         case SITEHELPER_COMMAND_ADD_WALL:
-            editor->current_wall_id = result->data.add_wall.wall_id;
+            if (action->command.data.wall.storey_id == editor->current_storey_id) {
+                editor->current_wall_id = result->data.add_wall.wall_id;
+            }
             wall_tool_cancel(&editor->wall_tool);
             break;
 

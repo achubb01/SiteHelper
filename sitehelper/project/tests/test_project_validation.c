@@ -33,6 +33,7 @@ void *__wrap_realloc(void *pointer, size_t size)
 typedef struct
 {
     SiteHelperProject project;
+    Storey storey;
     Room rooms[2];
     Wall walls[2];
     RoomSeparator separators[2];
@@ -43,8 +44,11 @@ static void fixture_init(Fixture *f)
 {
     memset(f, 0, sizeof *f);
     sitehelper_project_init(&f->project);
-    f->project.domain_ids.next = 8;
-    f->project.structure = (BuildStructure){
+    f->storey.id = 10;
+    f->project.storeys = &f->storey;
+    f->project.storey_count = f->project.storey_capacity = 1;
+    f->project.domain_ids.next = 11;
+    f->project.storeys[0].structure = (BuildStructure){
         .rooms = f->rooms, .room_count = 2, .room_capacity = 2,
         .walls = f->walls, .wall_count = 2, .wall_capacity = 2
     };
@@ -109,12 +113,12 @@ static void test_valid_project_semantics(void)
     check(&f, SITEHELPER_PROJECT_VALID, 0, 0); /* Origin is explicitly placed. */
     f.rooms[0].has_location = false;
     check(&f, SITEHELPER_PROJECT_VALID, 0, 0); /* Unplaced coordinates are ignored. */
-    f.project.structure.wall_count = 0;
+    f.project.storeys[0].structure.wall_count = 0;
     check(&f, SITEHELPER_PROJECT_VALID, 0, 0); /* Rooms need no topology. */
-    f.project.structure.wall_count = 2;
-    f.project.structure.room_count = 1;
+    f.project.storeys[0].structure.wall_count = 2;
+    f.project.storeys[0].structure.room_count = 1;
     check(&f, SITEHELPER_PROJECT_VALID, 0, 0); /* Normal room and walls. */
-    f.project.structure.room_count = 0;
+    f.project.storeys[0].structure.room_count = 0;
     check(&f, SITEHELPER_PROJECT_VALID, 0, 0); /* Walls with zero rooms are valid. */
     f.walls[0].framing.stud_count = SIZE_MAX;
     f.walls[0].framing.topplate.length = -1;
@@ -147,12 +151,12 @@ static void test_collection_metadata_precedes_traversal(void)
     for (int missing_storage = 0; missing_storage < 2; missing_storage++) {
         Fixture f;
         fixture_init(&f);
-        if (missing_storage) { f.project.structure.rooms = NULL; }
-        else { f.project.structure.room_capacity = 1; }
+        if (missing_storage) { f.project.storeys[0].structure.rooms = NULL; }
+        else { f.project.storeys[0].structure.room_capacity = 1; }
         check(&f, SITEHELPER_PROJECT_INVALID_ROOM_COLLECTION, 0, 0);
         fixture_init(&f);
-        if (missing_storage) { f.project.structure.walls = NULL; }
-        else { f.project.structure.wall_capacity = 1; }
+        if (missing_storage) { f.project.storeys[0].structure.walls = NULL; }
+        else { f.project.storeys[0].structure.wall_capacity = 1; }
         check(&f, SITEHELPER_PROJECT_INVALID_WALL_COLLECTION, 0, 0);
         fixture_init(&f);
         if (missing_storage) { f.walls[1].definition.openings = NULL; }
@@ -195,10 +199,10 @@ static void test_identity_validity(void)
         }
         check(&f, SITEHELPER_PROJECT_DUPLICATE_ID, duplicate, 0);
     }
-    for (DomainId next = 0; next <= 7; next++) {
+    for (DomainId next = 0; next <= 10; next++) {
         fixture_init(&f);
         f.project.domain_ids.next = next;
-        check(&f, SITEHELPER_PROJECT_INVALID_ID_GENERATOR, 7, 0);
+        check(&f, SITEHELPER_PROJECT_INVALID_ID_GENERATOR, 10, 0);
     }
 }
 
@@ -241,19 +245,19 @@ static void test_room_separators(void)
 {
     Fixture f;
     fixture_init(&f);
-    f.project.structure.room_separators = f.separators;
-    f.project.structure.room_separator_count = 2;
-    f.project.structure.room_separator_capacity = 2;
+    f.project.storeys[0].structure.room_separators = f.separators;
+    f.project.storeys[0].structure.room_separator_count = 2;
+    f.project.storeys[0].structure.room_separator_capacity = 2;
     f.separators[0] = (RoomSeparator){.id = 8, .segment = {{INT_MAX, INT_MIN}, {INT_MIN, INT_MAX}}};
     f.separators[1] = (RoomSeparator){.id = 9, .segment = f.separators[0].segment};
-    f.project.domain_ids.next = 10;
+    f.project.domain_ids.next = 11;
     check(&f, SITEHELPER_PROJECT_VALID, 0, 0);
-    f.project.structure.room_separators = NULL;
+    f.project.storeys[0].structure.room_separators = NULL;
     check(&f, SITEHELPER_PROJECT_INVALID_ROOM_SEPARATOR_COLLECTION, 0, 0);
-    f.project.structure.room_separators = f.separators;
-    f.project.structure.room_separator_capacity = 1;
+    f.project.storeys[0].structure.room_separators = f.separators;
+    f.project.storeys[0].structure.room_separator_capacity = 1;
     check(&f, SITEHELPER_PROJECT_INVALID_ROOM_SEPARATOR_COLLECTION, 0, 0);
-    f.project.structure.room_separator_capacity = 2;
+    f.project.storeys[0].structure.room_separator_capacity = 2;
     f.separators[0].id = 0;
     check(&f, SITEHELPER_PROJECT_INVALID_ROOM_SEPARATOR_ID, 0, 0);
     DomainId collisions[] = {1, 3, 5, 9}; /* Room, wall, opening, separator. */
@@ -263,8 +267,8 @@ static void test_room_separators(void)
     }
     f.separators[0].id = 8;
     f.project.domain_ids.next = 9;
-    check(&f, SITEHELPER_PROJECT_INVALID_ID_GENERATOR, 9, 0);
-    f.project.domain_ids.next = 10;
+    check(&f, SITEHELPER_PROJECT_INVALID_ID_GENERATOR, 10, 0);
+    f.project.domain_ids.next = 11;
     f.separators[0].segment.end = f.separators[0].segment.start;
     check(&f, SITEHELPER_PROJECT_INVALID_ROOM_SEPARATOR_GEOMETRY, 8, 0);
 }

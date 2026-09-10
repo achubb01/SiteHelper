@@ -18,7 +18,7 @@ int delete_wall_command_execute(SiteHelperProject *project, const DeleteWallComm
     if (project == NULL || command == NULL || command->wall_id == DOMAIN_ID_INVALID) {
         return 0;
     }
-    return build_remove_wall_by_id(&project->structure, command->wall_id);
+    return sitehelper_project_remove_wall_by_id(project, command->wall_id);
 }
 
 void deleted_wall_snapshot_destroy(DeletedWallSnapshot *snapshot)
@@ -36,11 +36,12 @@ int deleted_wall_snapshot_capture(const SiteHelperProject *project,
     if (project == NULL || command == NULL || snapshot == NULL) {
         return 0;
     }
-    const Wall *wall = build_find_wall_by_id_const(&project->structure, command->wall_id);
+    const Wall *wall = sitehelper_project_find_wall_by_id_const(project, command->wall_id);
     if (wall == NULL) {
         return 0;
     }
     DeletedWallSnapshot candidate = {
+        .storey_id = sitehelper_project_find_owning_storey_const(project, wall->id)->id,
         .wall_id = wall->id,
         .segment = wall->definition.segment,
         .opening_count = wall->definition.opening_count
@@ -61,20 +62,22 @@ int deleted_wall_snapshot_capture(const SiteHelperProject *project,
 }
 
 /* Restoration must not reuse an identity claimed by any live domain object. */
-static int identity_in_use(const BuildStructure *structure, DomainId id)
+static int identity_in_use(const SiteHelperProject *project, DomainId id)
 {
-    return id == DOMAIN_ID_INVALID || build_contains_domain_id(structure, id);
+    return id == DOMAIN_ID_INVALID || sitehelper_project_contains_domain_id(project, id);
 }
 
 int deleted_wall_snapshot_restore(SiteHelperProject *project,
     const DeletedWallSnapshot *snapshot)
 {
     if (project == NULL || snapshot == NULL ||
-        identity_in_use(&project->structure, snapshot->wall_id)) {
+        identity_in_use(project, snapshot->wall_id)) {
         return 0;
     }
+    Storey *storey = sitehelper_project_find_storey_by_id(project, snapshot->storey_id);
+    if (storey == NULL) { return 0; }
     for (size_t i = 0; i < snapshot->opening_count; i++) {
-        if (identity_in_use(&project->structure, snapshot->openings[i].id)) {
+        if (identity_in_use(project, snapshot->openings[i].id)) {
             return 0;
         }
     }
@@ -89,7 +92,7 @@ int deleted_wall_snapshot_restore(SiteHelperProject *project,
         }
     }
     if (!wall_generate(&candidate, &project->settings) ||
-        !build_append_wall(&project->structure, &candidate)) {
+        !build_append_wall(&storey->structure, &candidate)) {
         wall_destroy(&candidate);
         return 0;
     }

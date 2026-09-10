@@ -2,6 +2,7 @@
 #define ROOM_REGION_H
 
 #include "plan_topology.h"
+#include "sitehelper_project.h"
 
 typedef enum {
     ROOM_REGION_UNPLACED = 0,
@@ -25,7 +26,9 @@ typedef struct {
 } RoomRegionResult;
 
 /* Read-only, allocation-free. Resolve Room by stable ID, then query the
- * caller's geometry snapshot. Does not rebuild or check snapshot freshness.
+ * caller's geometry snapshot. Supplied topology MUST belong to the Room's
+ * Storey; this contract is not mechanically checked. Does not rebuild or
+ * check snapshot freshness.
  * UNPLACED does not inspect topology (NULL is allowed in that case).
  * A BOUNDED result directly traverses topology->faces[face_index] using its
  * existing boundary/step ranges. It is not a persistent RoomBoundary or ID.
@@ -40,7 +43,8 @@ RoomRegionResult room_region_resolve(const SiteHelperProject *project,
  * leaves it untouched without examining geometry. Placed Rooms build once;
  * build failures return TOPOLOGY_FAILED with the exact subsystem result and
  * preserve existing output. No stale-output fallback classification occurs.
- * For multiple Rooms, build once and call room_region_resolve for each. */
+ * Convenience builds only the owning Storey. For multiple Rooms on one Storey,
+ * build once and call room_region_resolve for each. */
 RoomRegionResult room_region_build_and_resolve(const SiteHelperProject *project,
     DomainId room_id, PlanTopology *output);
 

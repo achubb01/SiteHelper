@@ -13,7 +13,7 @@
 
 enum
 {
-    SITEHELPER_PROJECT_FORMAT_VERSION = 7,
+    SITEHELPER_PROJECT_FORMAT_VERSION = 8,
     PERSISTENCE_TOKEN_CAPACITY = 64
 };
 
@@ -55,41 +55,10 @@ static int parse_bool_token(const char *token, bool *value);
 static const char *stud_spacing_mode_token(StudSpacingMode mode);
 static const char *opening_type_token(OpeningType type);
 
-static int project_contains_id(
-    const SiteHelperProject *project,
-    DomainId id
-);
-static SiteHelperPersistenceResult parse_project(
-    FILE *file,
-    SiteHelperProject *project
-);
-static SiteHelperPersistenceResult parse_settings(
-    FILE *file,
-    BuildSettings *settings
-);
-static SiteHelperPersistenceResult parse_room(
-    FILE *file,
-    SiteHelperProject *project,
-    uintmax_t version
-);
-static SiteHelperPersistenceResult parse_wall(
-    FILE *file,
-    SiteHelperProject *project,
-    uintmax_t version
-);
-static SiteHelperPersistenceResult parse_opening(
-    FILE *file,
-    SiteHelperProject *project,
-    Wall *wall
-);
-static SiteHelperPersistenceResult regenerate_project(
-    SiteHelperProject *project
-);
-
-static int write_project(
-    FILE *file,
-    const SiteHelperProject *project
-);
+static int project_contains_id(const SiteHelperProject *project, DomainId id)
+{
+    return sitehelper_project_contains_domain_id(project, id);
+}
 
 static PersistenceTokenResult read_token(
     FILE *file,
@@ -314,13 +283,7 @@ static const char *opening_type_token(OpeningType type)
     }
 }
 
-static int project_contains_id(
-    const SiteHelperProject *project,
-    DomainId id
-)
-{
-    return project != NULL && build_contains_domain_id(&project->structure, id);
-}
+
 
 static SiteHelperPersistenceResult parse_settings(
     FILE *file,
@@ -425,7 +388,7 @@ static SiteHelperPersistenceResult parse_opening(
 
 static SiteHelperPersistenceResult parse_wall(
     FILE *file,
-    SiteHelperProject *project,
+    SiteHelperProject *project, BuildStructure *structure,
     uintmax_t version
 )
 {
@@ -490,13 +453,13 @@ static SiteHelperPersistenceResult parse_wall(
 
     Wall candidate = { .id = wall_id };
     if (!wall_set_plan_segment(&candidate, segment) ||
-        !build_append_wall(&project->structure, &candidate)) {
+        !build_append_wall(structure, &candidate)) {
 
         wall_destroy(&candidate);
         return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
     }
 
-    Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
+    Wall *wall = build_find_wall_by_id(structure, wall_id);
     if (wall == NULL) {
         return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
     }
@@ -520,15 +483,15 @@ static SiteHelperPersistenceResult parse_wall(
  * original syntax, targets and uniqueness, then discard them. This temporary
  * bitmap is parser state; it never becomes a Room/domain relationship. */
 static SiteHelperPersistenceResult parse_legacy_wall_references(
-    FILE *file, const SiteHelperProject *project, size_t count)
+    FILE *file, const BuildStructure *structure, size_t count)
 {
-    if (count > project->structure.wall_count) {
+    if (count > structure->wall_count) {
         return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
     }
     if (count == 0) {
         return SITEHELPER_PERSISTENCE_SUCCESS;
     }
-    unsigned char *seen = calloc(project->structure.wall_count, sizeof *seen);
+    unsigned char *seen = calloc(structure->wall_count, sizeof *seen);
     if (seen == NULL) {
         return SITEHELPER_PERSISTENCE_ALLOCATION_FAILED;
     }
@@ -543,10 +506,10 @@ static SiteHelperPersistenceResult parse_legacy_wall_references(
             break;
         }
         size_t index = 0;
-        while (index < project->structure.wall_count && project->structure.walls[index].id != id) {
+        while (index < structure->wall_count && structure->walls[index].id != id) {
             index++;
         }
-        if (index == project->structure.wall_count || seen[index]) {
+        if (index == structure->wall_count || seen[index]) {
             result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
             break;
         }
@@ -558,7 +521,7 @@ static SiteHelperPersistenceResult parse_legacy_wall_references(
 
 static SiteHelperPersistenceResult parse_room(
     FILE *file,
-    SiteHelperProject *project,
+    SiteHelperProject *project, BuildStructure *structure,
     uintmax_t version
 )
 {
@@ -570,7 +533,7 @@ static SiteHelperPersistenceResult parse_room(
         project_contains_id(project, room_id)) {
         return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
     }
-    if (!build_add_room(&project->structure, room_id)) {
+    if (!build_add_room(structure, room_id)) {
         return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
     }
     if (version >= 6) {
@@ -604,16 +567,16 @@ static SiteHelperPersistenceResult parse_room(
             return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
         }
         if (version >= 3) {
-            SiteHelperPersistenceResult result = parse_legacy_wall_references(file, project, count);
+            SiteHelperPersistenceResult result = parse_legacy_wall_references(file, structure, count);
             if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
                 return result;
             }
         }
         else {
             /* Versions 1-2 nested physical definitions under rooms. Preserve
-             * every identity and promote each wall into global project storage. */
+             * every identity and promote each wall into the synthesized Storey. */
             for (size_t i = 0; i < count; i++) {
-                SiteHelperPersistenceResult result = parse_wall(file, project, version);
+                SiteHelperPersistenceResult result = parse_wall(file, project, structure, version);
                 if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
                     return result;
                 }
@@ -623,7 +586,7 @@ static SiteHelperPersistenceResult parse_room(
     return expect_token(file, "end_room");
 }
 
-static SiteHelperPersistenceResult parse_room_separators(FILE *file, SiteHelperProject *project)
+static SiteHelperPersistenceResult parse_room_separators(FILE *file, SiteHelperProject *project, BuildStructure *structure)
 {
     char token[PERSISTENCE_TOKEN_CAPACITY];
     size_t count;
@@ -652,10 +615,55 @@ static SiteHelperPersistenceResult parse_room_separators(FILE *file, SiteHelperP
         if (!plan_segment_valid(separator.segment)) {
             return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
         }
-        if (!build_insert_room_separator(&project->structure, &separator,
-                project->structure.room_separator_count)) {
+        if (!build_insert_room_separator(structure, &separator,
+                structure->room_separator_count)) {
             return SITEHELPER_PERSISTENCE_ALLOCATION_FAILED;
         }
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
+static SiteHelperPersistenceResult parse_structure(FILE *file, SiteHelperProject *project,
+    BuildStructure *structure, uintmax_t version)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    size_t room_count;
+    SiteHelperPersistenceResult result;
+    if (version >= 3) {
+        size_t wall_count;
+        if (expect_token(file, "walls") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_size_token(token, &wall_count)) {
+
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+
+        for (size_t index = 0; index < wall_count; index++) {
+            result = parse_wall(file, project, structure, version);
+            if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
+                return result;
+            }
+        }
+    }
+
+    if (expect_token(file, "rooms") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token, &room_count)) {
+
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    for (size_t index = 0; index < room_count; index++) {
+        result = parse_room(file, project, structure, version);
+
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
+            return result;
+        }
+    }
+
+    if (version >= 7) {
+        result = parse_room_separators(file, project, structure);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
     }
     return SITEHELPER_PERSISTENCE_SUCCESS;
 }
@@ -667,7 +675,6 @@ static SiteHelperPersistenceResult parse_project(
 {
     char token[PERSISTENCE_TOKEN_CAPACITY];
     DomainId next;
-    size_t room_count;
 
     if (expect_token(file, "sitehelper_project") !=
             SITEHELPER_PERSISTENCE_SUCCESS ||
@@ -708,41 +715,35 @@ static SiteHelperPersistenceResult parse_project(
         return result;
     }
 
-    if (version >= 3) {
-        size_t wall_count;
-        if (expect_token(file, "walls") != SITEHELPER_PERSISTENCE_SUCCESS ||
+    size_t storey_count = 1;
+    if (version >= 8) {
+        if (expect_token(file, "storeys") != SITEHELPER_PERSISTENCE_SUCCESS ||
             read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
-            !parse_size_token(token, &wall_count)) {
-
+            !parse_size_token(token, &storey_count)) { return SITEHELPER_PERSISTENCE_MALFORMED_DATA; }
+    } else {
+        /* Parser-only placeholder: no legacy identity is assigned or remapped.
+         * Its ID is filled after all legacy definitions have been parsed. */
+        project->storeys = calloc(1, sizeof *project->storeys);
+        if (project->storeys == NULL) { return SITEHELPER_PERSISTENCE_ALLOCATION_FAILED; }
+        project->storey_count = project->storey_capacity = 1;
+    }
+    for (size_t i = 0; i < storey_count; i++) {
+        if (version >= 8) {
+            DomainId id;
+            int elevation;
+            if (expect_token(file, "storey") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_domain_id_token(token, &id) || id == DOMAIN_ID_INVALID || project_contains_id(project, id) ||
+                expect_token(file, "elevation") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &elevation)) { return SITEHELPER_PERSISTENCE_MALFORMED_DATA; }
+            if (!sitehelper_project_insert_storey(project, id, elevation)) { return SITEHELPER_PERSISTENCE_ALLOCATION_FAILED; }
+        }
+        result = parse_structure(file, project, &project->storeys[i].structure, version);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+        if (version >= 8 && expect_token(file, "end_storey") != SITEHELPER_PERSISTENCE_SUCCESS) {
             return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
         }
-
-        for (size_t index = 0; index < wall_count; index++) {
-            result = parse_wall(file, project, version);
-            if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
-                return result;
-            }
-        }
-    }
-
-    if (expect_token(file, "rooms") != SITEHELPER_PERSISTENCE_SUCCESS ||
-        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
-        !parse_size_token(token, &room_count)) {
-
-        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
-    }
-
-    for (size_t index = 0; index < room_count; index++) {
-        result = parse_room(file, project, version);
-
-        if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
-            return result;
-        }
-    }
-
-    if (version >= 7) {
-        result = parse_room_separators(file, project);
-        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
     }
     if (expect_token(file, "end_project") !=
         SITEHELPER_PERSISTENCE_SUCCESS) {
@@ -755,6 +756,16 @@ static SiteHelperPersistenceResult parse_project(
     }
 
     project->domain_ids.next = next;
+    if (version < 8) {
+        DomainIdGenerator ids = project->domain_ids;
+        DomainId storey_id = domain_id_generate(&ids);
+        if (storey_id == DOMAIN_ID_INVALID || ids.next == DOMAIN_ID_INVALID ||
+            project_contains_id(project, storey_id)) { return SITEHELPER_PERSISTENCE_INVALID_PROJECT; }
+        project->storeys[0].id = storey_id;
+        project->domain_ids = ids;
+        /* Validation below rejects legacy IDs above the original watermark:
+         * they are >= the advanced watermark. No IDs are stolen or wrapped. */
+    }
 
     return SITEHELPER_PERSISTENCE_SUCCESS;
 }
@@ -767,18 +778,21 @@ static SiteHelperPersistenceResult regenerate_project(
         return SITEHELPER_PERSISTENCE_INVALID_ARGUMENT;
     }
 
-    for (size_t wall_index = 0;
-         wall_index < project->structure.wall_count;
-         wall_index++) {
+    for (size_t i = 0; i < project->storey_count; i++) {
+        BuildStructure *structure = &project->storeys[i].structure;
+        for (size_t wall_index = 0;
+             wall_index < structure->wall_count;
+             wall_index++) {
 
-        if (!wall_generate(
-                &project->structure.walls[wall_index],
-                &project->settings)) {
+            if (!wall_generate(
+                    &structure->walls[wall_index],
+                    &project->settings)) {
 
-            return SITEHELPER_PERSISTENCE_REGENERATION_FAILED;
+                return SITEHELPER_PERSISTENCE_REGENERATION_FAILED;
+            }
         }
-    }
 
+    }
     return SITEHELPER_PERSISTENCE_SUCCESS;
 }
 
@@ -791,7 +805,7 @@ static int write_project(
             "sitehelper_project %d\n"
             "domain_id_next %" PRIu64 "\n"
             "settings %d %d %d %d %d %d %d %s\n"
-            "walls %zu\n",
+            "storeys %zu\n",
             SITEHELPER_PROJECT_FORMAT_VERSION,
             (uint64_t)project->domain_ids.next,
             project->settings.stud_height,
@@ -802,84 +816,91 @@ static int write_project(
             project->settings.opening_width_allowance,
             project->settings.opening_height_allowance,
             stud_spacing_mode_token(project->settings.stud_spacing_mode),
-            project->structure.wall_count) < 0) {
+            project->storey_count) < 0) {
 
         return 0;
     }
 
-    for (size_t wall_index = 0;
-         wall_index < project->structure.wall_count;
-         wall_index++) {
+    for (size_t i = 0; i < project->storey_count; i++) {
+        const Storey *storey = &project->storeys[i];
+        const BuildStructure *structure = &storey->structure;
+        if (fprintf(file, "storey %" PRIu64 " elevation %d\nwalls %zu\n",
+                (uint64_t)storey->id, storey->elevation_mm, structure->wall_count) < 0) { return 0; }
+        for (size_t wall_index = 0;
+             wall_index < structure->wall_count;
+             wall_index++) {
 
-            const Wall *wall = &project->structure.walls[wall_index];
-
-            if (fprintf(file,
-                    "wall %" PRIu64 " segment %d %d %d %d openings %zu\n",
-                    (uint64_t)wall->id,
-                    wall->definition.segment.start.x,
-                    wall->definition.segment.start.y,
-                    wall->definition.segment.end.x,
-                    wall->definition.segment.end.y,
-                    wall->definition.opening_count) < 0) {
-
-                return 0;
-            }
-
-            for (size_t opening_index = 0;
-                 opening_index < wall->definition.opening_count;
-                 opening_index++) {
-
-                const Opening *opening =
-                    &wall->definition.openings[opening_index];
+                const Wall *wall = &structure->walls[wall_index];
 
                 if (fprintf(file,
-                        "opening %" PRIu64 " %s %d %d %d %d %d %d %s\n",
-                        (uint64_t)opening->id,
-                        opening_type_token(opening->type),
-                        opening->frame_position,
-                        opening->frame_bottom,
-                        opening->width,
-                        opening->height,
-                        opening->width_allowance,
-                        opening->height_allowance,
-                        opening->custom_allowance ? "true" : "false") < 0) {
+                        "wall %" PRIu64 " segment %d %d %d %d openings %zu\n",
+                        (uint64_t)wall->id,
+                        wall->definition.segment.start.x,
+                        wall->definition.segment.start.y,
+                        wall->definition.segment.end.x,
+                        wall->definition.segment.end.y,
+                        wall->definition.opening_count) < 0) {
 
                     return 0;
                 }
-            }
-    }
 
-    if (fprintf(file, "rooms %zu\n", project->structure.room_count) < 0) {
-        return 0;
-    }
+                for (size_t opening_index = 0;
+                     opening_index < wall->definition.opening_count;
+                     opening_index++) {
 
-    for (size_t room_index = 0;
-         room_index < project->structure.room_count;
-         room_index++) {
+                    const Opening *opening =
+                        &wall->definition.openings[opening_index];
 
-        const Room *room = &project->structure.rooms[room_index];
-        if (fprintf(file, "room %" PRIu64 " placement ", (uint64_t)room->id) < 0) {
+                    if (fprintf(file,
+                            "opening %" PRIu64 " %s %d %d %d %d %d %d %s\n",
+                            (uint64_t)opening->id,
+                            opening_type_token(opening->type),
+                            opening->frame_position,
+                            opening->frame_bottom,
+                            opening->width,
+                            opening->height,
+                            opening->width_allowance,
+                            opening->height_allowance,
+                            opening->custom_allowance ? "true" : "false") < 0) {
+
+                        return 0;
+                    }
+                }
+        }
+
+        if (fprintf(file, "rooms %zu\n", structure->room_count) < 0) {
             return 0;
         }
-        if (room->has_location) {
-            if (fprintf(file, "placed %d %d\n", room->location.x, room->location.y) < 0) {
+
+        for (size_t room_index = 0;
+             room_index < structure->room_count;
+             room_index++) {
+
+            const Room *room = &structure->rooms[room_index];
+            if (fprintf(file, "room %" PRIu64 " placement ", (uint64_t)room->id) < 0) {
+                return 0;
+            }
+            if (room->has_location) {
+                if (fprintf(file, "placed %d %d\n", room->location.x, room->location.y) < 0) {
+                    return 0;
+                }
+            }
+            else if (fputs("unplaced\n", file) == EOF) {
+                return 0;
+            }
+            if (fputs("end_room\n", file) == EOF) {
                 return 0;
             }
         }
-        else if (fputs("unplaced\n", file) == EOF) {
-            return 0;
-        }
-        if (fputs("end_room\n", file) == EOF) {
-            return 0;
-        }
-    }
 
-    if (fprintf(file, "room_separators %zu\n", project->structure.room_separator_count) < 0) { return 0; }
-    for (size_t i = 0; i < project->structure.room_separator_count; i++) {
-        const RoomSeparator *separator = &project->structure.room_separators[i];
-        if (fprintf(file, "room_separator %" PRIu64 " segment %d %d %d %d\n",
-                (uint64_t)separator->id, separator->segment.start.x, separator->segment.start.y,
-                separator->segment.end.x, separator->segment.end.y) < 0) { return 0; }
+        if (fprintf(file, "room_separators %zu\n", structure->room_separator_count) < 0) { return 0; }
+        for (size_t i = 0; i < structure->room_separator_count; i++) {
+            const RoomSeparator *separator = &structure->room_separators[i];
+            if (fprintf(file, "room_separator %" PRIu64 " segment %d %d %d %d\n",
+                    (uint64_t)separator->id, separator->segment.start.x, separator->segment.start.y,
+                    separator->segment.end.x, separator->segment.end.y) < 0) { return 0; }
+        }
+        if (fputs("end_storey\n", file) == EOF) { return 0; }
     }
     return fputs("end_project\n", file) != EOF;
 }

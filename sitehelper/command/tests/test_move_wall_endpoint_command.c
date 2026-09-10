@@ -54,8 +54,8 @@ typedef struct {
 static void clone_project(const SiteHelperProject *source, SiteHelperProject *copy)
 {
     test_clone_project_authoritative(source, copy);
-    for (size_t i = 0; i < copy->structure.wall_count; i++) {
-        assert(wall_generate(&copy->structure.walls[i], &copy->settings));
+    for (size_t i = 0; i < copy->storeys[0].structure.wall_count; i++) {
+        assert(wall_generate(&copy->storeys[0].structure.walls[i], &copy->settings));
     }
 }
 
@@ -64,10 +64,10 @@ static void assert_project_equal(const SiteHelperProject *expected,
 {
     test_assert_project_authoritative_equal(expected, actual);
     assert(sitehelper_project_validate(actual).code == SITEHELPER_PROJECT_VALID);
-    for (size_t i = 0; i < expected->structure.wall_count; i++) {
-        const Wall *wall = &expected->structure.walls[i];
+    for (size_t i = 0; i < expected->storeys[0].structure.wall_count; i++) {
+        const Wall *wall = &expected->storeys[0].structure.walls[i];
         test_assert_framing_semantically_equal(&wall->framing,
-            &build_find_wall_by_id_const(&actual->structure, wall->id)->framing);
+            &build_find_wall_by_id_const(&actual->storeys[0].structure, wall->id)->framing);
     }
 }
 
@@ -75,16 +75,17 @@ static void fixture_init(Fixture *f)
 {
     *f = (Fixture){0};
     sitehelper_project_init(&f->project);
+    assert(sitehelper_project_add_storey(&f->project, 0));
     sitehelper_command_history_init(&f->history);
-    f->room_a = sitehelper_project_add_room(&f->project);
-    f->room_b = sitehelper_project_add_room(&f->project);
-    f->wall_id = sitehelper_project_add_wall(&f->project,
+    f->room_a = sitehelper_project_add_room(&f->project, f->project.storeys[0].id);
+    f->room_b = sitehelper_project_add_room(&f->project, f->project.storeys[0].id);
+    f->wall_id = sitehelper_project_add_wall(&f->project, f->project.storeys[0].id,
         (WallPlanSegment){{1000, 2000}, {5000, 2000}});
-    f->control_id = sitehelper_project_add_wall(&f->project,
+    f->control_id = sitehelper_project_add_wall(&f->project, f->project.storeys[0].id,
         (WallPlanSegment){{-6000, -1000}, {0, -1000}});
     assert(f->wall_id && f->control_id);
 
-    Wall *wall = build_find_wall_by_id(&f->project.structure, f->wall_id);
+    Wall *wall = build_find_wall_by_id(&f->project.storeys[0].structure, f->wall_id);
     Opening openings[] = {
         {.id = domain_id_generate(&f->project.domain_ids), .type = OPENING_DOOR,
          .frame_position = 500, .width = 800, .height = 2000},
@@ -96,7 +97,7 @@ static void fixture_init(Fixture *f)
         assert(wall_add_opening_definition(wall, &f->project.settings, &openings[i]));
     }
     assert(wall_generate(wall, &f->project.settings));
-    Wall *control = build_find_wall_by_id(&f->project.structure, f->control_id);
+    Wall *control = build_find_wall_by_id(&f->project.storeys[0].structure, f->control_id);
     assert(wall_add_opening(control, &f->project.settings,
         domain_id_generate(&f->project.domain_ids), OPENING_WINDOW, 1500, 900, 1000, 1000));
     assert(wall_generate(control, &f->project.settings));
@@ -133,11 +134,11 @@ static void assert_geometry(Fixture *f, WallPlanSegment segment, int length)
 {
     SiteHelperProject expected;
     clone_project(&f->original, &expected);
-    Wall *wall = build_find_wall_by_id(&expected.structure, f->wall_id);
+    Wall *wall = build_find_wall_by_id(&expected.storeys[0].structure, f->wall_id);
     assert(wall_set_plan_segment(wall, segment));
     assert(wall_generate(wall, &expected.settings));
     assert_project_equal(&expected, &f->project);
-    wall = build_find_wall_by_id(&f->project.structure, f->wall_id);
+    wall = build_find_wall_by_id(&f->project.storeys[0].structure, f->wall_id);
     assert(wall_length_mm(wall) == length);
     assert(wall->framing.topplate.length == length);
     assert(wall->framing.bottomplate.length == length);
@@ -168,8 +169,8 @@ static void test_spatial_moves_and_repeated_history(void)
         fixture_init(&f);
         execute(&f, move_command(&f, cases[i].endpoint, cases[i].position));
         assert_geometry(&f, cases[i].segment, cases[i].length);
-        Wall *wall = build_find_wall_by_id(&f.project.structure, f.wall_id);
-        const Wall *original = build_find_wall_by_id(&f.original.structure, f.wall_id);
+        Wall *wall = build_find_wall_by_id(&f.project.storeys[0].structure, f.wall_id);
+        const Wall *original = build_find_wall_by_id(&f.original.storeys[0].structure, f.wall_id);
         if (cases[i].length == 4000) {
             test_assert_framing_semantically_equal(&original->framing, &wall->framing);
         }
@@ -205,7 +206,7 @@ static void test_invalid_moves_preserve_model_framing_and_redo(void)
     SiteHelperCommand valid = move_command(&f, WALL_ENDPOINT_END, (PlanPosition){4000, 6000});
     /* This length still fits generated opening members, but violates the
      * authoritative right-end clearance. Generation alone is insufficient. */
-    const Wall *wall = build_find_wall_by_id(&f.project.structure, f.wall_id);
+    const Wall *wall = build_find_wall_by_id(&f.project.storeys[0].structure, f.wall_id);
     Wall candidate = {.id = wall->id, .definition = wall->definition};
     assert(wall_set_plan_segment(&candidate, (WallPlanSegment){{1000, 2000}, {4700, 2000}}));
     const Opening *opening = &wall->definition.openings[1];
@@ -368,9 +369,9 @@ static void test_undo_regenerates_with_current_settings(void)
     f.project.settings.stud_spacing = 450;
     assert(sitehelper_command_history_undo(&f.history, &f.project));
     Wall expected;
-    test_clone_wall_definition(build_find_wall_by_id(&f.original.structure, f.wall_id), &expected);
+    test_clone_wall_definition(build_find_wall_by_id(&f.original.storeys[0].structure, f.wall_id), &expected);
     assert(wall_generate(&expected, &f.project.settings));
-    Wall *actual = build_find_wall_by_id(&f.project.structure, f.wall_id);
+    Wall *actual = build_find_wall_by_id(&f.project.storeys[0].structure, f.wall_id);
     test_assert_wall_definition_equal(&expected, actual);
     test_assert_framing_semantically_equal(&expected.framing, &actual->framing);
     assert(f.project.domain_ids.next == f.original.domain_ids.next);
@@ -378,7 +379,7 @@ static void test_undo_regenerates_with_current_settings(void)
     fixture_destroy(&f);
 }
 
-static void test_moved_segment_persists_in_v7(void)
+static void test_moved_segment_persists_in_v8(void)
 {
     Fixture f;
     fixture_init(&f);
@@ -388,10 +389,11 @@ static void test_moved_segment_persists_in_v7(void)
     FILE *file = fopen(path, "r");
     char header[128];
     assert(file && fgets(header, sizeof header, file));
-    assert(strcmp(header, "sitehelper_project 7\n") == 0);
+    assert(strcmp(header, "sitehelper_project 8\n") == 0);
     assert(fclose(file) == 0);
     SiteHelperProject loaded;
     sitehelper_project_init(&loaded);
+    assert(sitehelper_project_add_storey(&loaded, 0));
     assert(sitehelper_project_load_file(&loaded, path) == SITEHELPER_PERSISTENCE_SUCCESS);
     assert_project_equal(&f.project, &loaded);
     assert(f.project.domain_ids.next == f.original.domain_ids.next);
@@ -460,7 +462,7 @@ int main(void)
     test_generation_failures_and_retry();
     test_branch_discard_and_state_relocation();
     test_undo_regenerates_with_current_settings();
-    test_moved_segment_persists_in_v7();
+    test_moved_segment_persists_in_v8();
     test_spatial_moves_and_repeated_history();
     test_invalid_moves_preserve_model_framing_and_redo();
     puts("move wall endpoint command tests passed");

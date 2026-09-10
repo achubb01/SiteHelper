@@ -10,7 +10,7 @@ static Wall *find_project_wall(
     DomainId wall_id
 )
 {
-    return build_find_wall_by_id(&project->structure, wall_id);
+    return build_find_wall_by_id(&project->storeys[0].structure, wall_id);
 }
 
 
@@ -27,16 +27,14 @@ add_test_wall(
     assert(wall_id_out != NULL);
 
     DomainId room_id =
-        sitehelper_project_add_room(
-            project
-        );
+        sitehelper_project_add_room(project, project->storeys[0].id);
 
     assert(
         room_id != DOMAIN_ID_INVALID
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(project, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(project, project->storeys[0].id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id != DOMAIN_ID_INVALID
@@ -44,13 +42,13 @@ add_test_wall(
 
     Room *room =
         build_find_room_by_id(
-            &project->structure,
+            &project->storeys[0].structure,
             room_id
         );
 
     assert(room != NULL);
 
-    Wall *wall = build_find_wall_by_id(&project->structure, wall_id);
+    Wall *wall = build_find_wall_by_id(&project->storeys[0].structure, wall_id);
 
     assert(wall != NULL);
 
@@ -115,6 +113,7 @@ test_execute_records_successful_command(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -208,6 +207,7 @@ test_undo_moves_history_cursor_back(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -332,6 +332,7 @@ test_failed_execute_is_not_recorded(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -422,6 +423,7 @@ test_failed_undo_preserves_history_entry(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     DomainId room_id;
     DomainId wall_id;
@@ -561,6 +563,7 @@ test_redo_moves_history_cursor_forward(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     SiteHelperCommandHistory history;
 
@@ -569,9 +572,7 @@ test_redo_moves_history_cursor_forward(void)
     );
 
     DomainId room_id =
-        sitehelper_project_add_room(
-            &project
-        );
+        sitehelper_project_add_room(&project, project.storeys[0].id);
 
     assert(
         room_id
@@ -579,7 +580,7 @@ test_redo_moves_history_cursor_forward(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(&project, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(&project, project.storeys[0].id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -588,7 +589,7 @@ test_redo_moves_history_cursor_forward(void)
 
     Room *room =
         build_find_room_by_id(
-            &project.structure,
+            &project.storeys[0].structure,
             room_id
         );
 
@@ -729,6 +730,7 @@ test_failed_redo_preserves_history_position(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     SiteHelperCommandHistory history;
 
@@ -737,9 +739,7 @@ test_failed_redo_preserves_history_position(void)
     );
 
     DomainId room_id =
-        sitehelper_project_add_room(
-            &project
-        );
+        sitehelper_project_add_room(&project, project.storeys[0].id);
 
     assert(
         room_id
@@ -747,7 +747,7 @@ test_failed_redo_preserves_history_position(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(&project, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(&project, project.storeys[0].id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -756,7 +756,7 @@ test_failed_redo_preserves_history_position(void)
 
     Room *room =
         build_find_room_by_id(
-            &project.structure,
+            &project.storeys[0].structure,
             room_id
         );
 
@@ -931,6 +931,7 @@ test_execute_after_undo_discards_redo_branch(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     SiteHelperCommandHistory history;
 
@@ -939,9 +940,7 @@ test_execute_after_undo_discards_redo_branch(void)
     );
 
     DomainId room_id =
-        sitehelper_project_add_room(
-            &project
-        );
+        sitehelper_project_add_room(&project, project.storeys[0].id);
 
     assert(
         room_id
@@ -949,7 +948,7 @@ test_execute_after_undo_discards_redo_branch(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(&project, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(&project, project.storeys[0].id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -958,7 +957,7 @@ test_execute_after_undo_discards_redo_branch(void)
 
     Room *room =
         build_find_room_by_id(
-            &project.structure,
+            &project.storeys[0].structure,
             room_id
         );
 
@@ -1195,6 +1194,7 @@ test_failed_execute_after_undo_preserves_redo_branch(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     SiteHelperCommandHistory history;
 
@@ -1203,9 +1203,7 @@ test_failed_execute_after_undo_preserves_redo_branch(void)
     );
 
     DomainId room_id =
-        sitehelper_project_add_room(
-            &project
-        );
+        sitehelper_project_add_room(&project, project.storeys[0].id);
 
     assert(
         room_id
@@ -1213,7 +1211,7 @@ test_failed_execute_after_undo_preserves_redo_branch(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(&project, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(&project, project.storeys[0].id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -1222,7 +1220,7 @@ test_failed_execute_after_undo_preserves_redo_branch(void)
 
     Room *room =
         build_find_room_by_id(
-            &project.structure,
+            &project.storeys[0].structure,
             room_id
         );
 
@@ -1460,6 +1458,7 @@ test_multiple_commands_can_be_undone_and_redone_in_order(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     SiteHelperCommandHistory history;
 
@@ -1468,9 +1467,7 @@ test_multiple_commands_can_be_undone_and_redone_in_order(void)
     );
 
     DomainId room_id =
-        sitehelper_project_add_room(
-            &project
-        );
+        sitehelper_project_add_room(&project, project.storeys[0].id);
 
     assert(
         room_id
@@ -1478,7 +1475,7 @@ test_multiple_commands_can_be_undone_and_redone_in_order(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(&project, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(&project, project.storeys[0].id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -1487,7 +1484,7 @@ test_multiple_commands_can_be_undone_and_redone_in_order(void)
 
     Room *room =
         build_find_room_by_id(
-            &project.structure,
+            &project.storeys[0].structure,
             room_id
         );
 
@@ -1811,6 +1808,7 @@ test_undo_and_redo_reject_history_boundaries(void)
     sitehelper_project_init(
         &project
     );
+    assert(sitehelper_project_add_storey(&project, 0));
 
     SiteHelperCommandHistory history;
 
@@ -1849,9 +1847,7 @@ test_undo_and_redo_reject_history_boundaries(void)
     );
 
     DomainId room_id =
-        sitehelper_project_add_room(
-            &project
-        );
+        sitehelper_project_add_room(&project, project.storeys[0].id);
 
     assert(
         room_id
@@ -1859,7 +1855,7 @@ test_undo_and_redo_reject_history_boundaries(void)
     );
 
     DomainId wall_id =
-        sitehelper_project_add_wall(&project, (WallPlanSegment){ .end = { .x = 4200 } });
+        sitehelper_project_add_wall(&project, project.storeys[0].id, (WallPlanSegment){ .end = { .x = 4200 } });
 
     assert(
         wall_id
@@ -1868,7 +1864,7 @@ test_undo_and_redo_reject_history_boundaries(void)
 
     Room *room =
         build_find_room_by_id(
-            &project.structure,
+            &project.storeys[0].structure,
             room_id
         );
 

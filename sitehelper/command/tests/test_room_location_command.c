@@ -40,7 +40,7 @@ static SiteHelperCommand placement(DomainId id, bool placed, PlanPosition point)
 static void check(const SiteHelperProject *project, DomainId id,
     bool placed, PlanPosition point, DomainId next)
 {
-    const Room *room = build_find_room_by_id_const(&project->structure, id);
+    const Room *room = build_find_room_by_id_const(&project->storeys[0].structure, id);
     assert(room && room->has_location == placed);
     if (placed) {
         assert(room->location.x == point.x && room->location.y == point.y);
@@ -54,9 +54,10 @@ static void test_history_exactness_failures_and_branch_discard(void)
     SiteHelperProject project, before;
     SiteHelperCommandHistory history;
     sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
     sitehelper_command_history_init(&history);
-    DomainId room = sitehelper_project_add_room(&project);
-    DomainId other = sitehelper_project_add_room(&project);
+    DomainId room = sitehelper_project_add_room(&project, project.storeys[0].id);
+    DomainId other = sitehelper_project_add_room(&project, project.storeys[0].id);
     DomainId next = project.domain_ids.next;
     PlanPosition origin = {0}, distant = {INT_MIN, INT_MAX};
     SiteHelperCommand commands[] = {
@@ -84,7 +85,7 @@ static void test_history_exactness_failures_and_branch_discard(void)
     }
 
     /* Missing targets must retain the cursor and snapshot for a later retry. */
-    Room *target = build_find_room_by_id(&project.structure, room);
+    Room *target = build_find_room_by_id(&project.storeys[0].structure, room);
     target->id = 999;
     test_clone_project_authoritative(&project, &before);
     assert(!sitehelper_command_history_undo(&history, &project));
@@ -124,7 +125,7 @@ static void test_history_exactness_failures_and_branch_discard(void)
     check(&project, other, true, (PlanPosition){-123, 456}, next);
     /* Relocate both room storage and history; only stable IDs may be retained. */
     for (int i = 0; i < 20; i++) {
-        assert(sitehelper_project_add_room(&project));
+        assert(sitehelper_project_add_room(&project, project.storeys[0].id));
         SiteHelperCommand move = placement(room, true, (PlanPosition){i, -i});
         assert(sitehelper_command_history_execute(&history, &project, &move, &result));
     }
@@ -141,6 +142,7 @@ static void test_invalid_commands(void)
 {
     SiteHelperProject project;
     sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
     RoomLocationCommand location;
     assert(!room_location_command_create(0, (PlanPosition){0}, &location));
     assert(!room_location_command_create(1, (PlanPosition){0}, NULL));
@@ -148,7 +150,7 @@ static void test_invalid_commands(void)
     assert(!room_location_command_create_clear(1, NULL));
     assert(!room_location_command_execute(&project, NULL));
     assert(!sitehelper_command_from_room_location(NULL, NULL));
-    DomainId room = sitehelper_project_add_room(&project);
+    DomainId room = sitehelper_project_add_room(&project, project.storeys[0].id);
     SiteHelperCommand command = placement(room, true, (PlanPosition){12, -34});
     assert(!room_location_command_execute(NULL, &command.data.room_location));
     assert(!sitehelper_command_from_room_location(&command.data.room_location, NULL));
@@ -170,8 +172,9 @@ static void test_allocation_failures_and_allocation_free_mutation(void)
         SiteHelperProject project;
         SiteHelperCommandHistory history;
         sitehelper_project_init(&project);
+    assert(sitehelper_project_add_storey(&project, 0));
         sitehelper_command_history_init(&history);
-        DomainId id = sitehelper_project_add_room(&project);
+        DomainId id = sitehelper_project_add_room(&project, project.storeys[0].id);
         DomainId next = project.domain_ids.next;
         SiteHelperCommand command = placement(id, true, (PlanPosition){0});
         SiteHelperCommandResult result;

@@ -23,16 +23,18 @@ static void test_current_room_resolves_selected_room_by_id(void)
 sitehelper_project_init(
     &app.project
 );
+    assert(sitehelper_project_add_storey(&app.project, 0));
 
 sitehelper_editor_init(
     &app.editor
 );
+    app.editor.current_storey_id = 1;
 
     DomainId room_id = 10;
 
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             room_id
         )
     );
@@ -66,10 +68,12 @@ static void test_current_room_returns_null_when_no_room_selected(void)
 sitehelper_project_init(
     &app.project
 );
+    assert(sitehelper_project_add_storey(&app.project, 0));
 
 sitehelper_editor_init(
     &app.editor
 );
+    app.editor.current_storey_id = 1;
 
     assert(
         app_current_room(
@@ -77,6 +81,7 @@ sitehelper_editor_init(
             &app.editor
         ) == NULL
     );
+    sitehelper_project_destroy(&app.project);
 }
 
 
@@ -87,10 +92,12 @@ static void test_current_room_returns_null_when_selected_id_missing(void)
 sitehelper_project_init(
     &app.project
 );
+    assert(sitehelper_project_add_storey(&app.project, 0));
 
 sitehelper_editor_init(
     &app.editor
 );
+    app.editor.current_storey_id = 1;
 
     app.editor.current_room_id = 999;
 
@@ -100,6 +107,7 @@ sitehelper_editor_init(
             &app.editor
         ) == NULL
     );
+    sitehelper_project_destroy(&app.project);
 }
 
 
@@ -110,16 +118,18 @@ static void test_current_room_survives_room_array_reallocation(void)
 sitehelper_project_init(
     &app.project
 );
+    assert(sitehelper_project_add_storey(&app.project, 0));
 
 sitehelper_editor_init(
     &app.editor
 );
+    app.editor.current_storey_id = 1;
 
     DomainId selected_room_id = 10;
 
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             selected_room_id
         )
     );
@@ -134,21 +144,21 @@ sitehelper_editor_init(
      */
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             20
         )
     );
 
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             30
         )
     );
 
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             40
         )
     );
@@ -179,30 +189,32 @@ static void test_current_wall_resolves_selected_wall_by_id(void)
 sitehelper_project_init(
     &app.project
 );
+    assert(sitehelper_project_add_storey(&app.project, 0));
 
 sitehelper_editor_init(
     &app.editor
 );
+    app.editor.current_storey_id = 1;
 
     DomainId room_id = 10;
     DomainId wall_id = 20;
 
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             room_id
         )
     );
 
     Room *room =
         build_find_room_by_id(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             room_id
         );
 
     assert(room != NULL);
 
-    append_test_wall(&app.project.structure, wall_id);
+    append_test_wall(&app.project.storeys[0].structure, wall_id);
 
     app.editor.current_room_id =
         room_id;
@@ -236,16 +248,18 @@ static void test_current_wall_returns_null_when_no_wall_selected(void)
 sitehelper_project_init(
     &app.project
 );
+    assert(sitehelper_project_add_storey(&app.project, 0));
 
 sitehelper_editor_init(
     &app.editor
 );
+    app.editor.current_storey_id = 1;
 
     DomainId room_id = 10;
 
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             room_id
         )
     );
@@ -273,16 +287,18 @@ static void test_current_wall_returns_null_when_selected_wall_id_missing(void)
 sitehelper_project_init(
     &app.project
 );
+    assert(sitehelper_project_add_storey(&app.project, 0));
 
 sitehelper_editor_init(
     &app.editor
 );
+    app.editor.current_storey_id = 1;
 
     DomainId room_id = 10;
 
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             room_id
         )
     );
@@ -313,17 +329,19 @@ static void test_current_wall_survives_wall_array_reallocation(void)
 sitehelper_project_init(
     &app.project
 );
+    assert(sitehelper_project_add_storey(&app.project, 0));
 
 sitehelper_editor_init(
     &app.editor
 );
+    app.editor.current_storey_id = 1;
 
     DomainId room_id = 10;
     DomainId selected_wall_id = 20;
 
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             room_id
         )
     );
@@ -339,7 +357,7 @@ sitehelper_editor_init(
 
     assert(room != NULL);
 
-    append_test_wall(&app.project.structure, selected_wall_id);
+    append_test_wall(&app.project.storeys[0].structure, selected_wall_id);
 
     app.editor.current_wall_id =
         selected_wall_id;
@@ -349,11 +367,11 @@ sitehelper_editor_init(
      * reallocations after the selection
      * has already been stored.
      */
-    append_test_wall(&app.project.structure, 30);
+    append_test_wall(&app.project.storeys[0].structure, 30);
 
-    append_test_wall(&app.project.structure, 40);
+    append_test_wall(&app.project.storeys[0].structure, 40);
 
-    append_test_wall(&app.project.structure, 50);
+    append_test_wall(&app.project.storeys[0].structure, 50);
 
     Wall *wall =
         app_current_wall(
@@ -395,30 +413,32 @@ static void test_current_wall_survives_room_array_reallocation(void)
 sitehelper_project_init(
     &app.project
 );
+    assert(sitehelper_project_add_storey(&app.project, 0));
 
 sitehelper_editor_init(
     &app.editor
 );
+    app.editor.current_storey_id = 1;
 
     DomainId selected_room_id = 10;
     DomainId selected_wall_id = 20;
 
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             selected_room_id
         )
     );
 
     Room *room =
         build_find_room_by_id(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             selected_room_id
         );
 
     assert(room != NULL);
 
-    append_test_wall(&app.project.structure, selected_wall_id);
+    append_test_wall(&app.project.storeys[0].structure, selected_wall_id);
 
     app.editor.current_room_id =
         selected_room_id;
@@ -435,21 +455,21 @@ sitehelper_editor_init(
      */
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             30
         )
     );
 
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             40
         )
     );
 
     assert(
         build_add_room(
-            &app.project.structure,
+            &app.project.storeys[0].structure,
             50
         )
     );
@@ -487,10 +507,12 @@ static void test_editor_initial_state_resolves_no_selection(void)
     sitehelper_project_init(
         &app.project
     );
+    assert(sitehelper_project_add_storey(&app.project, 0));
 
     sitehelper_editor_init(
         &app.editor
     );
+    app.editor.current_storey_id = 1;
 
     assert(
         app.editor.current_room_id ==
