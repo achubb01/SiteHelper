@@ -76,6 +76,7 @@ if(SITEHELPER_BUILD_TOPOLOGY)
         topology/plan_topology_query.c
         topology/project_topology.c
         topology/room_region.c
+        topology/wall_junctions.c
         topology/topology_numeric.c
     )
     target_include_directories(sitehelper_topology PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/topology)
@@ -600,6 +601,15 @@ if(SITEHELPER_BUILD_TOPOLOGY)
             "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
     endif()
     add_test(NAME room_region_tests COMMAND test_room_region)
+    add_executable(test_wall_junctions topology/tests/test_wall_junctions.c)
+    target_link_libraries(test_wall_junctions PRIVATE sitehelper_topology
+        sitehelper_test_support sitehelper_command sitehelper_persistence)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(test_wall_junctions PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+        target_link_options(test_wall_junctions PRIVATE
+            "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+    endif()
+    add_test(NAME wall_junction_tests COMMAND test_wall_junctions)
 endif()
 
 add_executable(test_project_validation project/tests/test_project_validation.c)

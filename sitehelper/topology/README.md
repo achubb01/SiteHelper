@@ -1,4 +1,4 @@
-# Derived plan topology and Room resolution (Priorities 7D–7E)
+# Derived plan topology, Room resolution and wall junctions (Priorities 7D–8)
 
 `sitehelper_topology` is an on-demand, read-only query over ordered physical
 Wall and virtual RoomSeparator segments. It produces an owned temporary result;
@@ -249,3 +249,142 @@ Boundary-step direction together with original source t direction and source
 kind/ID is sufficient for later recovery of the physical Wall span and which
 side faces the bounded interior (face-on-left convention). This priority does
 not assign Room sides, adjacency or wall membership.
+
+## Wall junctions (Priority 8)
+
+`wall_junctions_build(const PlanTopology *, WallJunctionSet *)` consumes an
+already successfully built, unmodified topology snapshot. It does not rebuild
+topology or validate the project. Build topology once and reuse it for Room
+resolution and wall-junction queries:
+
+```text
+SiteHelperProject (WallDefinition.segment and virtual RoomSeparators)
+    -> PlanTopology (exact geometry and provenance)
+        -> WallJunctionSet (distinct physical Walls meeting at a vertex)
+```
+
+`WallDefinition.segment` remains the sole authoritative wall geometry. Junctions
+are derived relationships, with no DomainIds of their own, persistent records,
+BuildStructure/Project fields, commands, or undo snapshots. Participant Wall IDs
+refer to existing physical sources. Adding/deleting a wall, moving an endpoint,
+undoing/redoing an edit, or loading a project changes the relationships obtained
+by rebuilding. Intersections are valid project geometry; unsupported
+positive-length collinear overlaps remain topology limitations, not project
+validation failures. Persistence stays at version 7.
+
+### Owned snapshot and errors
+
+`WallJunctionSet` owns two contiguous arrays: `junctions` and `participants`.
+Each `WallJunction` holds its kind, an exact `PlanTopologyVertex` copy, and a
+`first_participant`/`participant_count` range. Each participant contains
+`wall_id`, `position`, and the exact original-source `source_t`. All arrays have
+exact result counts; temporary incidence storage is discarded. Nothing borrows
+project, Wall, topology, or builder workspace storage. A junction set can outlive
+both its topology and project. Do not shallow-copy it into another owner.
+
+Output must be zero-initialized or a previous valid result. Success replaces
+the old arrays; failure preserves every old pointer, count and value.
+`wall_junctions_destroy(WallJunctionSet *)` frees both arrays and zeros the
+structure; NULL, zero state and repeated destruction are safe. Pointers into
+the set and its participant ranges expire on its own destruction/replacement.
+
+The operation returns a subsystem-local `WallJunctionCode`: `SUCCESS`,
+`INVALID_ARGUMENT`, `ALLOCATION_FAILED`, or `NUMERIC_OVERFLOW` (array size
+arithmetic), all prefixed `WALL_JUNCTION_`. No source-specific error payload is
+needed because topology construction has already resolved the geometry.
+NULL/unbuilt/destroyed topology is invalid; a successfully built empty topology
+produces a successful empty set. Like the point query, this API assumes a valid
+builder result and is not a validator for arbitrary hand-edited topology arrays.
+
+A set describes exactly the topology snapshot from which it was built. It does
+not detect staleness or refresh itself. After authoritative geometry changes,
+successfully rebuild topology, then rebuild junctions to describe the new state.
+Building junctions against old topology still describes old geometry. Check both
+return statuses: either failed rebuild preserves its own previous result, and
+the two snapshots may then describe different geometry. Old sets remain usable
+as historical snapshots even after topology replacement or source deletion.
+
+### Participants, exactness and determinism
+
+Only `PLAN_TOPOLOGY_SOURCE_WALL` edges contribute. At least two distinct physical
+Wall IDs must occur at a vertex. Wall/RoomSeparator and separator-only meetings
+produce no wall junction. A separator sharing an existing wall-junction vertex
+does not become a participant or change its classification.
+
+Each wall-edge endpoint contributes a temporary incidence sorted by topology
+vertex index, Wall ID, and edge index. Equal `(vertex, wall_id)` incidences are
+compacted before counting participants. Thus an INTERIOR wall whose two
+subdivided edges touch the same vertex appears exactly once. Junctions follow
+topology's exact lexicographic `(x,y)` vertex order; participants follow ascending
+stable Wall DomainId. Neither ordering depends on project storage order or
+allocation addresses. For E topology edges, this layer takes O(E log E) time
+and O(E) temporary memory, with O(J + P) owned output for J junctions and P
+participants. It does not repeat pairwise intersection construction.
+
+The participant parameter is copied from `source_t_start` when the incidence
+touches `start_vertex`, and from `source_t_end` at `end_vertex`. Canonical edge
+direction is independent of original Wall endpoint order; parameters may descend.
+Exact t == 0 means `WALL_JUNCTION_PARTICIPANT_START`, t == 1 means
+`WALL_JUNCTION_PARTICIPANT_END`, otherwise `WALL_JUNCTION_PARTICIPANT_INTERIOR`.
+Reversing an original Wall exchanges its START/END roles and complements its t;
+the junction position and kind remain unchanged.
+
+Positions and parameters retain the full reduced rational limb representation,
+including fractional intersections and denominators wider than 64 bits. No
+rounding to PlanPosition, epsilon comparison, or floating-point test occurs.
+The only additional geometric predicate distinguishes collinear endpoint
+directions, using retained integer source segments and the existing private
+`topology_cross` kernel with the same proven bounds. No new public numeric
+primitive or second intersection implementation is introduced.
+
+### Geometry classification and construction boundary
+
+| Distinct physical Walls | Participant positions | Kind |
+| --- | --- | --- |
+| 2 | Both endpoints, non-collinear | `WALL_JUNCTION_CORNER` |
+| 2 | Both endpoints, collinear | `WALL_JUNCTION_CONTINUOUS` |
+| 2 | One endpoint, one interior | `WALL_JUNCTION_T` |
+| 2 | Both interior | `WALL_JUNCTION_CROSS` |
+| More than 2 | Any combination | `WALL_JUNCTION_MULTIWAY` |
+
+CORNER includes arbitrary non-collinear angles, not just right angles.
+CONTINUOUS requires only the already-supported endpoint-only collinear contact.
+Three separately modelled walls that visually resemble a T remain MULTIWAY;
+their actual identities and endpoint roles are retained.
+
+For a T, the endpoint participant identifies the terminating/butting wall and
+the INTERIOR participant identifies the wall continuing through. This already
+preserves the information needed for later construction decisions; there is no
+separate butt object or duplicated authoritative relationship.
+
+Internal/external corners are deferred. Centreline geometry alone cannot
+establish construction sides: those require later face, room/building side,
+envelope, orientation, or other higher-level semantics.
+
+Framing is intentionally unaffected. `wall_generate`, stud/plate/corner-stud
+placement, blocking, openings and all other member generation remain independent
+per-wall operations. Walls may still generate framing along their entire lengths
+despite a derived junction. Later priorities will choose construction treatment.
+No junction handles, trimming, snapping changes, rendering policy, incremental
+cache, persistent connectivity, overlap/hole solving, or CAD kernel is added.
+
+### Tests and dependency direction
+
+`test_wall_junctions` covers empty/lone sources, separator exclusion, all pair
+classifications under eight square symmetries, independent endpoint reversals
+and source permutations, exact fractional and full-range/wide-limb copies,
+deduplication, concurrent multiway meetings, multiple ordered junctions, and
+all 24 permutations of a four-source fixture. Integration tests rebuild after
+create/delete/move/history/load, verify project storage-order independence,
+staleness and independent lifetimes, and preserve authoritative validity for
+unsupported overlap. Linux GNU/Clang link-time allocation wrappers fail every
+junction allocation with both zero and populated outputs, checking unchanged
+input, transactional output and successful retries. No production allocator
+hooks are required; the same tests can run with ASan/UBSan.
+
+The implementation is part of the optional `sitehelper_topology` target and
+depends on topology/model types and its existing private exact numeric helper.
+Topology has no dependency on junction semantics, editor, commands, persistence
+or rendering. Command/persistence dependencies belong only to the integration
+test executable. The `SITEHELPER_BUILD_TOPOLOGY` compiler/backend policy is
+unchanged.
