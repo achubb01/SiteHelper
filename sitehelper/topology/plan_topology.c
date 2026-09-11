@@ -115,7 +115,7 @@ static int ray_compare(const void *pa, const void *pb)
     int bh = b->dy < 0 || (b->dy == 0 && b->dx < 0);
     if (ah != bh) { return ah < bh ? -1 : 1; }
     TopologyInt cross = topology_cross(a->dx, a->dy, b->dx, b->dy);
-    if (cross != 0) { return cross > 0 ? -1 : 1; }
+    if (!topology_int_is_zero(cross)) { return topology_int_is_negative(cross) ? 1 : -1; }
     return (a->direction > b->direction) - (a->direction < b->direction);
 }
 
@@ -123,11 +123,11 @@ static int intersection_coordinate(int origin, int64_t delta, TopologyInt t,
     TopologyInt denominator, PlanTopologyRational *coordinate)
 {
     TopologyInt a, b, numerator;
-    if (!topology_checked_multiply(origin, denominator, &a) ||
-        !topology_checked_multiply(delta, t, &b) || !topology_checked_add(a, b, &numerator)) {
+    if (!topology_checked_multiply(topology_int_from_i64(origin), denominator, &a) ||
+        !topology_checked_multiply(topology_int_from_i64(delta), t, &b) || !topology_checked_add(a, b, &numerator)) {
         return 0;
     }
-    *coordinate = topology_rational(numerator, (TopologyUInt)denominator);
+    *coordinate = topology_rational(numerator, topology_int_magnitude(denominator));
     return 1;
 }
 
@@ -139,8 +139,8 @@ static int intersect(Workspace *w, size_t i, size_t j, PlanTopologyResult *statu
     int64_t qx = (int64_t)b.start.x - a.start.x, qy = (int64_t)b.start.y - a.start.y;
     TopologyInt denominator = topology_cross(rx, ry, sx, sy);
     TopologyInt u = topology_cross(qx, qy, rx, ry);
-    if (denominator == 0) {
-        if (u != 0) { return 1; } /* Parallel distinct supporting lines. */
+    if (topology_int_is_zero(denominator)) {
+        if (!topology_int_is_zero(u)) { return 1; } /* Parallel distinct supporting lines. */
         int64_t a0 = rx != 0 ? a.start.x : a.start.y;
         int64_t a1 = rx != 0 ? a.end.x : a.end.y;
         int64_t b0 = rx != 0 ? b.start.x : b.start.y;
@@ -157,16 +157,16 @@ static int intersect(Workspace *w, size_t i, size_t j, PlanTopologyResult *statu
         return 1;
     }
     TopologyInt t = topology_cross(qx, qy, sx, sy);
-    if (denominator < 0) { denominator = -denominator; t = -t; u = -u; }
-    if (t < 0 || t > denominator || u < 0 || u > denominator) { return 1; }
+    if (topology_int_is_negative(denominator)) { denominator = topology_int_negate(denominator); t = topology_int_negate(t); u = topology_int_negate(u); }
+    if (topology_int_compare(t, topology_int_from_i64(0)) < 0 || topology_int_compare(t, denominator) > 0 || topology_int_compare(u, topology_int_from_i64(0)) < 0 || topology_int_compare(u, denominator) > 0) { return 1; }
     PlanTopologyVertex point;
     if (!intersection_coordinate(a.start.x, rx, t, denominator, &point.x) ||
         !intersection_coordinate(a.start.y, ry, t, denominator, &point.y)) {
         *status = result(PLAN_TOPOLOGY_NUMERIC_OVERFLOW, w->sources[i].source_id, w->sources[j].source_id);
         return 0;
     }
-    return append_cut(w, (Cut){i, topology_rational(t, (TopologyUInt)denominator), point}, status) &&
-        append_cut(w, (Cut){j, topology_rational(u, (TopologyUInt)denominator), point}, status);
+    return append_cut(w, (Cut){i, topology_rational(t, topology_int_magnitude(denominator)), point}, status) &&
+        append_cut(w, (Cut){j, topology_rational(u, topology_int_magnitude(denominator)), point}, status);
 }
 
 static size_t vertex_index(const PlanTopology *topology, PlanTopologyVertex point)
@@ -289,7 +289,7 @@ static int connect(Workspace *w, PlanTopology *topology, PlanTopologyResult *sta
         while (end < count && w->rays[end].vertex == w->rays[first].vertex) { end++; }
         if (component_root(w->roots, w->rays[first].vertex) == w->rays[first].vertex) {
             for (size_t i = first + 1; i < end; i++) {
-                if (topology_cross(w->rays[best].dx, w->rays[best].dy, w->rays[i].dx, w->rays[i].dy) > 0) { best = i; }
+                if (topology_int_compare(topology_cross(w->rays[best].dx, w->rays[best].dy, w->rays[i].dx, w->rays[i].dy), topology_int_from_i64(0)) > 0) { best = i; }
             }
             w->walks[w->directions[w->rays[best].direction].walk].exterior = true;
         }
@@ -305,7 +305,7 @@ static int point_inside_walk(const Workspace *w, const PlanTopology *topology,
     Walk walk, PlanPosition point)
 {
     int inside = 0;
-    PlanTopologyRational y = topology_rational(point.y, 1);
+    PlanTopologyRational y = topology_rational(topology_int_from_i64(point.y), topology_uint_from_u64(1));
     size_t step = walk.first;
     do {
         Direction d = w->directions[step];
@@ -315,7 +315,7 @@ static int point_inside_walk(const Workspace *w, const PlanTopology *topology,
             PlanSegment source = w->sources[w->edges[step / 2].source].segment;
             TopologyInt side = topology_cross(d.dx, d.dy,
                 (int64_t)point.x - source.start.x, (int64_t)point.y - source.start.y);
-            if ((d.dy > 0 && side > 0) || (d.dy < 0 && side < 0)) { inside = !inside; }
+            if ((d.dy > 0 && topology_int_compare(side, topology_int_from_i64(0)) > 0) || (d.dy < 0 && topology_int_compare(side, topology_int_from_i64(0)) < 0)) { inside = !inside; }
         }
         step = d.next;
     } while (step != walk.first);
@@ -419,8 +419,8 @@ PlanTopologyResult plan_topology_build(const PlanTopologySource *sources,
                 status = result(PLAN_TOPOLOGY_INVALID_SOURCE, source.source_id, source.source_id); goto cleanup;
             }
         }
-        if (!append_cut(&w, (Cut){i, topology_rational(0, 1), topology_integer_point(source.segment.start)}, &status) ||
-            !append_cut(&w, (Cut){i, topology_rational(1, 1), topology_integer_point(source.segment.end)}, &status)) { goto cleanup; }
+        if (!append_cut(&w, (Cut){i, topology_rational(topology_int_from_i64(0), topology_uint_from_u64(1)), topology_integer_point(source.segment.start)}, &status) ||
+            !append_cut(&w, (Cut){i, topology_rational(topology_int_from_i64(1), topology_uint_from_u64(1)), topology_integer_point(source.segment.end)}, &status)) { goto cleanup; }
     }
     for (size_t i = 0; i < source_count; i++) {
         for (size_t j = i + 1; j < source_count; j++) {

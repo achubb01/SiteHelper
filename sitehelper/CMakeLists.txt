@@ -63,32 +63,21 @@ add_library(sitehelper_persistence
     persistence/sitehelper_persistence.c
 )
 
-set(sitehelper_topology_default ON)
-if(MSVC)
-    # MSVC has no __int128 equivalent. The topology layer is optional; keep
-    # the portable model/editor and SDL desktop application available while
-    # retaining an explicit diagnostic for unsupported opt-in builds below.
-    set(sitehelper_topology_default OFF)
-endif()
 option(SITEHELPER_BUILD_TOPOLOGY
-    "Build exact derived plan topology (requires 128-bit compiler arithmetic)"
-    ${sitehelper_topology_default})
+    "Build exact derived plan topology with portable 128-bit arithmetic" ON)
 if(SITEHELPER_BUILD_TOPOLOGY)
-    include(CheckCSourceCompiles)
-    check_c_source_compiles("int main(void) { __extension__ typedef __int128 I; I a = 1, b; return __builtin_mul_overflow(a, a, &b) || __builtin_add_overflow(a, a, &b); }"
-        SITEHELPER_HAS_EXACT_TOPOLOGY_INTEGER)
-    if(NOT SITEHELPER_HAS_EXACT_TOPOLOGY_INTEGER)
-        message(FATAL_ERROR "Plan topology requires 128-bit integers and checked arithmetic builtins. Use a capable GCC/Clang target, or -DSITEHELPER_BUILD_TOPOLOGY=OFF to build the application without topology.")
-    endif()
-
     add_library(sitehelper_topology
         topology/plan_topology.c
         topology/plan_topology_query.c
         topology/project_topology.c
         topology/room_region.c
         topology/wall_junctions.c
-        topology/topology_numeric.c
     )
+    if(MSVC)
+        target_sources(sitehelper_topology PRIVATE topology/topology_numeric_msvc.c)
+    else()
+        target_sources(sitehelper_topology PRIVATE topology/topology_numeric.c)
+    endif()
     target_include_directories(sitehelper_topology PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/topology)
     target_link_libraries(sitehelper_topology PUBLIC sitehelper_project PRIVATE sitehelper_wall)
 endif()

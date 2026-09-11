@@ -38,7 +38,7 @@ PlanTopologyPointResult plan_topology_find_face_at_plan_position(
         const PlanTopologyEdge *edge = &topology->edges[i];
         PlanTopologyVertex a = topology->vertices[edge->start_vertex];
         PlanTopologyVertex b = topology->vertices[edge->end_vertex];
-        if (source_side(edge, position) == 0 && between(p.x, a.x, b.x) && between(p.y, a.y, b.y)) {
+        if (topology_int_is_zero(source_side(edge, position)) && between(p.x, a.x, b.x) && between(p.y, a.y, b.y)) {
             return point_result(PLAN_TOPOLOGY_POINT_ON_BOUNDARY, SIZE_MAX);
         }
     }
@@ -59,9 +59,9 @@ PlanTopologyPointResult plan_topology_find_face_at_plan_position(
                  * above, so a rightward ray crossing is strictly to one side. */
                 if ((ay > 0) == (by > 0)) { continue; }
                 TopologyInt side = source_side(edge, position);
-                if (topology_rational_compare(edge->source_t_start, edge->source_t_end) > 0) { side = -side; }
-                if (step.reversed) { side = -side; }
-                if ((by > ay && side > 0) || (by < ay && side < 0)) { inside = !inside; }
+                if (topology_rational_compare(edge->source_t_start, edge->source_t_end) > 0) { side = topology_int_negate(side); }
+                if (step.reversed) { side = topology_int_negate(side); }
+                if ((by > ay && topology_int_compare(side, topology_int_from_i64(0)) > 0) || (by < ay && topology_int_compare(side, topology_int_from_i64(0)) < 0)) { inside = !inside; }
             }
         }
         if (inside) { return point_result(PLAN_TOPOLOGY_POINT_BOUNDED, f); }

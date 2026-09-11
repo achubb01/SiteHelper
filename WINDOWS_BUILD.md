@@ -7,16 +7,15 @@ the **Desktop development with C++** workload and CMake.
 From a Visual Studio Developer PowerShell:
 
 ```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -DSITEHELPER_BUILD_TOPOLOGY=OFF
+cmake -S . -B build -G "Visual Studio 17 2022"
 cmake --build build --config Debug --target sitehelper_sdl
-.
-build\sitehelper\Debug\sitehelper_sdl.exe
+.\build\sitehelper\Debug\sitehelper_sdl.exe
 ```
 
-The topology layer is disabled because MSVC does not provide the 128-bit
-integer operations used by the optional exact topology implementation. The
-portable model, editor, GUI, renderer abstraction, SDL renderer adapter,
-platform-event adapter, and desktop application remain enabled. Portable tests
+The exact topology layer uses SiteHelper's portable two-limb 128-bit arithmetic
+and is enabled on MSVC as well as GCC and Clang. The portable model, editor,
+GUI, renderer abstraction, SDL renderer adapter, platform-event adapter, and
+desktop application remain enabled. Portable tests
 can be built with `cmake --build build --config Debug` and run with
 `ctest --test-dir build -C Debug --output-on-failure`.
 

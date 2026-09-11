@@ -37,18 +37,25 @@ static void rectangle(PlanTopologySource *s, DomainId first, int x, int y, int s
     s[3] = SOURCE(first + 3, x, y + size, x, y);
 }
 
-static void fraction(PlanTopologyRational actual, TopologyInt numerator, TopologyUInt denominator)
+static void fraction(PlanTopologyRational actual, int64_t numerator, uint64_t denominator)
 {
-    PlanTopologyRational expected = topology_rational(numerator, denominator);
+    PlanTopologyRational expected = topology_rational(topology_int_from_i64(numerator), topology_uint_from_u64(denominator));
     assert(actual.negative == expected.negative);
     assert(actual.numerator.lo == expected.numerator.lo && actual.numerator.hi == expected.numerator.hi);
     assert(actual.denominator.lo == expected.denominator.lo && actual.denominator.hi == expected.denominator.hi);
 }
 
-static size_t find_vertex(const PlanTopology *t, TopologyInt xn, TopologyUInt xd,
-    TopologyInt yn, TopologyUInt yd)
+static void rational_equal(PlanTopologyRational actual, PlanTopologyRational expected)
 {
-    PlanTopologyVertex wanted = {topology_rational(xn, xd), topology_rational(yn, yd)};
+    assert(actual.negative == expected.negative);
+    assert(actual.numerator.lo == expected.numerator.lo && actual.numerator.hi == expected.numerator.hi);
+    assert(actual.denominator.lo == expected.denominator.lo && actual.denominator.hi == expected.denominator.hi);
+}
+
+static size_t find_vertex(const PlanTopology *t, int64_t xn, uint64_t xd,
+    int64_t yn, uint64_t yd)
+{
+    PlanTopologyVertex wanted = {topology_rational(topology_int_from_i64(xn), topology_uint_from_u64(xd)), topology_rational(topology_int_from_i64(yn), topology_uint_from_u64(yd))};
     for (size_t i = 0; i < t->vertex_count; i++) {
         if (topology_vertex_compare(wanted, t->vertices[i]) == 0) { return i; }
     }
@@ -121,11 +128,16 @@ static PlanTopology build(const PlanTopologySource *s, size_t count, size_t vert
 
 static void complementary_parameters(PlanTopologyRational original, PlanTopologyRational reversed)
 {
+#if defined(_MSC_VER)
+    TopologyUInt n = (TopologyUInt){original.numerator.lo, original.numerator.hi};
+    TopologyUInt d = (TopologyUInt){original.denominator.lo, original.denominator.hi};
+#else
     TopologyUInt n = ((TopologyUInt)original.numerator.hi << 64) | original.numerator.lo;
     TopologyUInt d = ((TopologyUInt)original.denominator.hi << 64) | original.denominator.lo;
-    assert(!original.negative && n <= d);
+#endif
+    assert(!original.negative && topology_uint_compare(n, d) <= 0);
     /* Builder source parameters have at most 65 bits, so this signed cast fits. */
-    fraction(reversed, (TopologyInt)(d - n), d);
+    rational_equal(reversed, topology_rational(topology_uint_as_int(topology_uint_subtract(d, n)), d));
 }
 
 static void equivalent(const PlanTopology *a, const PlanTopology *b, bool spans)
@@ -194,8 +206,8 @@ static void test_open_geometry_and_intersections(void)
     size_t piece = 0;
     for (size_t i = 0; i < t.edge_count; i++) {
         if (t.edges[i].source_id == 1) {
-            fraction(t.edges[i].source_t_start, (TopologyInt)piece, 4);
-            fraction(t.edges[i].source_t_end, (TopologyInt)piece + 1, 4);
+            fraction(t.edges[i].source_t_start, (int64_t)piece, 4);
+            fraction(t.edges[i].source_t_end, (int64_t)piece + 1, 4);
             piece++;
         }
     }
@@ -432,25 +444,25 @@ static void test_explicit_failures_and_numeric_limits(void)
     }
     assert(wide_denominator);
     plan_topology_destroy(&t);
-    TopologyInt large = (TopologyInt)((TopologyUInt)1 << 126), out;
-    assert(!topology_checked_multiply(large, 2, &out));
+    TopologyInt large = topology_uint_as_int(topology_uint_shift_left(topology_uint_from_u64(1), 126)), out;
+    assert(!topology_checked_multiply(large, topology_int_from_i64(2), &out));
     assert(!topology_checked_add(large, large, &out));
-    assert(topology_checked_multiply(large, 1, &out) && out == large);
-    assert(topology_rational_compare(topology_rational(large - 1, (TopologyUInt)large),
-        topology_rational(large - 2, (TopologyUInt)large - 1)) > 0);
-    assert(topology_rational_compare(topology_rational(-1, 3), topology_rational(-1, 2)) > 0);
-    assert(topology_rational_compare(topology_rational(0, 999), topology_rational(0, 1)) == 0);
+    assert(topology_checked_multiply(large, topology_int_from_i64(1), &out) && topology_int_compare(out, large) == 0);
+    assert(topology_rational_compare(topology_rational(topology_int_subtract(large, topology_int_from_i64(1)), topology_int_as_uint(large)),
+        topology_rational(topology_int_subtract(large, topology_int_from_i64(2)), topology_uint_subtract(topology_int_as_uint(large), topology_uint_from_u64(1)))) > 0);
+    assert(topology_rational_compare(topology_rational(topology_int_from_i64(-1), topology_uint_from_u64(3)), topology_rational(topology_int_from_i64(-1), topology_uint_from_u64(2))) > 0);
+    assert(topology_rational_compare(topology_rational(topology_int_from_i64(0), topology_uint_from_u64(999)), topology_rational(topology_int_from_i64(0), topology_uint_from_u64(1))) == 0);
     /* Explicit limb expectations exercise reduction and the minimum signed
      * value without using the rational constructor to construct the oracle. */
-    PlanTopologyRational reduced = topology_rational(-6, 8);
+    PlanTopologyRational reduced = topology_rational(topology_int_from_i64(-6), topology_uint_from_u64(8));
     assert(reduced.negative && reduced.numerator.lo == 3 && reduced.numerator.hi == 0);
     assert(reduced.denominator.lo == 4 && reduced.denominator.hi == 0);
-    TopologyInt minimum = -large - large;
-    reduced = topology_rational(minimum, 1);
+    TopologyInt minimum = topology_int_negate(topology_int_add(large, large));
+    reduced = topology_rational(minimum, topology_uint_from_u64(1));
     assert(reduced.negative && reduced.numerator.lo == 0 && reduced.numerator.hi == (UINT64_C(1) << 63));
     assert(reduced.denominator.lo == 1 && reduced.denominator.hi == 0);
-    TopologyUInt maximum = ~(TopologyUInt)0;
-    assert(topology_rational_compare(topology_rational(1, maximum), topology_rational(1, maximum - 1)) < 0);
+    TopologyUInt maximum = topology_uint_complement(topology_uint_from_u64(0));
+    assert(topology_rational_compare(topology_rational(topology_int_from_i64(1), maximum), topology_rational(topology_int_from_i64(1), topology_uint_subtract(maximum, topology_uint_from_u64(1)))) < 0);
 }
 
 static void project_rectangle(SiteHelperProject *project)

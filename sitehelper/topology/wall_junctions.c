@@ -44,9 +44,9 @@ static WallJunctionParticipant participant(const PlanTopology *topology, Inciden
     PlanTopologyRational t = incidence.vertex == edge->start_vertex ?
         edge->source_t_start : edge->source_t_end;
     WallJunctionParticipantPosition position = WALL_JUNCTION_PARTICIPANT_INTERIOR;
-    if (topology_rational_compare(t, topology_rational(0, 1)) == 0) {
+    if (topology_rational_compare(t, topology_rational(topology_int_from_i64(0), topology_uint_from_u64(1))) == 0) {
         position = WALL_JUNCTION_PARTICIPANT_START;
-    } else if (topology_rational_compare(t, topology_rational(1, 1)) == 0) {
+    } else if (topology_rational_compare(t, topology_rational(topology_int_from_i64(1), topology_uint_from_u64(1))) == 0) {
         position = WALL_JUNCTION_PARTICIPANT_END;
     }
     return (WallJunctionParticipant){incidence.wall_id, position, t};
@@ -65,8 +65,8 @@ static WallJunctionKind classify(const PlanTopology *topology, const Incidence *
     /* Topology already establishes the shared point. Only supporting-line
      * direction is needed here, using the existing exact numeric kernel.
      * Integer endpoint differences are <= 2^32-1, cross magnitude < 2^65. */
-    return topology_cross((int64_t)a.end.x - a.start.x, (int64_t)a.end.y - a.start.y,
-        (int64_t)b.end.x - b.start.x, (int64_t)b.end.y - b.start.y) == 0 ?
+    return topology_int_is_zero(topology_cross((int64_t)a.end.x - a.start.x, (int64_t)a.end.y - a.start.y,
+        (int64_t)b.end.x - b.start.x, (int64_t)b.end.y - b.start.y)) ?
         WALL_JUNCTION_CONTINUOUS : WALL_JUNCTION_CORNER;
 }
 

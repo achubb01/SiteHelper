@@ -39,7 +39,7 @@ static void rational_equal(PlanTopologyRational a, PlanTopologyRational b)
 
 static void fraction(PlanTopologyRational actual, int numerator, unsigned denominator)
 {
-    rational_equal(actual, topology_rational(numerator, denominator));
+    rational_equal(actual, topology_rational(topology_int_from_i64(numerator), topology_uint_from_u64(denominator)));
 }
 
 static void consistent(const WallJunctionSet *set)

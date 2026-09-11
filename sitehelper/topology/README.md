@@ -76,28 +76,14 @@ coordinates, geometry arithmetic itself fits the proven bounds. Tests exercise
 full-range inputs, wide reduced denominators, near-limit comparisons, signed
 minimum normalization, checked arithmetic overflow and impossible array sizes.
 
-## Compiler constraint
+## Compiler portability
 
-Only the private numeric header/implementation use `__int128` and GCC-compatible
-checked arithmetic builtins. CMake probes both addition and multiplication.
-The default `SITEHELPER_BUILD_TOPOLOGY=ON` requires those capabilities; there is
-no floating-point fallback. GCC/Clang support is target-dependent, so the probe
-is authoritative for a particular compiler/target. Linux x86-64 GCC is verified
-in this workspace. No Windows compiler/toolchain or declared Windows compiler
-policy is present here. Existing MSVC-specific CMake branches indicate that
-preventing all non-topology application builds would be an unnecessary restriction.
-
-Native MSVC does not provide this numeric backend. Configure with
-`-DSITEHELPER_BUILD_TOPOLOGY=OFF` to build the existing application and other tests
-without this independent query target. A Windows GCC/Clang target must pass the
-same capability check; Windows builds are not claimed as tested. A future MSVC
-backend can remain private without changing the public limb representation.
-This is a temporary, explicit subsystem toolchain constraint, not a weaker
-numeric policy or an assertion that the application now requires GCC.
-
-Compiler references: [GCC integer extension](https://gcc.gnu.org/onlinedocs/gcc/_005f_005fint128.html),
-[Clang checked arithmetic](https://clang.llvm.org/docs/LanguageExtensions.html#checked-arithmetic-builtins),
-[Microsoft sized integer types](https://learn.microsoft.com/en-us/cpp/cpp/int8-int16-int32-int64).
+The topology API and algorithms use only the private numeric abstraction. GCC
+and Clang retain their native 128-bit implementation; MSVC x64 uses a two-limb
+128-bit implementation with `_umul128` for the one word multiply primitive.
+Neither topology source nor its public API contains compiler-specific branches.
+The exact topology target is enabled by default on every supported desktop
+compiler. There is no floating-point fallback.
 
 ## Connectivity, faces and determinism
 
