@@ -309,7 +309,7 @@ static void test_unsupported_version_is_rejected(void)
     assert(sitehelper_project_add_storey(&destination, 0));
 
     write_text_file(unsupported_path,
-        "sitehelper_project 9\n");
+        "sitehelper_project 10\n");
 
     assert(sitehelper_project_load_file(&destination, unsupported_path) ==
         SITEHELPER_PERSISTENCE_UNSUPPORTED_VERSION);
@@ -593,7 +593,7 @@ static void test_malformed_version_three_reference_is_transactional(void)
     remove(malformed_path);
 }
 
-static void test_version_eight_ordered_segments_round_trip(void)
+static void test_version_nine_ordered_segments_round_trip(void)
 {
     SiteHelperProject original;
     SiteHelperProject loaded;
@@ -625,7 +625,7 @@ static void test_version_eight_ordered_segments_round_trip(void)
     assert(!ferror(file) && feof(file));
     text[count] = '\0';
     assert(fclose(file) == 0);
-    assert(strstr(text, "sitehelper_project 8\n") == text);
+    assert(strstr(text, "sitehelper_project 9\n") == text);
     assert(strstr(text, "segment 1000 2000 4600 6800 openings 1") != NULL);
     assert(strstr(text, "segment 4600 6800 1000 2000 openings 1") != NULL);
     assert(strstr(text, " origin ") == NULL && strstr(text, " length ") == NULL);
@@ -894,7 +894,7 @@ static void test_versions_one_through_six_migrate_without_separators(void)
         assert(feof(file) && !ferror(file));
         text[count] = '\0';
         assert(fclose(file) == 0);
-        assert(strstr(text, "sitehelper_project 8\n") == text);
+        assert(strstr(text, "sitehelper_project 9\n") == text);
         assert(strstr(text, "wall_ref") == NULL);
         assert(strstr(text, version == 6 ? "room 1 placement placed -12 34\nend_room\n" :
                 "room 1 placement unplaced\nend_room\n") &&
@@ -953,7 +953,7 @@ static void test_room_placement_round_trip(void)
     size_t count = fread(text, 1, sizeof text - 1, file);
     assert(feof(file) && !ferror(file) && fclose(file) == 0);
     text[count] = '\0';
-    assert(strstr(text, "sitehelper_project 8\n") == text);
+    assert(strstr(text, "sitehelper_project 9\n") == text);
     assert(strstr(text, "room 2 placement unplaced\nend_room\n"));
     assert(strstr(text, "room 3 placement placed 0 0\nend_room\n"));
     assert(strstr(text, "room 5 placement unplaced\nend_room\n"));
@@ -1115,7 +1115,7 @@ int main(void)
     test_malformed_version_two_origin_is_transactional();
     test_independent_rooms_and_wall_round_trip();
     test_malformed_version_three_reference_is_transactional();
-    test_version_eight_ordered_segments_round_trip();
+    test_version_nine_ordered_segments_round_trip();
     test_version_three_migrates_shared_horizontal_wall();
     test_invalid_segment_files_are_transactional();
 

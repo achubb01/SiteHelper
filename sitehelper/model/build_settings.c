@@ -2,6 +2,12 @@
 
 #include "build_settings.h"
 
+int storey_build_settings_valid(const StoreyBuildSettings *settings)
+{
+    return settings != NULL && (settings->has_stud_height_override
+        ? settings->stud_height > 0 : settings->stud_height == 0);
+}
+
 int build_settings_valid(const BuildSettings *settings)
 {
     if (settings == NULL || settings->stud_height <= 0 ||

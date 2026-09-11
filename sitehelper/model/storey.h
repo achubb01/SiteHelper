@@ -2,6 +2,7 @@
 #define STOREY_H
 
 #include "build_structure.h"
+#include "build_settings.h"
 
 /* Authoritative, exclusively owned by SiteHelperProject. Containment owns all
  * Rooms, Walls and virtual separators; openings remain owned by Walls.
@@ -11,6 +12,8 @@
 typedef struct Storey {
     DomainId id;
     int elevation_mm;
+    /* Change through project settings APIs so framing is updated atomically. */
+    StoreyBuildSettings settings;
     BuildStructure structure;
 } Storey;
 

@@ -16,7 +16,8 @@ typedef enum
 } SiteHelperPersistenceResult;
 
 /*
- * Version 8 stores ordered Storeys, each as "storey ID elevation MM", followed
+ * Version 9 stores ordered Storeys, each as "storey ID elevation MM", followed
+ * by "stud_height inherit" or "stud_height override N", then
  * by its walls/openings, rooms/placements and room_separators, then end_storey.
  * Settings and the DomainId watermark remain project-wide. No derived state
  * is saved. Save validates all authoritative state before opening the file.
@@ -27,7 +28,7 @@ SiteHelperPersistenceResult sitehelper_project_save_file(
 );
 
 /*
- * Loads versions 1-8 transactionally into an initialized destination. Parse,
+ * Loads versions 1-9 transactionally into an initialized destination. Parse,
  * authoritative validation and framing regeneration must all succeed before
  * replacing it. On failure destination remains unchanged.
  * Versions 1-7 migrate into one elevation-zero Storey. Existing entity IDs
@@ -36,6 +37,7 @@ SiteHelperPersistenceResult sitehelper_project_save_file(
  * Versions 1-2 promote nested walls into Storey-global storage; 3-4 validate
  * and discard Room wall references. Versions 1-5 leave Rooms unplaced, and
  * versions 1-6 have no virtual separators. No spatial relationship is inferred.
+ * Versions 1-8 have no Storey overrides; every Storey inherits Project defaults.
  */
 SiteHelperPersistenceResult sitehelper_project_load_file(
     SiteHelperProject *destination,

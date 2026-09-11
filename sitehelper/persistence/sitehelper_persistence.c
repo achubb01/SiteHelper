@@ -10,10 +10,11 @@
 #include <string.h>
 
 #include "wall.h"
+#include "project_settings_internal.h"
 
 enum
 {
-    SITEHELPER_PROJECT_FORMAT_VERSION = 8,
+    SITEHELPER_PROJECT_FORMAT_VERSION = 9,
     PERSISTENCE_TOKEN_CAPACITY = 64
 };
 
@@ -333,7 +334,7 @@ static SiteHelperPersistenceResult parse_settings(
 static SiteHelperPersistenceResult parse_opening(
     FILE *file,
     SiteHelperProject *project,
-    Wall *wall
+    Wall *wall, const BuildSettings *resolved
 )
 {
     char token[PERSISTENCE_TOKEN_CAPACITY];
@@ -379,7 +380,7 @@ static SiteHelperPersistenceResult parse_opening(
 
     return wall_add_opening_definition(
         wall,
-        &project->settings,
+        resolved,
         &opening
     )
         ? SITEHELPER_PERSISTENCE_SUCCESS
@@ -389,7 +390,7 @@ static SiteHelperPersistenceResult parse_opening(
 static SiteHelperPersistenceResult parse_wall(
     FILE *file,
     SiteHelperProject *project, BuildStructure *structure,
-    uintmax_t version
+    uintmax_t version, const BuildSettings *resolved
 )
 {
     char token[PERSISTENCE_TOKEN_CAPACITY];
@@ -468,7 +469,7 @@ static SiteHelperPersistenceResult parse_wall(
         SiteHelperPersistenceResult result = parse_opening(
             file,
             project,
-            wall
+            wall, resolved
         );
 
         if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
@@ -522,7 +523,7 @@ static SiteHelperPersistenceResult parse_legacy_wall_references(
 static SiteHelperPersistenceResult parse_room(
     FILE *file,
     SiteHelperProject *project, BuildStructure *structure,
-    uintmax_t version
+    uintmax_t version, const BuildSettings *resolved
 )
 {
     char token[PERSISTENCE_TOKEN_CAPACITY];
@@ -576,7 +577,7 @@ static SiteHelperPersistenceResult parse_room(
             /* Versions 1-2 nested physical definitions under rooms. Preserve
              * every identity and promote each wall into the synthesized Storey. */
             for (size_t i = 0; i < count; i++) {
-                SiteHelperPersistenceResult result = parse_wall(file, project, structure, version);
+                SiteHelperPersistenceResult result = parse_wall(file, project, structure, version, resolved);
                 if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
                     return result;
                 }
@@ -624,7 +625,7 @@ static SiteHelperPersistenceResult parse_room_separators(FILE *file, SiteHelperP
 }
 
 static SiteHelperPersistenceResult parse_structure(FILE *file, SiteHelperProject *project,
-    BuildStructure *structure, uintmax_t version)
+    BuildStructure *structure, uintmax_t version, const BuildSettings *resolved)
 {
     char token[PERSISTENCE_TOKEN_CAPACITY];
     size_t room_count;
@@ -639,7 +640,7 @@ static SiteHelperPersistenceResult parse_structure(FILE *file, SiteHelperProject
         }
 
         for (size_t index = 0; index < wall_count; index++) {
-            result = parse_wall(file, project, structure, version);
+            result = parse_wall(file, project, structure, version, resolved);
             if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
                 return result;
             }
@@ -654,7 +655,7 @@ static SiteHelperPersistenceResult parse_structure(FILE *file, SiteHelperProject
     }
 
     for (size_t index = 0; index < room_count; index++) {
-        result = parse_room(file, project, structure, version);
+        result = parse_room(file, project, structure, version, resolved);
 
         if (result != SITEHELPER_PERSISTENCE_SUCCESS) {
             return result;
@@ -739,7 +740,29 @@ static SiteHelperPersistenceResult parse_project(
                 !parse_int_token(token, &elevation)) { return SITEHELPER_PERSISTENCE_MALFORMED_DATA; }
             if (!sitehelper_project_insert_storey(project, id, elevation)) { return SITEHELPER_PERSISTENCE_ALLOCATION_FAILED; }
         }
-        result = parse_structure(file, project, &project->storeys[i].structure, version);
+        Storey *storey = &project->storeys[i];
+        if (version >= 9) {
+            if (expect_token(file, "stud_height") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS) {
+                return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+            }
+            if (strcmp(token, "override") == 0) {
+                storey->settings.has_stud_height_override = true;
+                if (read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                    !parse_int_token(token, &storey->settings.stud_height)) {
+                    return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+                }
+            } else if (strcmp(token, "inherit") != 0) {
+                return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+            }
+        }
+        BuildSettings resolved;
+        /* Resolve staged parser values through the same rule. Legacy Storeys
+         * still have a temporary zero ID here, and inherit without an override. */
+        if (!project_resolve_build_settings(&project->settings, &storey->settings, &resolved)) {
+            return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+        result = parse_structure(file, project, &storey->structure, version, &resolved);
         if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
         if (version >= 8 && expect_token(file, "end_storey") != SITEHELPER_PERSISTENCE_SUCCESS) {
             return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
@@ -780,13 +803,17 @@ static SiteHelperPersistenceResult regenerate_project(
 
     for (size_t i = 0; i < project->storey_count; i++) {
         BuildStructure *structure = &project->storeys[i].structure;
+        BuildSettings resolved;
+        if (!sitehelper_project_resolve_storey_build_settings(project, project->storeys[i].id, &resolved)) {
+            return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
         for (size_t wall_index = 0;
              wall_index < structure->wall_count;
              wall_index++) {
 
             if (!wall_generate(
                     &structure->walls[wall_index],
-                    &project->settings)) {
+                    &resolved)) {
 
                 return SITEHELPER_PERSISTENCE_REGENERATION_FAILED;
             }
@@ -824,8 +851,12 @@ static int write_project(
     for (size_t i = 0; i < project->storey_count; i++) {
         const Storey *storey = &project->storeys[i];
         const BuildStructure *structure = &storey->structure;
-        if (fprintf(file, "storey %" PRIu64 " elevation %d\nwalls %zu\n",
-                (uint64_t)storey->id, storey->elevation_mm, structure->wall_count) < 0) { return 0; }
+        if (fprintf(file, "storey %" PRIu64 " elevation %d\nstud_height ",
+                (uint64_t)storey->id, storey->elevation_mm) < 0) { return 0; }
+        if (storey->settings.has_stud_height_override) {
+            if (fprintf(file, "override %d\n", storey->settings.stud_height) < 0) { return 0; }
+        } else if (fputs("inherit\n", file) == EOF) { return 0; }
+        if (fprintf(file, "walls %zu\n", structure->wall_count) < 0) { return 0; }
         for (size_t wall_index = 0;
              wall_index < structure->wall_count;
              wall_index++) {

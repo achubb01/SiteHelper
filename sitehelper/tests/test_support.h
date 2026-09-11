@@ -211,6 +211,8 @@ static inline void test_assert_project_model_equal(
     for (size_t level = 0; level < expected->storey_count; level++) {
         assert(expected->storeys[level].id == actual->storeys[level].id);
         assert(expected->storeys[level].elevation_mm == actual->storeys[level].elevation_mm);
+        assert(expected->storeys[level].settings.has_stud_height_override == actual->storeys[level].settings.has_stud_height_override);
+        assert(expected->storeys[level].settings.stud_height == actual->storeys[level].settings.stud_height);
         assert(expected->storeys[level].structure.room_count == actual->storeys[level].structure.room_count);
         assert(expected->storeys[level].structure.wall_count == actual->storeys[level].structure.wall_count);
         assert(expected->storeys[level].structure.room_separator_count == actual->storeys[level].structure.room_separator_count);
@@ -314,6 +316,7 @@ static inline void test_clone_project_authoritative(
     for (size_t level = 0; level < source->storey_count; level++) {
         assert(sitehelper_project_insert_storey(destination, source->storeys[level].id,
             source->storeys[level].elevation_mm));
+        destination->storeys[level].settings = source->storeys[level].settings;
         for (size_t i = 0; i < source->storeys[level].structure.wall_count; i++) {
             Wall wall = {0};
             test_clone_wall_definition(&source->storeys[level].structure.walls[i], &wall);

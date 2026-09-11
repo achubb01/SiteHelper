@@ -47,6 +47,11 @@ void sitehelper_editor_init(
 int sitehelper_editor_set_current_storey(SiteHelperEditor *editor,
     const SiteHelperProject *project, DomainId storey_id);
 
+/* Application preview boundary: resolve the active Storey on every update.
+ * No effective construction settings are cached in editor state. */
+void sitehelper_editor_pointer_move_in_project(SiteHelperEditor *editor,
+    const SiteHelperProject *project, Vec2 view_position);
+
 int sitehelper_editor_tool_available(EditorView view, EditorTool tool);
 int sitehelper_editor_set_active_view(SiteHelperEditor *editor, EditorView view);
 
@@ -115,7 +120,9 @@ void sitehelper_editor_update_snap(
     Vec2 position
 );
 
-/* Pointer APIs receive active view world coordinates, after camera unprojection. */
+/* Pointer APIs receive active view world coordinates, after camera unprojection.
+ * This low-level helper requires resolved construction settings. Applications
+ * should use pointer_move_in_project, which resolves the active Storey. */
 void sitehelper_editor_pointer_move(
     SiteHelperEditor *editor,
     const Wall *wall,

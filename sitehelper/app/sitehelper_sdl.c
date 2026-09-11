@@ -115,25 +115,6 @@ static int sitehelper_app_toolbar_action_tool(
     EditorTool *tool
 );
 
-static Wall *sitehelper_app_current_wall(
-    SiteHelperApp *app
-);
-
-
-static Wall *sitehelper_app_current_wall(
-    SiteHelperApp *app
-)
-{
-    if (app == NULL) {
-        return NULL;
-    }
-
-    return app_current_wall(
-        &app->project,
-        &app->editor
-    );
-}
-
 static int sitehelper_app_init(
     SiteHelperApp *app
 )
@@ -794,15 +775,9 @@ static void sitehelper_app_update_editor_pointer(
             screen_position
         );
 
-    Wall *wall =
-        sitehelper_app_current_wall(
-            app
-        );
-
-    sitehelper_editor_pointer_move(
+    sitehelper_editor_pointer_move_in_project(
         &app->editor,
-        wall,
-        &app->project.settings,
+        &app->project,
         view_position
     );
 }

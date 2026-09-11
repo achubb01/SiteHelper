@@ -1,12 +1,16 @@
 #ifndef BUILD_SETTINGS_H
 #define BUILD_SETTINGS_H
 
+#include <stdbool.h>
+
 typedef enum
 {
     STUD_SPACING_EVEN,
     STUD_SPACING_MAXIMISE
 } StudSpacingMode;
 
+/* Complete scalar configuration. Stored in Project as defaults; Wall APIs
+ * consume a transient, resolved copy supplied by project orchestration. */
 typedef struct
 {
     int stud_height;
@@ -21,6 +25,15 @@ typedef struct
 
     StudSpacingMode stud_spacing_mode;
 } BuildSettings;
+
+/* Narrow authoritative override. Inherited state has a canonical zero payload;
+ * the flag alone selects inheritance, never the numeric value. */
+typedef struct {
+    bool has_stud_height_override;
+    int stud_height;
+} StoreyBuildSettings;
+
+int storey_build_settings_valid(const StoreyBuildSettings *settings);
 
 /* Authoritative scalar settings rules. Allowances are checked in context by
  * opening validation; no independent sign restriction is imposed on them. */

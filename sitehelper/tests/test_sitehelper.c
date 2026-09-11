@@ -211,6 +211,7 @@ static void assert_wall_end_studs(
     const BuildSettings *settings
 )
 {
+    (void)settings;
     assert(wall->framing.stud_count > 0);
 
     assert(

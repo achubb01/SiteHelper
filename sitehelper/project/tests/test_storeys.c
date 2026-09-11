@@ -359,6 +359,7 @@ static void test_persistence(void)
         write_file(path, text);
         assert(sitehelper_project_load_file(&loaded, path) == SITEHELPER_PERSISTENCE_SUCCESS);
         assert(loaded.storey_count == 1 && loaded.storeys[0].id == 50 && loaded.storeys[0].elevation_mm == 0);
+        assert(!loaded.storeys[0].settings.has_stud_height_override && loaded.storeys[0].settings.stud_height == 0);
         assert(loaded.domain_ids.next == 51);
         assert(sitehelper_project_find_room_by_id(&loaded, 1));
         assert(sitehelper_project_find_wall_by_id(&loaded, 2)->definition.openings[0].id == 3);
@@ -556,7 +557,7 @@ static void test_load_allocation_transactions(void)
             assert(n < 255);
         }
         assert(failures > 5);
-        printf("Storey load allocation failures checked (%s): %zu\n", legacy ? "v7 migration" : "v8", failures);
+        printf("Storey load allocation failures checked (%s): %zu\n", legacy ? "v7 migration" : "v9", failures);
     }
     assert(remove(path) == 0); sitehelper_project_destroy(&source);
 }

@@ -1,5 +1,6 @@
 #include "sitehelper_project.h"
 #include "wall.h"
+#include "project_settings_internal.h"
 
 static SiteHelperProjectValidation validation(SiteHelperProjectValidationCode code,
     DomainId subject, DomainId related)
@@ -92,6 +93,11 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
             }
         }
     }
+    for (size_t s = 0; s < project->storey_count; s++) {
+        if (!storey_build_settings_valid(&project->storeys[s].settings)) {
+            return validation(SITEHELPER_PROJECT_INVALID_STOREY_SETTINGS, project->storeys[s].id, 0);
+        }
+    }
     DomainId maximum = DOMAIN_ID_INVALID;
     for (size_t s = 0; s < project->storey_count; s++) {
         const BuildStructure *structure = &project->storeys[s].structure;
@@ -133,6 +139,8 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
     }
     for (size_t s = 0; s < project->storey_count; s++) {
         const BuildStructure *structure = &project->storeys[s].structure;
+        BuildSettings resolved;
+        project_resolve_build_settings(&project->settings, &project->storeys[s].settings, &resolved);
         for (size_t i = 0; i < structure->wall_count; i++) {
             const Wall *wall = &structure->walls[i];
             if (wall_length_mm(wall) == 0) {
@@ -150,7 +158,7 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
                     .height = opening->height, .width_allowance = opening->width_allowance,
                     .height_allowance = opening->height_allowance, .custom_allowance = opening->custom_allowance
                 };
-                WallOpeningValidation result = wall_validate_opening(&prefix, &project->settings, &proposal);
+                WallOpeningValidation result = wall_validate_opening(&prefix, &resolved, &proposal);
                 if (result.code == WALL_OPENING_OVERLAPS_OPENING) {
                     return validation(SITEHELPER_PROJECT_OVERLAPPING_OPENINGS, opening->id,
                         result.conflicting_opening_id);

@@ -140,7 +140,10 @@ int sitehelper_command_undo_with_state(
             return 0;
         }
         Wall *wall = sitehelper_project_find_wall_by_id(project, state->moved_wall.wall_id);
-        return wall_apply_plan_segment(wall, &project->settings, state->moved_wall.segment);
+        const Storey *storey = sitehelper_project_find_owning_storey_const(project, state->moved_wall.wall_id);
+        BuildSettings resolved;
+        return storey != NULL && sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved) &&
+            wall_apply_plan_segment(wall, &resolved, state->moved_wall.segment);
     }
     if (command->type == SITEHELPER_COMMAND_DELETE_WALL) {
         if (state == NULL || state->type != command->type ||

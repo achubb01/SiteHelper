@@ -41,6 +41,7 @@ target_link_libraries(sitehelper_wall
 )
 
 add_library(sitehelper_project
+    project/project_settings.c
     project/room_separator.c
     project/sitehelper_project.c
     project/project_validation.c
@@ -624,6 +625,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
         "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
 endif()
 add_test(NAME storey_tests COMMAND test_storeys)
+
+add_executable(test_project_settings project/tests/test_project_settings.c)
+target_link_libraries(test_project_settings PRIVATE sitehelper_test_support sitehelper_app_core sitehelper_persistence)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_project_settings PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_project_settings PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME project_settings_tests COMMAND test_project_settings)
 
 add_executable(test_project_validation project/tests/test_project_validation.c)
 target_link_libraries(test_project_validation PRIVATE sitehelper_project)

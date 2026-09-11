@@ -413,6 +413,20 @@ void sitehelper_editor_update_snap(
     );
 }
 
+void sitehelper_editor_pointer_move_in_project(SiteHelperEditor *editor,
+    const SiteHelperProject *project, Vec2 view_position)
+{
+    if (editor == NULL) { return; }
+    const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
+    BuildSettings resolved;
+    if (storey == NULL || !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved)) {
+        sitehelper_editor_invalidate_transient_state(editor);
+        return;
+    }
+    const Wall *wall = build_find_wall_by_id_const(&storey->structure, editor->current_wall_id);
+    sitehelper_editor_pointer_move(editor, wall, &resolved, view_position);
+}
+
 void sitehelper_editor_pointer_move(
     SiteHelperEditor *editor,
     const Wall *wall,
@@ -715,6 +729,12 @@ int sitehelper_editor_primary_action_in_project(
 
     const Wall *wall = build_find_wall_by_id_const(
         structure, editor->current_wall_id);
+
+    /* Settings may have changed since the last pointer event. Revalidate the
+     * transient Opening candidate with exactly the configuration commands use. */
+    if (editor->active_tool == EDITOR_TOOL_OPENING) {
+        sitehelper_editor_pointer_move_in_project(editor, project, view_position);
+    }
 
     return sitehelper_editor_primary_action(
         editor,

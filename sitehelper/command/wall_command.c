@@ -64,7 +64,8 @@ int wall_command_execute(
     }
 
     Storey *storey = sitehelper_project_find_storey_by_id(project, command->storey_id);
-    if (storey == NULL) { return 0; }
+    BuildSettings resolved;
+    if (storey == NULL || !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved)) { return 0; }
 
     DomainIdGenerator candidate_ids = project->domain_ids;
     DomainId wall_id = domain_id_generate(&candidate_ids);
@@ -73,7 +74,7 @@ int wall_command_execute(
     if (wall_id == DOMAIN_ID_INVALID || candidate_ids.next == DOMAIN_ID_INVALID ||
         sitehelper_project_contains_domain_id(project, wall_id) ||
         !wall_command_build_wall(
-            &project->settings,
+            &resolved,
             command,
             wall_id,
             &candidate)) {
@@ -120,14 +121,16 @@ int wall_command_redo(
     }
 
     Storey *storey = sitehelper_project_find_storey_by_id(project, command->storey_id);
-    if (storey == NULL || sitehelper_project_contains_domain_id(project, wall_id)) {
+    BuildSettings resolved;
+    if (storey == NULL || !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved) ||
+        sitehelper_project_contains_domain_id(project, wall_id)) {
         return 0;
     }
 
     Wall candidate = {0};
 
     if (!wall_command_build_wall(
-            &project->settings,
+            &resolved,
             command,
             wall_id,
             &candidate)) {

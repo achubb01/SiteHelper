@@ -131,6 +131,9 @@ int opening_command_execute(
     if (wall == NULL) {
         return 0;
     }
+    const Storey *storey = sitehelper_project_find_owning_storey_const(project, wall->id);
+    BuildSettings resolved;
+    if (storey == NULL || !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved)) { return 0; }
 
     Wall candidate;
 
@@ -164,7 +167,7 @@ int opening_command_execute(
 
     if (!wall_add_opening(
             &candidate,
-            &project->settings,
+            &resolved,
             opening_id,
             command->type,
             command->frame_position,
@@ -181,7 +184,7 @@ int opening_command_execute(
 
     if (!wall_generate(
             &candidate,
-            &project->settings)) {
+            &resolved)) {
 
         wall_destroy(
             &candidate
@@ -235,6 +238,9 @@ int opening_command_undo(
     if (wall == NULL) {
         return 0;
     }
+    const Storey *storey = sitehelper_project_find_owning_storey_const(project, wall->id);
+    BuildSettings resolved;
+    if (storey == NULL || !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved)) { return 0; }
 
     Wall candidate = {0};
 
@@ -257,7 +263,7 @@ int opening_command_undo(
 
     if (!wall_generate(
             &candidate,
-            &project->settings)) {
+            &resolved)) {
 
         wall_destroy(
             &candidate
@@ -298,6 +304,9 @@ int opening_command_redo(
     if (wall == NULL) {
         return 0;
     }
+    const Storey *storey = sitehelper_project_find_owning_storey_const(project, wall->id);
+    BuildSettings resolved;
+    if (storey == NULL || !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved)) { return 0; }
 
     /*
      * Redo is only valid after the
@@ -323,7 +332,7 @@ int opening_command_redo(
      */
     if (!wall_add_opening(
             &candidate,
-            &project->settings,
+            &resolved,
             opening_id,
             command->type,
             command->frame_position,
@@ -340,7 +349,7 @@ int opening_command_redo(
 
     if (!wall_generate(
             &candidate,
-            &project->settings)) {
+            &resolved)) {
 
         wall_destroy(
             &candidate

@@ -7,6 +7,8 @@
 
 typedef struct
 {
+    /* Stored defaults. Live changes must use the transactional setters below;
+     * direct writes are reserved for initialization/loading before generation. */
     BuildSettings settings;
     Storey *storeys;
     size_t storey_count, storey_capacity;
@@ -20,6 +22,7 @@ typedef enum
     SITEHELPER_PROJECT_INVALID_STOREY_COLLECTION,
     SITEHELPER_PROJECT_INVALID_STOREY_ID,
     SITEHELPER_PROJECT_INVALID_SETTINGS,
+    SITEHELPER_PROJECT_INVALID_STOREY_SETTINGS,
     SITEHELPER_PROJECT_INVALID_ROOM_COLLECTION,
     SITEHELPER_PROJECT_INVALID_WALL_COLLECTION,
     SITEHELPER_PROJECT_INVALID_OPENING_COLLECTION,
@@ -53,13 +56,31 @@ typedef struct
  * rooms and rooms placed at any representable plan point are valid; enclosure
  * and region association are not project-integrity invariants.
  * Returns the first failure in deterministic order: settings, all collection
- * metadata, identities/allocator, then wall geometry/openings and separators.
+ * metadata, Storey settings, identities/allocator, then wall geometry/openings
+ * and separators (using each Storey's resolved settings).
  * Within each pass, Storeys are visited in stored order. Identity order is
  * Storey, Rooms, Walls (each before its openings), then separators. All nested
  * collection metadata is checked before any global identity traversal.
  * Metadata checks cannot establish the
  * actual allocation size or validity of arbitrary non-null C pointers. */
 SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject *project);
+
+/* Allocation-free, read-only resolution; writes a complete transient output
+ * only on success. Output must be independent of stored project/Storey settings.
+ * Existing-object callers resolve the owning Storey by stable ID first. */
+int sitehelper_project_resolve_storey_build_settings(const SiteHelperProject *project,
+    DomainId storey_id, BuildSettings *output);
+
+/* Live settings mutations, outside command history. Validate current state and
+ * stage all affected framing before committing settings and framing together.
+ * Failure preserves definitions, IDs, allocator, settings and framing/pointers.
+ * Effective configurations that do not change leave their Walls untouched.
+ * Success may invalidate framing selections/previews: reconcile editor state. */
+int sitehelper_project_set_build_settings(SiteHelperProject *project, const BuildSettings *defaults);
+int sitehelper_project_set_stud_height(SiteHelperProject *project, int stud_height);
+int sitehelper_project_set_storey_stud_height(SiteHelperProject *project,
+    DomainId storey_id, int stud_height);
+int sitehelper_project_clear_storey_stud_height(SiteHelperProject *project, DomainId storey_id);
 
 void sitehelper_project_init(
     SiteHelperProject *project

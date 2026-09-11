@@ -12,86 +12,43 @@
 #include "appcontext.h"
 #include "sitehelper_command.h"
 
-//Setting Menu
+/* Gather defaults separately; input failure never partially changes the project. */
+static int read_setting(const char *prompt, int *value)
+{
+    char buffer[256], *end;
+    printf("%s", prompt);
+    if (fgets(buffer, sizeof buffer, stdin) == NULL) { return 0; }
+    errno = 0;
+    long number = strtol(buffer, &end, 10);
+    if (end == buffer || errno == ERANGE || number < INT_MIN || number > INT_MAX) { return 0; }
+    end += strspn(end, " \t\r\n");
+    if (*end != '\0') { return 0; }
+    *value = (int)number;
+    return 1;
+}
+
 void setBuildSettings(void *context)
 {
     AppContext *app = context;
-
-    if (app == NULL) {
-        fprintf(
-            stderr,
-            "Application context is unavailable\n"
-        );
+    if (app == NULL) { return; }
+    BuildSettings defaults = app->project.settings;
+    int mode;
+    if (!read_setting("Select default Stud Height: ", &defaults.stud_height) ||
+        !read_setting("Select Timber Width: ", &defaults.stud_width) ||
+        !read_setting("Select Timber Depth: ", &defaults.stud_depth) ||
+        !read_setting("Select Noggin Spacing: ", &defaults.nog_spacing) ||
+        !read_setting("Select Stud Spacing: ", &defaults.stud_spacing) ||
+        !read_setting("1. Even\n2. Maximum\nSelect Spacing Mode: ", &mode) ||
+        mode < 1 || mode > 2) {
+        printf("Invalid settings input.\n");
         return;
     }
-
-    char buffer[256];
-
-    printf("Select Stud Height: ");
-
-    if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-        fprintf(stderr, "Failed to read stud height\n");
+    defaults.stud_spacing_mode = (StudSpacingMode)(mode - 1);
+    if (!sitehelper_project_set_build_settings(&app->project, &defaults)) {
+        printf("Settings could not be applied to all affected Walls.\n");
         return;
     }
-
-    buffer[strcspn(buffer, "\n")] = '\0';
-
-    app->project.settings.stud_height = atoi(buffer);
-
-    printf("Select Timber Width: ");
-
-    if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-        fprintf(stderr, "Failed to read timber width\n");
-        return;
-    }
-
-    buffer[strcspn(buffer, "\n")] = '\0';
-
-    app->project.settings.stud_width = atoi(buffer);
-
-    printf("Select Timber Depth: ");
-
-    if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-        fprintf(stderr, "Failed to read timber depth\n");
-        return;
-    }
-
-    buffer[strcspn(buffer, "\n")] = '\0';
-
-    app->project.settings.stud_depth = atoi(buffer);
-
-    printf("Select Noggin Spacing: ");
-
-    if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-        fprintf(stderr, "Failed to read noggin spacing\n");
-        return;
-    }
-
-    buffer[strcspn(buffer, "\n")] = '\0';
-
-    app->project.settings.nog_spacing = atoi(buffer);
-
-    printf("Select Stud Spacing: ");
-
-    if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-        fprintf(stderr, "Failed to read stud spacing\n");
-        return;
-    }
-
-    buffer[strcspn(buffer, "\n")] = '\0';
-
-    app->project.settings.stud_spacing = atoi(buffer);
-
-    printf("1. Even\n2. Maximum\nSelect Spacing Mode: ");
-
-    if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-        fprintf(stderr, "Failed to read stud spacing mode\n");
-        return;
-    }
-
-    buffer[strcspn(buffer, "\n")] = '\0';
-
-    app->project.settings.stud_spacing_mode = atoi(buffer) -1;
+    sitehelper_editor_reconcile(&app->editor, &app->project);
 }
 
 void describeStandardStud (void *context){
@@ -211,9 +168,9 @@ void generateWall(void *context)
         return;
     }
 
-    if (!wall_generate(
-            wall,
-            &app->project.settings)) {
+    BuildSettings resolved;
+    if (!sitehelper_project_resolve_storey_build_settings(&app->project, app->editor.current_storey_id, &resolved) ||
+        !wall_generate(wall, &resolved)) {
 
         printf("Failed to generate wall\n");
         return;
@@ -256,16 +213,18 @@ void setWallLength(void *context)
     errno = 0;
     long input = strtol(buffer, &end, 10);
 
-    if (end == buffer) {
+    if (end == buffer || input < 1 || input > INT_MAX) {
         printf("Please enter a number.\n");
         return;
     }
 
     PlanPosition start = wall->definition.segment.start;
+    BuildSettings resolved;
     /* Legacy length editing deliberately establishes a horizontal segment. */
     if (errno == ERANGE || input <= 0 || input > INT_MAX ||
         start.x > INT_MAX - input ||
-        !wall_set_plan_segment(wall, (WallPlanSegment){
+        !sitehelper_project_resolve_storey_build_settings(&app->project, app->editor.current_storey_id, &resolved) ||
+        !wall_apply_plan_segment(wall, &resolved, (WallPlanSegment){
             .start = start,
             .end = { .x = start.x + (int)input, .y = start.y }
         })) {
@@ -273,6 +232,7 @@ void setWallLength(void *context)
         return;
     }
 
+    sitehelper_editor_reconcile(&app->editor, &app->project);
     printf("Wall length set to %ld mm.\n", input);
 }
 
@@ -298,18 +258,20 @@ void setStudSpacing(void *context)
     char *end;
     long input = strtol(buffer, &end, 10);
 
-    if (end == buffer) {
+    if (end == buffer || input < 1 || input > INT_MAX) {
         printf("Please enter a number.\n");
         return;
     }
 
-    if (!build_set_stud_spacing(
-            &app->project.settings,
-            (int)input)) {
+    BuildSettings defaults = app->project.settings;
+    if (!build_set_stud_spacing(&defaults, (int)input) ||
+        !sitehelper_project_set_build_settings(&app->project, &defaults)) {
 
         printf("Invalid stud spacing.\n");
         return;
     }
+
+    sitehelper_editor_reconcile(&app->editor, &app->project);
 
     printf(
         "Stud spacing set to %ld mm.\n",

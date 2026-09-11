@@ -40,6 +40,9 @@ typedef struct
     DomainId conflicting_opening_id;
 } WallOpeningValidation;
 
+/* All construction APIs in this subsystem consume a complete effective
+ * BuildSettings value supplied by their caller. They never resolve ownership
+ * or inheritance. Live project callers must resolve the owning Storey first. */
 WallOpeningValidation wall_validate_opening(
     const Wall *wall,
     const BuildSettings *settings,

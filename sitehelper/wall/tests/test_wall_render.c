@@ -74,11 +74,6 @@ static void test_wall_render_draws_bottom_and_top_plate_and_studs(void)
 
     renderer2d_set_camera(renderer, camera);
 
-    BuildSettings settings = {
-        .stud_width = 35,
-        .stud_height = 2400
-    };
-
     Timber studs[] = {
         {
             .length = 2400,

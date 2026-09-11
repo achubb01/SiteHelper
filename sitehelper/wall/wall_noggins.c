@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdint.h>
 
 #include "wall.h"
 #include "wall_internal.h"
@@ -29,18 +30,18 @@ int wall_generate_noggins(
     }
 
     int gaps =
-        (settings->stud_height +
+        (int)(((int64_t)settings->stud_height +
          settings->nog_spacing - 1)
         /
-        settings->nog_spacing;
+        settings->nog_spacing);
 
     for (int row = 1;
          row < gaps;
          row++) {
 
         int vertical_position =
-            (settings->stud_height * row)
-            / gaps;
+            (int)(((int64_t)settings->stud_height * row)
+            / gaps);
 
         for (size_t bay = 0;
             bay + 1 < wall->framing.stud_count;

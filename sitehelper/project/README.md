@@ -1,5 +1,9 @@
 # Project and Storey ownership (Priority 9A)
 
+This is the preserved Priority 9A implementation report. The subsequent
+[Priority 9B settings ownership and resolution report](SETTINGS.md) describes
+the current Storey override APIs and persistence v9.
+
 `SiteHelperProject` owns project-wide `BuildSettings`, a global DomainIdGenerator,
 and an ordered `Storey *storeys` array with count/capacity. It owns zero or more
 Storeys. `Storey` holds `id`, signed `elevation_mm`, and one owned `BuildStructure`.

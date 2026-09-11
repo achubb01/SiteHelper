@@ -21,9 +21,10 @@ int move_wall_endpoint_command_execute(SiteHelperProject *project,
         return 0;
     }
     Wall *wall = sitehelper_project_find_wall_by_id(project, command->wall_id);
-    if (wall == NULL) {
-        return 0;
-    }
+    if (wall == NULL) { return 0; }
+    const Storey *storey = sitehelper_project_find_owning_storey_const(project, wall->id);
+    BuildSettings resolved;
+    if (storey == NULL || !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved)) { return 0; }
     WallPlanSegment candidate = wall->definition.segment;
     switch (command->endpoint) {
         case WALL_ENDPOINT_START:
@@ -35,5 +36,5 @@ int move_wall_endpoint_command_execute(SiteHelperProject *project,
         default:
             return 0;
     }
-    return wall_apply_plan_segment(wall, &project->settings, candidate);
+    return wall_apply_plan_segment(wall, &resolved, candidate);
 }

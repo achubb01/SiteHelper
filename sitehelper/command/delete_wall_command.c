@@ -75,7 +75,8 @@ int deleted_wall_snapshot_restore(SiteHelperProject *project,
         return 0;
     }
     Storey *storey = sitehelper_project_find_storey_by_id(project, snapshot->storey_id);
-    if (storey == NULL) { return 0; }
+    BuildSettings resolved;
+    if (storey == NULL || !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved)) { return 0; }
     for (size_t i = 0; i < snapshot->opening_count; i++) {
         if (identity_in_use(project, snapshot->openings[i].id)) {
             return 0;
@@ -86,12 +87,12 @@ int deleted_wall_snapshot_restore(SiteHelperProject *project,
         return 0;
     }
     for (size_t i = 0; i < snapshot->opening_count; i++) {
-        if (!wall_add_opening_definition(&candidate, &project->settings, &snapshot->openings[i])) {
+        if (!wall_add_opening_definition(&candidate, &resolved, &snapshot->openings[i])) {
             wall_destroy(&candidate);
             return 0;
         }
     }
-    if (!wall_generate(&candidate, &project->settings) ||
+    if (!wall_generate(&candidate, &resolved) ||
         !build_append_wall(&storey->structure, &candidate)) {
         wall_destroy(&candidate);
         return 0;
