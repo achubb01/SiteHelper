@@ -26,15 +26,27 @@ void editor_selection_clear(
         return;
     }
 
-    selection->kind =
-        EDITOR_SELECTION_NONE;
+    editor_selection_init(selection);
+}
 
-    selection->wall_id =
-        DOMAIN_ID_INVALID;
+void editor_selection_set_wall(EditorSelection *selection, DomainId wall_id)
+{
+    if (selection == NULL) { return; }
+    editor_selection_clear(selection);
+    if (wall_id == DOMAIN_ID_INVALID) { return; }
+    selection->kind = EDITOR_SELECTION_WALL;
+    selection->wall_id = wall_id;
+}
 
-    wall_selection_clear(
-        &selection->wall_member
-    );
+void editor_selection_set_opening(EditorSelection *selection,
+    DomainId wall_id, DomainId opening_id)
+{
+    if (selection == NULL) { return; }
+    editor_selection_clear(selection);
+    if (wall_id == DOMAIN_ID_INVALID || opening_id == DOMAIN_ID_INVALID) { return; }
+    selection->kind = EDITOR_SELECTION_OPENING;
+    selection->wall_id = wall_id;
+    selection->opening_id = opening_id;
 }
 
 void editor_selection_set_wall_member(
@@ -62,6 +74,7 @@ void editor_selection_set_wall_member(
 
     selection->kind =
         EDITOR_SELECTION_WALL_MEMBER;
+    selection->opening_id = DOMAIN_ID_INVALID;
 
     selection->wall_id =
         wall_id;

@@ -40,13 +40,15 @@ static void test_positioned_walls_select_by_stable_identity(void)
 
     assert(sitehelper_editor_primary_action_in_project(
         &editor, &project, (Vec2){ 10, 10 }, &action));
-    assert(editor_selection_is_empty(&editor.selection));
+    assert(editor.selection.kind == EDITOR_SELECTION_WALL);
+    assert(editor.selection.wall_id == editor.current_wall_id);
     assert(editor.current_wall_id == 20);
     assert(editor_selection_get_wall_member(&editor.selection, 30) == NULL);
 
     assert(sitehelper_editor_primary_action_in_project(
         &editor, &project, (Vec2){ 5010, 3010 }, &action));
-    assert(editor_selection_is_empty(&editor.selection));
+    assert(editor.selection.kind == EDITOR_SELECTION_WALL);
+    assert(editor.selection.wall_id == editor.current_wall_id);
     assert(editor.current_wall_id == 30);
     assert(editor_selection_get_wall_member(&editor.selection, 20) == NULL);
 
@@ -57,7 +59,8 @@ static void test_positioned_walls_select_by_stable_identity(void)
     assert(build_find_room_by_id(&project.storeys[0].structure, room_id));
     assert(build_find_wall_by_id(
         &project.storeys[0].structure, editor.current_wall_id)->id == 30);
-    assert(editor_selection_is_empty(&editor.selection));
+    assert(editor.selection.kind == EDITOR_SELECTION_WALL);
+    assert(editor.selection.wall_id == editor.current_wall_id);
 
     sitehelper_project_destroy(&project);
 }

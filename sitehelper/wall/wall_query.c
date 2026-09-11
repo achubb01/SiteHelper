@@ -1,4 +1,24 @@
 #include "wall_query.h"
+#include "wall.h"
+#include <stdint.h>
+
+DomainId wall_find_opening_at_position(const Wall *wall,
+    const BuildSettings *settings, WallLocalPosition position)
+{
+    if (wall == NULL || settings == NULL) { return DOMAIN_ID_INVALID; }
+    for (size_t i = 0; i < wall->definition.opening_count; i++) {
+        const Opening *opening = &wall->definition.openings[i];
+        int width = opening_frame_width(opening, settings);
+        int height = opening_frame_height(opening, settings);
+        if (width > 0 && height > 0 && position.u >= opening->frame_position &&
+            (int64_t)position.u <= (int64_t)opening->frame_position + width &&
+            position.z >= opening->frame_bottom &&
+            (int64_t)position.z <= (int64_t)opening->frame_bottom + height) {
+            return opening->id;
+        }
+    }
+    return DOMAIN_ID_INVALID;
+}
 
 
 static bool timber_has_valid_dimensions(

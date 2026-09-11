@@ -8,6 +8,11 @@ typedef struct {
     const Timber *timber;
 } WallMemberHit;
 
+/* Clear framed U/Z rectangle, including effective allowances. Returns only
+ * stable identity. Collection order breaks ties; no framing is required. */
+DomainId wall_find_opening_at_position(const Wall *wall,
+    const BuildSettings *settings, WallLocalPosition position);
+
 WallMemberHit wall_find_member_at_position(
     const Wall *wall,
     WallLocalPosition position

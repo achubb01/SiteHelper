@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <math.h>
+#include <limits.h>
 #include "sitehelper_editor.h"
 #include "wall_query.h"
 #include "wall_plan_transform.h"
@@ -197,6 +198,13 @@ void sitehelper_editor_reconcile_wall_selection(
         return;
     }
 
+    if (editor->selection.wall_id == wall->id &&
+        editor->selection.kind == EDITOR_SELECTION_OPENING &&
+        wall_find_opening_by_id_const(wall, editor->selection.opening_id) == NULL) {
+        sitehelper_editor_clear_selection(editor);
+        return;
+    }
+
     const WallSelection *wall_selection =
         editor_selection_get_wall_member(
             &editor->selection,
@@ -254,7 +262,7 @@ void sitehelper_editor_reconcile(
 
     const EditorSelection *selection = &editor->selection;
 
-    if (selection->kind == EDITOR_SELECTION_WALL_MEMBER) {
+    if (selection->kind != EDITOR_SELECTION_NONE) {
         const Wall *selected_wall = build_find_wall_by_id_const(
             &storey->structure, selection->wall_id);
 
@@ -262,12 +270,12 @@ void sitehelper_editor_reconcile(
             sitehelper_editor_clear_selection(editor);
         }
         else {
-            wall_selection_reconcile(
-                &editor->selection.wall_member,
-                selected_wall
-            );
-
-            if (wall_selection_is_empty(&editor->selection.wall_member)) {
+            if (selection->kind == EDITOR_SELECTION_WALL ||
+                selection->kind == EDITOR_SELECTION_OPENING ||
+                selection->kind == EDITOR_SELECTION_WALL_MEMBER) {
+                sitehelper_editor_reconcile_wall_selection(editor, selected_wall);
+            }
+            else {
                 sitehelper_editor_clear_selection(editor);
             }
         }
@@ -613,9 +621,16 @@ int sitehelper_editor_primary_action(
                     wall->definition.segment, view_position
                 ) <= editor->snap.settings.object_snap_tolerance
                     ? wall->id : DOMAIN_ID_INVALID;
+                editor_selection_set_wall(&editor->selection, editor->current_wall_id);
                 return 1;
             }
 
+            if (!isfinite(view_position.x) || !isfinite(view_position.y) ||
+                view_position.x < INT_MIN || view_position.x > INT_MAX ||
+                view_position.y < INT_MIN || view_position.y > INT_MAX) {
+                sitehelper_editor_clear_selection(editor);
+                return 1;
+            }
             WallLocalPosition position = {
                 .u = (int)view_position.x, .z = (int)view_position.y
             };
@@ -724,6 +739,7 @@ int sitehelper_editor_primary_action_in_project(
                 editor->current_wall_id = wall->id;
             }
         }
+        editor_selection_set_wall(&editor->selection, editor->current_wall_id);
         return 1;
     }
 
@@ -736,12 +752,30 @@ int sitehelper_editor_primary_action_in_project(
         sitehelper_editor_pointer_move_in_project(editor, project, view_position);
     }
 
-    return sitehelper_editor_primary_action(
+    int success = sitehelper_editor_primary_action(
         editor,
         wall,
         view_position,
         action
     );
+    /* Keep generated-member hit precedence. Empty framed space selects the
+     * authoritative Opening independently of generated member allocations. */
+    if (success && wall != NULL && editor->active_view == EDITOR_VIEW_WALL_ELEVATION &&
+        editor->active_tool == EDITOR_TOOL_SELECT &&
+        editor_selection_is_empty(&editor->selection) &&
+        isfinite(view_position.x) && isfinite(view_position.y) &&
+        view_position.x >= INT_MIN && view_position.x <= INT_MAX &&
+        view_position.y >= INT_MIN && view_position.y <= INT_MAX) {
+        BuildSettings resolved;
+        if (sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved)) {
+            DomainId opening_id = wall_find_opening_at_position(wall, &resolved,
+                (WallLocalPosition){(int)view_position.x, (int)view_position.y});
+            if (opening_id != DOMAIN_ID_INVALID) {
+                editor_selection_set_opening(&editor->selection, wall->id, opening_id);
+            }
+        }
+    }
+    return success;
 }
 
 int sitehelper_editor_has_opening_preview(

@@ -82,6 +82,12 @@ int wall_add_opening_definition(
     const BuildSettings *settings,
     const Opening *opening
 );
+/* Replace in place by stable identity (opening->id must match opening_id).
+ * Validate all definitions through normal opening rules and generate candidate
+ * framing before committing. Ordering and IDs survive; failure preserves the
+ * entire Wall, including allocations. Success invalidates borrowed pointers. */
+int wall_apply_opening_definition(Wall *wall, const BuildSettings *settings,
+    DomainId opening_id, const Opening *opening);
 int wall_add_opening(Wall *wall, const BuildSettings *settings, DomainId opening_id, OpeningType type, int frame_position, int frame_bottom, int width, int height);
 Opening *wall_find_opening_by_id(Wall *wall, DomainId opening_id);
 const Opening *wall_find_opening_by_id_const(const Wall *wall, DomainId opening_id);

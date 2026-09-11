@@ -155,6 +155,10 @@ int sitehelper_editor_primary_action(
     EditorAction *action
 );
 
+/* Select in Plan sets both wall navigation and authoritative WALL selection.
+ * Elevation preserves member hit precedence, then tests clear Opening geometry
+ * with owning-Storey settings. The lower-level primary_action lacks Project
+ * settings and therefore retains member-only elevation selection. */
 int sitehelper_editor_primary_action_in_project(
     SiteHelperEditor *editor,
     const SiteHelperProject *project,

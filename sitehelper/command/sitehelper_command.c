@@ -17,6 +17,7 @@ struct SiteHelperCommandUndoState
             WallPlanSegment segment;
         } moved_wall;
         RoomLocationCommand previous_room_location;
+        EditOpeningCommand previous_opening;
         struct {
             DomainId storey_id;
             RoomSeparator definition;
@@ -34,6 +35,7 @@ int sitehelper_command_capture_undo_state(
     }
     *state = NULL;
     if (command->type != SITEHELPER_COMMAND_DELETE_WALL &&
+        command->type != SITEHELPER_COMMAND_EDIT_OPENING &&
         command->type != SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT &&
         command->type != SITEHELPER_COMMAND_SET_ROOM_LOCATION &&
         command->type != SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR &&
@@ -59,6 +61,16 @@ int sitehelper_command_capture_undo_state(
         candidate->room_separator.storey_id = storey->id;
         candidate->room_separator.definition = *separator;
         candidate->room_separator.index = (size_t)(separator - storey->structure.room_separators);
+    }
+    else if (command->type == SITEHELPER_COMMAND_EDIT_OPENING) {
+        const EditOpeningCommand *edit = &command->data.edit_opening;
+        const Wall *wall = sitehelper_project_find_wall_by_id_const(project, edit->wall_id);
+        const Opening *opening = wall_find_opening_by_id_const(wall, edit->opening_id);
+        if (!edit_opening_command_create(edit->wall_id, edit->opening_id,
+                opening, &candidate->previous_opening)) {
+            sitehelper_command_destroy_undo_state(candidate);
+            return 0;
+        }
     }
     else if (command->type == SITEHELPER_COMMAND_SET_ROOM_LOCATION) {
         const Room *room = sitehelper_project_find_room_by_id_const(project,
@@ -109,6 +121,16 @@ int sitehelper_command_undo_with_state(
     if (project == NULL || command == NULL || result == NULL || command->type != result->type) {
         return 0;
     }
+    if (command->type == SITEHELPER_COMMAND_EDIT_OPENING) {
+        if (state == NULL || state->type != command->type ||
+            state->previous_opening.wall_id != command->data.edit_opening.wall_id ||
+            state->previous_opening.opening_id != command->data.edit_opening.opening_id ||
+            state->previous_opening.wall_id != result->data.edit_opening.wall_id ||
+            state->previous_opening.opening_id != result->data.edit_opening.opening_id) {
+            return 0;
+        }
+        return edit_opening_command_execute(project, &state->previous_opening);
+    }
     if (command->type == SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR ||
         command->type == SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT) {
         DomainId id = command->type == SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR
@@ -154,6 +176,16 @@ int sitehelper_command_undo_with_state(
         return deleted_wall_snapshot_restore(project, &state->deleted_wall);
     }
     return sitehelper_command_undo(project, command, result);
+}
+
+int sitehelper_command_from_edit_opening(const EditOpeningCommand *edit,
+    SiteHelperCommand *command)
+{
+    if (edit == NULL || command == NULL) { return 0; }
+    *command = (SiteHelperCommand){
+        .type = SITEHELPER_COMMAND_EDIT_OPENING, .data.edit_opening = *edit
+    };
+    return 1;
 }
 
 int sitehelper_command_from_delete_wall(
@@ -281,6 +313,15 @@ int sitehelper_command_execute(
         };
 
     switch (command->type) {
+
+        case SITEHELPER_COMMAND_EDIT_OPENING:
+            if (!edit_opening_command_execute(project, &command->data.edit_opening)) { return 0; }
+            *result = (SiteHelperCommandResult){
+                .type = command->type,
+                .data.edit_opening = {command->data.edit_opening.wall_id,
+                    command->data.edit_opening.opening_id}
+            };
+            return 1;
 
         case SITEHELPER_COMMAND_ADD_OPENING:
         {
@@ -434,6 +475,7 @@ int sitehelper_command_undo(
 
         case SITEHELPER_COMMAND_DELETE_WALL:
         case SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT:
+        case SITEHELPER_COMMAND_EDIT_OPENING:
         case SITEHELPER_COMMAND_SET_ROOM_LOCATION:
         case SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR:
         case SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT:
@@ -468,6 +510,11 @@ int sitehelper_command_redo(
     }
 
     switch (command->type) {
+
+        case SITEHELPER_COMMAND_EDIT_OPENING:
+            if (command->data.edit_opening.wall_id != result->data.edit_opening.wall_id ||
+                command->data.edit_opening.opening_id != result->data.edit_opening.opening_id) { return 0; }
+            return edit_opening_command_execute(project, &command->data.edit_opening);
 
         case SITEHELPER_COMMAND_ADD_ROOM_SEPARATOR: {
             RoomSeparator separator = {.id = result->data.room_separator.separator_id,

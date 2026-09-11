@@ -98,6 +98,7 @@ target_link_libraries(sitehelper_persistence
 
 add_library(sitehelper_command
     command/opening_command.c
+    command/edit_opening_command.c
     command/wall_command.c
     command/delete_wall_command.c
     command/move_wall_endpoint_command.c
@@ -143,6 +144,7 @@ endif()
 add_library(sitehelper_editor
     editor/sitehelper_editor.c
     editor/editor_selection.c
+    editor/editor_properties.c
     editor/editor_snap_state.c
     editor/snap.c
     editor/opening_tool.c
@@ -459,6 +461,19 @@ target_link_libraries(test_opening_command
 )
 
 add_test(NAME opening_command_tests COMMAND test_opening_command)
+
+add_executable(test_edit_opening_command command/tests/test_edit_opening_command.c)
+target_link_libraries(test_edit_opening_command PRIVATE sitehelper_command sitehelper_test_support)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_edit_opening_command PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_edit_opening_command PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME edit_opening_command_tests COMMAND test_edit_opening_command)
+
+add_executable(test_editor_properties editor/tests/test_editor_properties.c)
+target_link_libraries(test_editor_properties PRIVATE sitehelper_editor sitehelper_test_support)
+add_test(NAME editor_properties_tests COMMAND test_editor_properties)
 
 add_executable(test_wall_command
     command/tests/test_wall_command.c

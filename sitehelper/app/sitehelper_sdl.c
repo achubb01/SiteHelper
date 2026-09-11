@@ -663,6 +663,7 @@ static void sitehelper_app_process_events(
                                     &action,
                                     &result
                                 );
+                                sitehelper_editor_reconcile(&app->editor, &app->project);
                             }
                         }
                     }

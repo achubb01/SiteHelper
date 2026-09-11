@@ -234,6 +234,36 @@ int wall_add_opening_definition(
     return 1;
 }
 
+int wall_apply_opening_definition(Wall *wall, const BuildSettings *settings,
+    DomainId opening_id, const Opening *opening)
+{
+    const Opening *existing = wall_find_opening_by_id_const(wall, opening_id);
+    if (existing == NULL || settings == NULL || opening == NULL ||
+        opening->id != opening_id ||
+        wall->definition.opening_count > SIZE_MAX / sizeof(Opening)) {
+        return 0;
+    }
+    size_t index = (size_t)(existing - wall->definition.openings);
+    Wall candidate = {.id = wall->id, .definition = wall->definition};
+    candidate.definition.openings = malloc(wall->definition.opening_count * sizeof(Opening));
+    if (candidate.definition.openings == NULL) { return 0; }
+    candidate.definition.opening_capacity = candidate.definition.opening_count;
+    memcpy(candidate.definition.openings, wall->definition.openings,
+        wall->definition.opening_count * sizeof(Opening));
+    candidate.definition.openings[index] = *opening;
+
+    /* The existing segment transaction validates every pair once, excluding
+     * self by construction, and generates independently owned framing. */
+    if (!wall_apply_plan_segment(&candidate, settings, candidate.definition.segment)) {
+        wall_destroy(&candidate);
+        return 0;
+    }
+    Wall previous = *wall;
+    *wall = candidate;
+    wall_destroy(&previous);
+    return 1;
+}
+
 int wall_add_opening(
     Wall *wall,
     const BuildSettings *settings,

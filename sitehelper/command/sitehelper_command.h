@@ -2,6 +2,7 @@
 #define SITEHELPER_COMMAND_H
 
 #include "opening_command.h"
+#include "edit_opening_command.h"
 #include "wall_command.h"
 #include "delete_wall_command.h"
 #include "move_wall_endpoint_command.h"
@@ -21,6 +22,7 @@ typedef enum
     SITEHELPER_COMMAND_ADD_ROOM_SEPARATOR,
     SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR,
     SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT,
+    SITEHELPER_COMMAND_EDIT_OPENING,
 
     SITEHELPER_COMMAND_COUNT
 } SiteHelperCommandType;
@@ -32,6 +34,7 @@ typedef struct
     union
     {
         OpeningCommand opening;
+        EditOpeningCommand edit_opening;
         WallCommand wall;
         DeleteWallCommand delete_wall;
         MoveWallEndpointCommand move_wall_endpoint;
@@ -77,6 +80,7 @@ typedef struct
         } room_location;
 
         struct { DomainId separator_id; } room_separator;
+        struct { DomainId wall_id, opening_id; } edit_opening;
 
     } data;
 
@@ -86,6 +90,8 @@ int sitehelper_command_from_opening(
     const OpeningCommand *opening,
     SiteHelperCommand *command
 );
+int sitehelper_command_from_edit_opening(const EditOpeningCommand *edit,
+    SiteHelperCommand *command);
 
 int sitehelper_command_from_wall(
     const WallCommand *wall,
