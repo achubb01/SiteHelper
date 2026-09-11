@@ -12,11 +12,15 @@ typedef enum
     SITEHELPER_PERSISTENCE_MALFORMED_DATA,
     SITEHELPER_PERSISTENCE_INVALID_PROJECT,
     SITEHELPER_PERSISTENCE_REGENERATION_FAILED,
-    SITEHELPER_PERSISTENCE_ALLOCATION_FAILED
+    SITEHELPER_PERSISTENCE_ALLOCATION_FAILED,
+    /* Legacy opening cannot regenerate with faithfully preserved framing and
+     * a positive canonical clear rectangle. Destination remains unchanged. */
+    SITEHELPER_PERSISTENCE_OPENING_MIGRATION_FAILED
 } SiteHelperPersistenceResult;
 
 /*
- * Version 9 stores ordered Storeys, each as "storey ID elevation MM", followed
+ * Version 10 stores canonical clear-opening geometry. Otherwise it retains
+ * version 9's ordered Storeys, each as "storey ID elevation MM", followed
  * by "stud_height inherit" or "stud_height override N", then
  * by its walls/openings, rooms/placements and room_separators, then end_storey.
  * Settings and the DomainId watermark remain project-wide. No derived state
@@ -28,7 +32,7 @@ SiteHelperPersistenceResult sitehelper_project_save_file(
 );
 
 /*
- * Loads versions 1-9 transactionally into an initialized destination. Parse,
+ * Loads versions 1-10 transactionally into an initialized destination. Parse,
  * authoritative validation and framing regeneration must all succeed before
  * replacing it. On failure destination remains unchanged.
  * Versions 1-7 migrate into one elevation-zero Storey. Existing entity IDs
@@ -38,6 +42,13 @@ SiteHelperPersistenceResult sitehelper_project_save_file(
  * and discard Room wall references. Versions 1-5 leave Rooms unplaced, and
  * versions 1-6 have no virtual separators. No spatial relationship is inferred.
  * Versions 1-8 have no Storey overrides; every Storey inherits Project defaults.
+ * Versions 1-9 openings migrate with the owning Storey's effective settings:
+ * window bottom becomes legacy sill top; clear top remains header underside.
+ * Door clear top becomes the legacy trimmer top, retaining the lower reference
+ * used by legacy noggin exclusion. No legacy semantics survive in model state.
+ * With legacy effective height H, bottom B and member width W: windows become
+ * (bottom B+W, effective height H-W); doors become (bottom B, height H-B).
+ * A non-positive resulting height fails explicitly, rather than moving members.
  */
 SiteHelperPersistenceResult sitehelper_project_load_file(
     SiteHelperProject *destination,

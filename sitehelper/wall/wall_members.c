@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdlib.h>
 
 #include "wall.h"
@@ -70,52 +71,20 @@ int wall_add_header(
         return 0;
     }
 
-    int frame_width =
-        opening_frame_width(
-            opening,
-            settings
-        );
-
-    int frame_height =
-        opening_frame_height(
-            opening,
-            settings
-        );
-
-    if (frame_width <= 0 ||
-        frame_height <= 0) {
-        return 0;
-    }
-
-    int left_trimmer_position =
-        opening->frame_position -
-        settings->stud_width;
-
-    int header_length =
-        frame_width +
-        (2 * settings->stud_width);
-
-    int header_z =
-        opening->frame_bottom +
-        frame_height;
-
-    if (left_trimmer_position < 0) {
-        return 0;
-    }
-
-    if (header_z < 0 ||
-        header_z > settings->stud_height) {
-        return 0;
-    }
+    WallOpeningFrameGeometry frame;
+    if (!wall_opening_frame_geometry(opening, settings, &frame)) { return 0; }
+    int64_t left = frame.left_u - settings->stud_width;
+    int64_t length = (int64_t)frame.width + 2 * (int64_t)settings->stud_width;
+    if (left < 0 || length > INT_MAX || frame.top_z + settings->stud_width > settings->stud_height) { return 0; }
 
     Timber header = {
-        .length = header_length,
+        .length = (int)length,
         .depth = settings->stud_depth,
         .width = settings->stud_width,
 
         .position = {
-            .u = left_trimmer_position,
-            .z = header_z
+            .u = (int)left,
+            .z = (int)frame.top_z
         },
 
         .type = TIMBER_HEADER
@@ -143,25 +112,18 @@ int wall_add_sill(
         return 0;
     }
 
-    int sill_length =
-        opening_frame_width(
-            opening,
-            settings
-        );
-
-    if (sill_length <= 0 ||
-        opening->frame_bottom <= 0) {
-        return 0;
-    }
+    WallOpeningFrameGeometry frame;
+    if (!wall_opening_frame_geometry(opening, settings, &frame) ||
+        frame.bottom_z < settings->stud_width) { return 0; }
 
     Timber sill = {
-        .length = sill_length,
+        .length = frame.width,
         .depth = settings->stud_depth,
         .width = settings->stud_width,
 
         .position = {
-            .u = opening->frame_position,
-            .z = opening->frame_bottom
+            .u = (int)frame.left_u,
+            .z = (int)frame.bottom_z - settings->stud_width
         },
 
         .type = TIMBER_SILL

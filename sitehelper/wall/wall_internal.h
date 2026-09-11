@@ -8,6 +8,8 @@ typedef int (*PositionCallback)(
     void *context
 );
 
+int wall_opening_definitions_valid(const Wall *wall, const BuildSettings *settings);
+
 typedef struct
 {
     Wall *wall;

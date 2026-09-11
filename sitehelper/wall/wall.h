@@ -2,13 +2,25 @@
 #define SITEHELPER_H
 
 #include "../model/sitehelper_model.h"
+#include <stdint.h>
+
+/* Checked effective clear rectangle. Wide extents let validation distinguish
+ * out-of-Wall coordinates from invalid dimensions without overflowing. */
+typedef struct
+{
+    int64_t left_u, right_u, bottom_z, top_z;
+    int width, height;
+} WallOpeningFrameGeometry;
+
+int wall_opening_frame_geometry(const Opening *opening, const BuildSettings *settings,
+    WallOpeningFrameGeometry *geometry);
 
 typedef struct
 {
     OpeningType type;
 
-    int frame_position; /* Wall-local U, in millimetres. */
-    int frame_bottom;   /* Wall-local Z, in millimetres. */
+    int frame_position; /* Canonical clear left U, in millimetres. */
+    int frame_bottom;   /* Canonical clear bottom Z, in millimetres. */
 
     int width;
     int height;
@@ -30,7 +42,9 @@ typedef enum
     WALL_OPENING_TOO_CLOSE_TO_LEFT_END,
     WALL_OPENING_TOO_CLOSE_TO_RIGHT_END,
 
-    WALL_OPENING_OVERLAPS_OPENING
+    WALL_OPENING_OVERLAPS_OPENING,
+    /* Window clear bottom is below stud_width: its sill would cross baseline. */
+    WALL_OPENING_TOO_CLOSE_TO_BASELINE
 } WallOpeningValidationCode;
 
 typedef struct
@@ -70,7 +84,9 @@ int wall_apply_plan_segment(Wall *wall, const BuildSettings *settings, WallPlanS
 int wall_set_stud_spacing(Wall *wall, int length);
 int wall_add_stud(Wall *wall, const BuildSettings *settings, int position, StudType type);
 int wall_add_noggin(Wall *wall, const BuildSettings *settings, size_t bay, int vertical_position);
-/* Generates framing entirely in U/Z; only derived length affects framing. */
+/* Validates all Opening definitions with the same rules used by insertion and
+ * edits before staging framing. VALID geometry is generatable; allocation may
+ * still fail. Generates entirely in U/Z; only derived length affects framing. */
 int wall_generate(Wall *wall, const BuildSettings *settings);
 /* Checked frame dimensions including allowances; return 0 if non-positive or
  * unrepresentable as an int. */

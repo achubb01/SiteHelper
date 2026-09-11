@@ -1715,7 +1715,7 @@ static void test_window_places_header_and_sill(void)
         opening->frame_position;
 
     int expected_sill_y =
-        opening->frame_bottom;
+        opening->frame_bottom - settings.stud_width;
 
     int expected_sill_length =
         frame_width;
@@ -1858,7 +1858,7 @@ static void test_window_places_lower_cripples(void)
          */
         assert(
             stud->length ==
-            opening->frame_bottom
+            opening->frame_bottom - settings.stud_width
         );
     }
 
@@ -1954,7 +1954,7 @@ static void test_window_lower_cripple_spacing(void)
          */
         assert(
             stud->length ==
-            opening->frame_bottom
+            opening->frame_bottom - settings.stud_width
         );
 
         if (previous_cripple != NULL) {

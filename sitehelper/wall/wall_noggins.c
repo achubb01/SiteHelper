@@ -128,33 +128,14 @@ static int noggin_intersects_opening(
         const Opening *opening =
             &wall->definition.openings[i];
 
-        int opening_left =
-            opening->frame_position;
-
-        int opening_right =
-            opening_left +
-            opening_frame_width(
-                opening,
-                settings
-            );
-
-        int opening_bottom =
-            opening->frame_bottom;
-
-        int opening_top =
-            opening_bottom +
-            opening_frame_height(
-                opening,
-                settings
-            );
-
-        int horizontal_overlap =
-            noggin_start < opening_right &&
-            noggin_end > opening_left;
-
-        int vertical_overlap =
-            vertical_position > opening_bottom &&
-            vertical_position < opening_top;
+        WallOpeningFrameGeometry frame;
+        if (!wall_opening_frame_geometry(opening, settings, &frame)) { continue; }
+        /* The sill occupies the band immediately below clear bottom; avoid
+         * placing noggins through it as well as through the clear rectangle. */
+        int64_t framing_bottom = frame.bottom_z -
+            (opening->type == OPENING_WINDOW ? settings->stud_width : 0);
+        int horizontal_overlap = noggin_start < frame.right_u && noggin_end > frame.left_u;
+        int vertical_overlap = vertical_position > framing_bottom && vertical_position < frame.top_z;
 
         if (horizontal_overlap &&
             vertical_overlap) {

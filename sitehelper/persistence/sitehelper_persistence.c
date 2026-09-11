@@ -14,7 +14,7 @@
 
 enum
 {
-    SITEHELPER_PROJECT_FORMAT_VERSION = 9,
+    SITEHELPER_PROJECT_FORMAT_VERSION = 10,
     PERSISTENCE_TOKEN_CAPACITY = 64
 };
 
@@ -331,10 +331,74 @@ static SiteHelperPersistenceResult parse_settings(
         : SITEHELPER_PERSISTENCE_INVALID_PROJECT;
 }
 
+/* Frozen v1-v9 interpretation. Do not use opening_frame_height/width or
+ * wall_opening_frame_geometry here: those APIs describe current model state.
+ * Today their sums happen to equal the historical effective sizes, but their
+ * contract must be free to evolve without reinterpreting persisted files.
+ * Settings are resolved at the load boundary, including v9 Storey overrides. */
+static SiteHelperPersistenceResult migrate_legacy_opening(Opening *opening,
+    const BuildSettings *settings)
+{
+    int64_t width = (int64_t)opening->width + (opening->custom_allowance
+        ? opening->width_allowance : settings->opening_width_allowance);
+    int64_t height = (int64_t)opening->height + (opening->custom_allowance
+        ? opening->height_allowance : settings->opening_height_allowance);
+    int64_t top = (int64_t)opening->frame_bottom + height;
+    if ((opening->type != OPENING_DOOR && opening->type != OPENING_WINDOW) ||
+        opening->frame_position < 0 || opening->frame_bottom < 0 ||
+        opening->width <= 0 || opening->height <= 0 ||
+        width <= 0 || width > INT_MAX || height <= 0 || height > INT_MAX ||
+        top > settings->stud_height) {
+        return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+    }
+    int deduction;
+    if (opening->type == OPENING_WINDOW) {
+        /* Legacy sill underside = bottom, header underside = bottom + H.
+         * Legacy generation required positive lower AND upper cripples. */
+        if (opening->frame_bottom == 0 || width < settings->stud_width ||
+            top + settings->stud_width >= settings->stud_height) {
+            return SITEHELPER_PERSISTENCE_OPENING_MIGRATION_FAILED;
+        }
+        deduction = settings->stud_width;
+    }
+    else {
+        /* Legacy trimmers ended at H, ignoring B. Noggin exclusion did use B.
+         * Keep B and use clear height H-B. The exclusion top changes from B+H
+         * to H, but no bay inside the door can support a noggin at/above H:
+         * its bordering trimmers end at H. Thus every member stays in place.
+         * Doors historically generated no header/sill/cripples. */
+        deduction = opening->frame_bottom;
+    }
+    int64_t clear_height = height - deduction;
+    if (clear_height <= 0) {
+        return SITEHELPER_PERSISTENCE_OPENING_MIGRATION_FAILED;
+    }
+    if (opening->type == OPENING_WINDOW) {
+        /* Positive clear height proves B + W < B + H <= INT_MAX. */
+        opening->frame_bottom += deduction;
+    }
+    if (opening->height > deduction) {
+        opening->height -= deduction;
+    }
+    else {
+        /* A positive legacy allowance can leave positive clear height even
+         * when subtracting from nominal height yields zero/negative. Preserve
+         * geometry explicitly, using a positive nominal size plus custom
+         * allowances; retain effective width when switching off inheritance. */
+        opening->height = (int)clear_height;
+        opening->height_allowance = 0;
+        if (!opening->custom_allowance) {
+            opening->width_allowance = settings->opening_width_allowance;
+        }
+        opening->custom_allowance = true;
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
 static SiteHelperPersistenceResult parse_opening(
     FILE *file,
     SiteHelperProject *project,
-    Wall *wall, const BuildSettings *resolved
+    Wall *wall, const BuildSettings *resolved, uintmax_t version
 )
 {
     char token[PERSISTENCE_TOKEN_CAPACITY];
@@ -378,6 +442,10 @@ static SiteHelperPersistenceResult parse_opening(
         return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
     }
 
+    if (version < 10) {
+        SiteHelperPersistenceResult result = migrate_legacy_opening(&opening, resolved);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+    }
     return wall_add_opening_definition(
         wall,
         resolved,
@@ -469,7 +537,7 @@ static SiteHelperPersistenceResult parse_wall(
         SiteHelperPersistenceResult result = parse_opening(
             file,
             project,
-            wall, resolved
+            wall, resolved, version
         );
 
         if (result != SITEHELPER_PERSISTENCE_SUCCESS) {

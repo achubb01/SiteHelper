@@ -126,13 +126,7 @@ int wall_generate(
         return 0;
     }
 
-    if (settings->stud_height <= 0 ||
-        settings->stud_width <= 0 ||
-        settings->stud_depth <= 0 ||
-        settings->stud_spacing <= 0 ||
-        settings->nog_spacing <= 0) {
-        return 0;
-    }
+    if (!wall_opening_definitions_valid(wall, settings)) { return 0; }
 
     /*
      * Build replacement framing separately

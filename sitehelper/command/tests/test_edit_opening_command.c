@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "command_history.h"
 #include "test_support.h"
+#include "wall_query.h"
 
 #ifdef SITEHELPER_TEST_WRAP_ALLOC
 static size_t allocations_before_failure = SIZE_MAX;
@@ -155,6 +156,46 @@ static void test_complete_definition_history(void)
     fixture_destroy(&f);
 }
 
+static void test_zero_cripple_edit_history_and_clear_hit_rectangle(void)
+{
+    Fixture f;
+    fixture_init(&f);
+    BuildSettings settings;
+    assert(sitehelper_project_resolve_storey_build_settings(&f.project, f.storey_id, &settings));
+    Opening boundary=f.old;
+    boundary.frame_bottom=settings.stud_width;
+    boundary.height=settings.stud_height-2*settings.stud_width;
+    boundary.custom_allowance=true;
+    boundary.height_allowance=0;
+    SiteHelperProject original,edited;
+    clone_project(&f.project,&original);
+    SiteHelperCommand command=make_command(&f,boundary);
+    assert(perform(&f,0,&command));
+    test_assert_opening_equal(&boundary,&fixture_wall(&f)->definition.openings[1]);
+    clone_project(&f.project,&edited);
+    for(int cycle=0;cycle<3;cycle++) {
+        const Wall *wall=fixture_wall(&f);
+        for(size_t i=0;i<wall->framing.stud_count;i++) {
+            assert(wall->framing.studs[i].details.stud.type!=STUD_CRIPPLE);
+        }
+        assert(wall_find_opening_at_position(wall,&settings,
+            (WallLocalPosition){boundary.frame_position,boundary.frame_bottom})==f.opening_id);
+        assert(wall_find_opening_at_position(wall,&settings,
+            (WallLocalPosition){boundary.frame_position,boundary.frame_bottom-1})==DOMAIN_ID_INVALID);
+        assert(wall_find_opening_at_position(wall,&settings,
+            (WallLocalPosition){boundary.frame_position,settings.stud_height-settings.stud_width})==f.opening_id);
+        assert(wall_find_opening_at_position(wall,&settings,
+            (WallLocalPosition){boundary.frame_position,settings.stud_height-settings.stud_width+1})==DOMAIN_ID_INVALID);
+        assert(perform(&f,1,&command));
+        assert_equal(&original,&f.project);
+        assert(perform(&f,2,&command));
+        assert_equal(&edited,&f.project);
+    }
+    sitehelper_project_destroy(&original);
+    sitehelper_project_destroy(&edited);
+    fixture_destroy(&f);
+}
+
 static void assert_allocations_unchanged(const Wall *before, const Wall *after)
 {
     assert(before->definition.openings == after->definition.openings);
@@ -187,7 +228,7 @@ static void test_invalid_edits_and_redo_branch(void)
     invalid[9].width_allowance = INT_MAX;
     invalid[10].height_allowance = -1000;
     invalid[11].frame_position = INT_MAX;
-    invalid[12].frame_bottom = 0; /* Passes validation, fails lower-cripple generation. */
+    invalid[12].frame_bottom = 0; /* Rejected by validation: no room for the sill below clear bottom. */
     for (size_t i = 0; i < 13; i++) {
         Wall before = *fixture_wall(&f);
         SiteHelperCommand command = make_command(&f, invalid[i]);
@@ -343,6 +384,7 @@ static void test_all_allocation_failures(void)
 int main(void)
 {
     test_complete_definition_history();
+    test_zero_cripple_edit_history_and_clear_hit_rectangle();
     test_invalid_edits_and_redo_branch();
     test_identity_and_domain_contract();
     test_failed_undo_redo_use_current_settings();

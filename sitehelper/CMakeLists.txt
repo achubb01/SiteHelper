@@ -63,7 +63,16 @@ add_library(sitehelper_persistence
     persistence/sitehelper_persistence.c
 )
 
-option(SITEHELPER_BUILD_TOPOLOGY "Build exact derived plan topology (requires 128-bit compiler arithmetic)" ON)
+set(sitehelper_topology_default ON)
+if(MSVC)
+    # MSVC has no __int128 equivalent. The topology layer is optional; keep
+    # the portable model/editor and SDL desktop application available while
+    # retaining an explicit diagnostic for unsupported opt-in builds below.
+    set(sitehelper_topology_default OFF)
+endif()
+option(SITEHELPER_BUILD_TOPOLOGY
+    "Build exact derived plan topology (requires 128-bit compiler arithmetic)"
+    ${sitehelper_topology_default})
 if(SITEHELPER_BUILD_TOPOLOGY)
     include(CheckCSourceCompiles)
     check_c_source_compiles("int main(void) { __extension__ typedef __int128 I; I a = 1, b; return __builtin_mul_overflow(a, a, &b) || __builtin_add_overflow(a, a, &b); }"
@@ -474,6 +483,19 @@ add_test(NAME edit_opening_command_tests COMMAND test_edit_opening_command)
 add_executable(test_editor_properties editor/tests/test_editor_properties.c)
 target_link_libraries(test_editor_properties PRIVATE sitehelper_editor sitehelper_test_support)
 add_test(NAME editor_properties_tests COMMAND test_editor_properties)
+
+add_executable(test_opening_geometry wall/tests/test_opening_geometry.c)
+target_link_libraries(test_opening_geometry PRIVATE sitehelper_test_support)
+add_test(NAME opening_geometry_tests COMMAND test_opening_geometry)
+
+add_executable(test_opening_migration persistence/tests/test_opening_migration.c)
+target_link_libraries(test_opening_migration PRIVATE sitehelper_persistence sitehelper_test_support)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_opening_migration PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_opening_migration PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME opening_migration_tests COMMAND test_opening_migration)
 
 add_executable(test_wall_command
     command/tests/test_wall_command.c

@@ -204,8 +204,8 @@ static void test_invalid_moves_preserve_model_framing_and_redo(void)
     execute(&f, move_command(&f, WALL_ENDPOINT_END, (PlanPosition){4000, 6000}));
     assert(sitehelper_command_history_undo(&f.history, &f.project));
     SiteHelperCommand valid = move_command(&f, WALL_ENDPOINT_END, (PlanPosition){4000, 6000});
-    /* This length still fits generated opening members, but violates the
-     * authoritative right-end clearance. Generation alone is insufficient. */
+    /* This length fits individual members but violates right-end clearance.
+     * Direct generation now enforces the same authoritative validation. */
     const Wall *wall = build_find_wall_by_id(&f.project.storeys[0].structure, f.wall_id);
     Wall candidate = {.id = wall->id, .definition = wall->definition};
     assert(wall_set_plan_segment(&candidate, (WallPlanSegment){{1000, 2000}, {4700, 2000}}));
@@ -220,7 +220,7 @@ static void test_invalid_moves_preserve_model_framing_and_redo(void)
     assert(wall_validate_opening(&candidate, &f.project.settings, &proposal).code
         == WALL_OPENING_TOO_CLOSE_TO_RIGHT_END);
     candidate.definition.opening_count = wall->definition.opening_count;
-    assert(wall_generate(&candidate, &f.project.settings));
+    assert(!wall_generate(&candidate, &f.project.settings));
     wall_framing_destroy(&candidate.framing); /* Openings are borrowed. */
 
     SiteHelperCommand invalid[] = {valid, valid, valid, valid, valid, valid};
@@ -379,7 +379,7 @@ static void test_undo_regenerates_with_current_settings(void)
     fixture_destroy(&f);
 }
 
-static void test_moved_segment_persists_in_v9(void)
+static void test_moved_segment_persists_in_v10(void)
 {
     Fixture f;
     fixture_init(&f);
@@ -389,7 +389,7 @@ static void test_moved_segment_persists_in_v9(void)
     FILE *file = fopen(path, "r");
     char header[128];
     assert(file && fgets(header, sizeof header, file));
-    assert(strcmp(header, "sitehelper_project 9\n") == 0);
+    assert(strcmp(header, "sitehelper_project 10\n") == 0);
     assert(fclose(file) == 0);
     SiteHelperProject loaded;
     sitehelper_project_init(&loaded);
@@ -462,7 +462,7 @@ int main(void)
     test_generation_failures_and_retry();
     test_branch_discard_and_state_relocation();
     test_undo_regenerates_with_current_settings();
-    test_moved_segment_persists_in_v9();
+    test_moved_segment_persists_in_v10();
     test_spatial_moves_and_repeated_history();
     test_invalid_moves_preserve_model_framing_and_redo();
     puts("move wall endpoint command tests passed");

@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include "wall_internal.h"
 
 static int generate_positions_even(
@@ -32,16 +33,16 @@ static int generate_positions_even(
     }
 
     int gaps =
-        (span + max_spacing - 1)
+        ((int64_t)span + max_spacing - 1)
         / max_spacing;
 
-    for (int i = 0;
+    for (int64_t i = 0;
          i <= gaps;
          i++) {
 
         int position =
             start +
-            (span * i) / gaps;
+            (int)(((int64_t)span * i) / gaps);
 
         if (!callback(
                 position,
@@ -117,7 +118,7 @@ static int generate_positions_maximise(
      */
     if (remainder == 0) {
 
-        for (int i = 1;
+        for (int64_t i = 1;
              i <= full_gaps;
              i++) {
 

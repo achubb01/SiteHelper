@@ -34,7 +34,7 @@ WallOpeningValidation wall_validate_opening(
 )
 {
     if (wall == NULL ||
-        settings == NULL ||
+        !build_settings_valid(settings) ||
         proposal == NULL || wall_length_mm(wall) == 0) {
 
         return wall_opening_validation(
@@ -74,11 +74,8 @@ WallOpeningValidation wall_validate_opening(
         .custom_allowance = proposal->custom_allowance
     };
 
-    int frame_width = opening_frame_width(&opening, settings);
-    int frame_height = opening_frame_height(&opening, settings);
-
-    if (frame_width <= 0 ||
-        frame_height <= 0) {
+    WallOpeningFrameGeometry frame;
+    if (!wall_opening_frame_geometry(&opening, settings, &frame)) {
 
         return wall_opening_validation(
             WALL_OPENING_INVALID_DIMENSIONS,
@@ -86,7 +83,7 @@ WallOpeningValidation wall_validate_opening(
         );
     }
 
-    if ((int64_t)opening.frame_bottom + frame_height > settings->stud_height) {
+    if (frame.top_z > settings->stud_height) {
         return wall_opening_validation(
             WALL_OPENING_INVALID_HEIGHT,
             DOMAIN_ID_INVALID
@@ -108,6 +105,21 @@ WallOpeningValidation wall_validate_opening(
             WALL_OPENING_TOO_CLOSE_TO_RIGHT_END,
             DOMAIN_ID_INVALID
         );
+    }
+
+    if (opening.type == OPENING_WINDOW) {
+        /* A sill fits below the clear bottom and a full-width cripple must
+         * fit beneath/above it. A header fits above the clear top. Zero
+         * remaining cripple height is legal and generates no member. */
+        if (frame.bottom_z < settings->stud_width) {
+            return wall_opening_validation(WALL_OPENING_TOO_CLOSE_TO_BASELINE, DOMAIN_ID_INVALID);
+        }
+        if (frame.width < settings->stud_width) {
+            return wall_opening_validation(WALL_OPENING_INVALID_DIMENSIONS, DOMAIN_ID_INVALID);
+        }
+        if (frame.top_z + settings->stud_width > settings->stud_height) {
+            return wall_opening_validation(WALL_OPENING_INVALID_HEIGHT, DOMAIN_ID_INVALID);
+        }
     }
 
     for (size_t i = 0; i < wall->definition.opening_count; i++) {
@@ -163,6 +175,42 @@ int opening_frame_height(
 
     int64_t height = (int64_t)opening->height + allowance;
     return height > 0 && height <= INT_MAX ? (int)height : 0;
+}
+
+int wall_opening_frame_geometry(const Opening *opening, const BuildSettings *settings,
+    WallOpeningFrameGeometry *geometry)
+{
+    if (geometry == NULL) { return 0; }
+    *geometry = (WallOpeningFrameGeometry){0};
+    if (opening == NULL || settings == NULL || opening->frame_position < 0 ||
+        opening->frame_bottom < 0 || opening->width <= 0 || opening->height <= 0) { return 0; }
+    int width = opening_frame_width(opening, settings);
+    int height = opening_frame_height(opening, settings);
+    if (width == 0 || height == 0) { return 0; }
+    *geometry = (WallOpeningFrameGeometry){
+        .left_u = opening->frame_position, .right_u = (int64_t)opening->frame_position + width,
+        .bottom_z = opening->frame_bottom, .top_z = (int64_t)opening->frame_bottom + height,
+        .width = width, .height = height
+    };
+    return 1;
+}
+
+int wall_opening_definitions_valid(const Wall *wall, const BuildSettings *settings)
+{
+    if (wall == NULL || !build_settings_valid(settings)) { return 0; }
+    Wall prefix = {.id = wall->id, .definition = wall->definition};
+    prefix.definition.opening_count = 0;
+    for (size_t i = 0; i < wall->definition.opening_count; i++) {
+        const Opening *o = &wall->definition.openings[i];
+        WallOpeningProposal proposal = {
+            .type = o->type, .frame_position = o->frame_position, .frame_bottom = o->frame_bottom,
+            .width = o->width, .height = o->height, .width_allowance = o->width_allowance,
+            .height_allowance = o->height_allowance, .custom_allowance = o->custom_allowance
+        };
+        if (wall_validate_opening(&prefix, settings, &proposal).code != WALL_OPENING_VALID) { return 0; }
+        prefix.definition.opening_count++;
+    }
+    return 1;
 }
 
 int wall_add_opening_definition(
@@ -363,18 +411,10 @@ int wall_apply_openings(
         Opening *opening =
             &wall->definition.openings[opening_index];
 
-        /*
-         * Clear framed opening boundaries.
-         */
-        int opening_start =
-            opening->frame_position;
-
-        int opening_end =
-            opening_start +
-            opening_frame_width(
-                opening,
-                settings
-            );
+        WallOpeningFrameGeometry frame;
+        if (!wall_opening_frame_geometry(opening, settings, &frame)) { return 0; }
+        int opening_start = (int)frame.left_u;
+        int opening_end = (int)frame.right_u;
 
         /*
          * Trimmers sit immediately beside
@@ -577,11 +617,10 @@ static int wall_frame_door(
         return 0;
     }
 
-    int trimmer_length =
-        opening_frame_height(
-            opening,
-            settings
-        );
+    WallOpeningFrameGeometry frame;
+    if (!wall_opening_frame_geometry(opening, settings, &frame)) { return 0; }
+    /* Both types' supported side members run from baseline to clear top. */
+    int trimmer_length = (int)frame.top_z;
 
     if (trimmer_length <= 0) {
         return 0;
@@ -643,12 +682,9 @@ static int wall_frame_window(
      * framing reference up to the underside
      * of the header.
      */
-    int trimmer_length =
-        opening->frame_bottom +
-        opening_frame_height(
-            opening,
-            settings
-        );
+    WallOpeningFrameGeometry frame;
+    if (!wall_opening_frame_geometry(opening, settings, &frame)) { return 0; }
+    int trimmer_length = (int)frame.top_z;
 
     if (trimmer_length <= 0) {
         return 0;
@@ -703,34 +739,13 @@ static int wall_generate_lower_cripples(
         return 0;
     }
 
-    int length =
-        opening->frame_bottom;
-
-    if (length <= 0) {
-        return 0;
-    }
-
-    int frame_width =
-        opening_frame_width(
-            opening,
-            settings
-        );
-
-    if (frame_width <= 0) {
-        return 0;
-    }
-
-    int start =
-        opening->frame_position;
-
-    int end =
-        start +
-        frame_width -
-        settings->stud_width;
-
-    if (end < start) {
-        return 0;
-    }
+    WallOpeningFrameGeometry frame;
+    if (!wall_opening_frame_geometry(opening, settings, &frame)) { return 0; }
+    int length = (int)frame.bottom_z - settings->stud_width;
+    if (length == 0) { return 1; } /* Sill rests at baseline; no lower cripple. */
+    if (length < 0 || frame.width < settings->stud_width) { return 0; }
+    int start = (int)frame.left_u;
+    int end = (int)frame.right_u - settings->stud_width;
 
     StudGenerationContext context = {
         .wall = wall,
@@ -764,65 +779,15 @@ static int wall_generate_upper_cripples(
         return 0;
     }
 
-    int frame_width =
-        opening_frame_width(
-            opening,
-            settings
-        );
-
-    int frame_height =
-        opening_frame_height(
-            opening,
-            settings
-        );
-
-    if (frame_width <= 0 ||
-        frame_height <= 0) {
-        return 0;
-    }
-
-    /*
-     * Header position.z is its bottom face.
-     */
-    int header_z =
-        opening->frame_bottom +
-        frame_height;
-
-    /*
-     * Upper cripples begin on top
-     * of the header.
-     */
-    int cripple_z =
-        header_z +
-        settings->stud_width;
-
-    /*
-     * They continue to the upper
-     * framing limit.
-     */
-    int cripple_length =
-        settings->stud_height -
-        cripple_z;
-
-    if (cripple_length <= 0) {
-        return 0;
-    }
-
-    /*
-     * Same horizontal span as the
-     * lower window cripples.
-     */
-    int start =
-        opening->frame_position;
-
-    int end =
-        start +
-        frame_width -
-        settings->stud_width;
-
-    if (end < start) {
-        return 0;
-    }
+    WallOpeningFrameGeometry frame;
+    if (!wall_opening_frame_geometry(opening, settings, &frame)) { return 0; }
+    int64_t above_header = frame.top_z + settings->stud_width;
+    if (above_header == settings->stud_height) { return 1; } /* No upper cripple needed. */
+    if (above_header > settings->stud_height || frame.width < settings->stud_width) { return 0; }
+    int cripple_z = (int)above_header;
+    int cripple_length = settings->stud_height - cripple_z;
+    int start = (int)frame.left_u;
+    int end = (int)frame.right_u - settings->stud_width;
 
     StudGenerationContext context = {
         .wall = wall,
@@ -843,28 +808,18 @@ static int wall_generate_upper_cripples(
     );
 }
 
-static int64_t opening_assembly_start(
-    const Opening *opening,
-    const BuildSettings *settings
-)
+static int64_t opening_assembly_start(const Opening *opening, const BuildSettings *settings)
 {
-    return
-        (int64_t)opening->frame_position -
-        (2 * (int64_t)settings->stud_width);
+    WallOpeningFrameGeometry frame;
+    if (!wall_opening_frame_geometry(opening, settings, &frame)) { return 0; }
+    return frame.left_u - 2 * (int64_t)settings->stud_width;
 }
 
-static int64_t opening_assembly_end(
-    const Opening *opening,
-    const BuildSettings *settings
-)
+static int64_t opening_assembly_end(const Opening *opening, const BuildSettings *settings)
 {
-    return
-        (int64_t)opening->frame_position +
-        opening_frame_width(
-            opening,
-            settings
-        ) +
-        (2 * (int64_t)settings->stud_width);
+    WallOpeningFrameGeometry frame;
+    if (!wall_opening_frame_geometry(opening, settings, &frame)) { return 0; }
+    return frame.right_u + 2 * (int64_t)settings->stud_width;
 }
 
 static int openings_conflict(
@@ -971,7 +926,7 @@ int wall_repair_stud_spacing(
          * need, then divide this span evenly.
          */
         int gaps =
-            (spacing +
+            ((int64_t)spacing +
              settings->stud_spacing - 1)
             /
             settings->stud_spacing;
@@ -979,13 +934,14 @@ int wall_repair_stud_spacing(
         /*
          * Add interior studs only.
          */
+        int left_position = left->position.u;
         for (int gap = 1;
              gap < gaps;
              gap++) {
 
             int position =
-                left->position.u +
-                (spacing * gap) / gaps;
+                left_position +
+                (int)(((int64_t)spacing * gap) / gaps);
 
             if (!wall_add_stud(
                     wall,
@@ -1053,15 +1009,10 @@ static int wall_span_is_opening(
         const Opening *opening =
             &wall->definition.openings[i];
 
-        int opening_left =
-            opening->frame_position;
-
-        int opening_right =
-            opening_left +
-            opening_frame_width(
-                opening,
-                settings
-            );
+        WallOpeningFrameGeometry frame;
+        if (!wall_opening_frame_geometry(opening, settings, &frame)) { continue; }
+        int opening_left = (int)frame.left_u;
+        int opening_right = (int)frame.right_u;
 
         /*
          * This span is intentional only if
