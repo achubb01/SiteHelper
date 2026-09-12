@@ -7,9 +7,10 @@ the **Desktop development with C++** workload and CMake.
 From a Visual Studio Developer PowerShell:
 
 ```powershell
-cmake -S . -B build -G "Visual Studio 17 2022"
-cmake --build build --config Debug --target sitehelper_sdl
-.\build\sitehelper\Debug\sitehelper_sdl.exe
+cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+cmake --build build --config Debug
+ctest --test-dir build -C Debug --output-on-failure
+build\sitehelper\Debug\sitehelper_sdl.exe
 ```
 
 The exact topology layer uses SiteHelper's portable two-limb 128-bit arithmetic

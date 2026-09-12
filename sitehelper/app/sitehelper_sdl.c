@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include "app_input_hud.h"
+#include "app_input.h"
 
 #include "sitehelper_project.h"
 #include "sitehelper_editor.h"
@@ -72,6 +74,8 @@ typedef struct
 
     ViewportInput viewport_input;
     AppViews views;
+    AppInput input;
+    int text_input_failed;
 
     int running;
 } SiteHelperApp;
@@ -376,9 +380,26 @@ static void sitehelper_app_render(
         &app->gui_style
     );
 
-    renderer2d_present(
-        app->renderer
-    );
+    app_input_draw_hud(app->renderer, &app->input, app->gui_layout.viewport);
+    if (app->text_input_failed) {
+        renderer2d_draw_screen_text(app->renderer,
+            (Vec2){app->gui_layout.viewport.position.x + 12, 90},
+            "Text input unavailable", (Colour){255, 140, 100, 255});
+    }
+    renderer2d_present(app->renderer);
+}
+
+static int sitehelper_app_execute_action(SiteHelperApp *app, const EditorAction *action)
+{
+    SiteHelperCommandResult result;
+    if (action->kind != EDITOR_ACTION_COMMAND ||
+        !sitehelper_command_history_execute(&app->history, &app->project, &action->command, &result)) {
+        return 0;
+    }
+    sitehelper_editor_complete_action(&app->editor, action, &result);
+    sitehelper_editor_reconcile(&app->editor, &app->project);
+    app_input_refresh(&app->input, &app->editor);
+    return 1;
 }
 
 static void sitehelper_app_process_events(
@@ -396,106 +417,48 @@ static void sitehelper_app_process_events(
 
     const double pan_amount = 100.0;
 
-    while (platform_event_sdl_poll_event(&event)) {
+    for (;;) {
+        app_input_refresh(&app->input, &app->editor);
+        app->text_input_failed = !renderer2d_sdl_set_text_input(&app->backend,
+            app_input_wants_text(&app->input, &app->editor));
+        if (!platform_event_sdl_poll_event(&event)) { break; }
         switch (event.type) {
             case PLATFORM_EVENT_QUIT:
                 app->running = 0;
                 break;
 
+            case PLATFORM_EVENT_TEXT_INPUT:
             case PLATFORM_EVENT_KEY_DOWN:
             {
-                PlatformKey key = event.data.key_down.key;
-                int modifiers = event.data.key_down.modifiers;
-
-                if (
-                    !event.data.key_down.repeat
-                    && (
-                        (
-                            key == PLATFORM_KEY_Y
-                            && (modifiers & PLATFORM_MODIFIER_CTRL)
-                        )
-                        ||
-                        (
-                            key == PLATFORM_KEY_Z
-                            && (modifiers & PLATFORM_MODIFIER_CTRL)
-                            && (modifiers & PLATFORM_MODIFIER_SHIFT)
-                        )
-                    )
-                ) {
-                    if (sitehelper_command_history_redo(
-                            &app->history,
-                            &app->project)) {
-
-                        sitehelper_editor_reconcile(
-                            &app->editor,
-                            &app->project
-                        );
+                EditorAction action;
+                AppInputResult result = app_input_route(&app->input, &app->editor, &event, &action);
+                switch (result) {
+                    case APP_INPUT_COMMAND:
+                        if (!sitehelper_app_execute_action(app, &action)) { app->input.command_failed = 1; }
+                        break;
+                    case APP_INPUT_UNDO:
+                    case APP_INPUT_REDO:
+                        if (result == APP_INPUT_UNDO
+                            ? sitehelper_command_history_undo(&app->history, &app->project)
+                            : sitehelper_command_history_redo(&app->history, &app->project)) {
+                            sitehelper_editor_reconcile(&app->editor, &app->project);
+                        }
+                        break;
+                    case APP_INPUT_SWITCH_VIEW:
+                    {
+                        EditorView view = app->editor.active_view == EDITOR_VIEW_PLAN
+                            ? EDITOR_VIEW_WALL_ELEVATION : EDITOR_VIEW_PLAN;
+                        app_views_set_active(&app->views, &app->editor, app->renderer, view);
+                        viewport_input_end_middle_drag(&app->viewport_input);
+                        sitehelper_app_set_active_tool(app, app->editor.active_tool);
+                        break;
                     }
-
-                    continue;
+                    case APP_INPUT_PAN_LEFT: renderer2d_move_camera(app->renderer, (Vec2){-pan_amount, 0}); break;
+                    case APP_INPUT_PAN_RIGHT: renderer2d_move_camera(app->renderer, (Vec2){pan_amount, 0}); break;
+                    case APP_INPUT_PAN_UP: renderer2d_move_camera(app->renderer, (Vec2){0, pan_amount}); break;
+                    case APP_INPUT_PAN_DOWN: renderer2d_move_camera(app->renderer, (Vec2){0, -pan_amount}); break;
+                    default: break;
                 }
-
-                if (
-                    !event.data.key_down.repeat
-                    && key == PLATFORM_KEY_Z
-                    && (modifiers & PLATFORM_MODIFIER_CTRL)
-                ) {
-                    if (sitehelper_command_history_undo(
-                            &app->history,
-                            &app->project)) {
-
-                        sitehelper_editor_reconcile(
-                            &app->editor,
-                            &app->project
-                        );
-                    }
-
-                    continue;
-                }
-
-                if (key == PLATFORM_KEY_TAB && !event.data.key_down.repeat &&
-                    modifiers == PLATFORM_MODIFIER_NONE) {
-                    EditorView view = app->editor.active_view == EDITOR_VIEW_PLAN
-                        ? EDITOR_VIEW_WALL_ELEVATION : EDITOR_VIEW_PLAN;
-                    app_views_set_active(&app->views, &app->editor, app->renderer, view);
-                    viewport_input_end_middle_drag(&app->viewport_input);
-                    sitehelper_app_set_active_tool(app, app->editor.active_tool);
-                    continue;
-                }
-
-                switch (key) {
-                    case PLATFORM_KEY_LEFT:
-                        renderer2d_move_camera(
-                            app->renderer,
-                            (Vec2){-pan_amount, 0.0}
-                        );
-                        break;
-
-                    case PLATFORM_KEY_RIGHT:
-                        renderer2d_move_camera(
-                            app->renderer,
-                            (Vec2){pan_amount, 0.0}
-                        );
-                        break;
-
-                    case PLATFORM_KEY_UP:
-                        renderer2d_move_camera(
-                            app->renderer,
-                            (Vec2){0.0, pan_amount}
-                        );
-                        break;
-
-                    case PLATFORM_KEY_DOWN_ARROW:
-                        renderer2d_move_camera(
-                            app->renderer,
-                            (Vec2){0.0, -pan_amount}
-                        );
-                        break;
-
-                    default:
-                        break;
-                }
-
                 break;
             }
 
@@ -629,6 +592,8 @@ static void sitehelper_app_process_events(
                             screen_position
                         )
                     ) {
+                        /* Focused numeric placement commits only with Enter. */
+                        if (app->input.focus != APP_KEYBOARD_FOCUS_NONE) { continue; }
                         Camera2D camera = renderer2d_get_camera(
                             app->renderer
                         );
@@ -651,20 +616,7 @@ static void sitehelper_app_process_events(
                         }
 
                         if (action.kind == EDITOR_ACTION_COMMAND) {
-                            SiteHelperCommandResult result;
-
-                            if (sitehelper_command_history_execute(
-                                    &app->history,
-                                    &app->project,
-                                    &action.command,
-                                    &result)) {
-                                sitehelper_editor_complete_action(
-                                    &app->editor,
-                                    &action,
-                                    &result
-                                );
-                                sitehelper_editor_reconcile(&app->editor, &app->project);
-                            }
+                            (void)sitehelper_app_execute_action(app, &action);
                         }
                     }
                 }
@@ -723,6 +675,7 @@ static void sitehelper_app_destroy(
         &app->project
     );
 
+    (void)renderer2d_sdl_set_text_input(&app->backend, 0);
     renderer2d_sdl_destroy_backend(
         &app->backend
     );

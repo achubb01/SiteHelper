@@ -8,6 +8,23 @@ typedef struct SDLBackendState {
     SDL_Renderer *renderer;
 } SDLBackendState;
 
+/* Temporary numeric HUD only: SDL's built-in ASCII debug font. Replace this
+ * callback when production typography arrives; input semantics are independent. */
+static void sdl_draw_screen_text(void *context, Vec2 position, const char *text, Colour colour)
+{
+    SDLBackendState *state = context;
+    SDL_SetRenderDrawColor(state->renderer, colour.r, colour.g, colour.b, colour.a);
+    SDL_RenderDebugText(state->renderer, (float)position.x, (float)position.y, text);
+}
+
+int renderer2d_sdl_set_text_input(RendererBackend *backend, int enabled)
+{
+    if (backend == NULL || backend->context == NULL) { return 0; }
+    SDLBackendState *state = backend->context;
+    if (!!SDL_TextInputActive(state->window) == !!enabled) { return 1; }
+    return enabled ? SDL_StartTextInput(state->window) : SDL_StopTextInput(state->window);
+}
+
 static void sdl_set_clip_rect(
     void *context,
     Rect2 rect
@@ -227,6 +244,7 @@ RendererBackend renderer2d_sdl_create_backend(
     backend.set_clip_rect = sdl_set_clip_rect;
     backend.clear_clip_rect = sdl_clear_clip_rect;
     backend.present = sdl_present;
+    backend.draw_screen_text = sdl_draw_screen_text;
 
 
     return backend;

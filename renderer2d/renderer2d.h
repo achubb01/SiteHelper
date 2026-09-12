@@ -122,4 +122,8 @@ void renderer2d_end_viewport_clip(
     Renderer2D *renderer
 );
 
+/* Temporary single-line HUD text. Backend typography is replaceable. */
+void renderer2d_draw_screen_text(Renderer2D *renderer, Vec2 position,
+    const char *text, Colour colour);
+
 #endif

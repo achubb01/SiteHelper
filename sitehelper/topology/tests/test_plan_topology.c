@@ -457,7 +457,8 @@ static void test_explicit_failures_and_numeric_limits(void)
     PlanTopologyRational reduced = topology_rational(topology_int_from_i64(-6), topology_uint_from_u64(8));
     assert(reduced.negative && reduced.numerator.lo == 3 && reduced.numerator.hi == 0);
     assert(reduced.denominator.lo == 4 && reduced.denominator.hi == 0);
-    TopologyInt minimum = topology_int_negate(topology_int_add(large, large));
+    /* -2^126 - 2^126 is representable; +2^126 + 2^126 is not. */
+    TopologyInt minimum = topology_int_subtract(topology_int_negate(large), large);
     reduced = topology_rational(minimum, topology_uint_from_u64(1));
     assert(reduced.negative && reduced.numerator.lo == 0 && reduced.numerator.hi == (UINT64_C(1) << 63));
     assert(reduced.denominator.lo == 1 && reduced.denominator.hi == 0);

@@ -181,6 +181,14 @@ void sitehelper_editor_complete_action(
     const SiteHelperCommandResult *result
 );
 
+/* Application input consumes only typed millimetres. Preview and commit reject
+ * nonpositive values. Clearing restores mouse placement. No Project mutation. */
+void sitehelper_editor_clear_wall_length(SiteHelperEditor *editor);
+WallLengthStatus sitehelper_editor_set_wall_length(SiteHelperEditor *editor, int length_mm);
+WallLengthStatus sitehelper_editor_create_wall_length_action(const SiteHelperEditor *editor,
+    int length_mm, EditorAction *action);
+void sitehelper_editor_cancel_wall_placement(SiteHelperEditor *editor);
+
 int sitehelper_editor_has_wall_preview(const SiteHelperEditor *editor);
 int sitehelper_editor_get_wall_preview_segment(
     const SiteHelperEditor *editor,

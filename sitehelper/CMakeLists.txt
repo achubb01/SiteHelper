@@ -169,6 +169,8 @@ target_link_libraries(sitehelper_editor
 )
 
 add_library(sitehelper_gui
+    gui/text_edit.c
+    gui/length_parse.c
     gui/gui_layout.c
     gui/gui_button.c
     gui/gui_toolbar.c
@@ -213,6 +215,8 @@ if(NOT MSVC)
 endif()
 
 add_library(sitehelper_app_core
+    app/app_input.c
+    app/app_input_hud.c
     app/appstate.c
     app/app_view.c
 )
@@ -225,6 +229,7 @@ target_include_directories(sitehelper_app_core
 target_link_libraries(sitehelper_app_core
     PUBLIC
         sitehelper_render
+        platform_event
         sitehelper_project
         sitehelper_editor
         sitehelper_command
@@ -800,3 +805,15 @@ if(WIN32)
             $<TARGET_FILE_DIR:sitehelper_sdl>
     )
 endif()
+
+add_executable(test_text_input gui/tests/test_text_input.c)
+target_link_libraries(test_text_input PRIVATE sitehelper_gui)
+add_test(NAME text_input_tests COMMAND test_text_input)
+
+add_executable(test_app_input app/tests/test_app_input.c)
+target_link_libraries(test_app_input PRIVATE sitehelper_app_core)
+add_test(NAME app_input_tests COMMAND test_app_input)
+
+add_executable(test_sdl_input app/tests/test_sdl_input.c app/viewport_input.c)
+target_link_libraries(test_sdl_input PRIVATE sitehelper_app_core renderer2d_sdl platform_event_sdl SDL3::SDL3)
+add_test(NAME sdl_input_tests COMMAND test_sdl_input)

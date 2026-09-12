@@ -1,4 +1,5 @@
 #include <SDL3/SDL.h>
+#include <string.h>
 
 #include "platform_event_sdl.h"
 #include "platform_event_sdl_internal.h"
@@ -8,6 +9,13 @@ static PlatformKey platform_event_sdl_key(
 )
 {
     switch (key) {
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER: return PLATFORM_KEY_ENTER;
+        case SDLK_ESCAPE: return PLATFORM_KEY_ESCAPE;
+        case SDLK_BACKSPACE: return PLATFORM_KEY_BACKSPACE;
+        case SDLK_DELETE: return PLATFORM_KEY_DELETE;
+        case SDLK_HOME: return PLATFORM_KEY_HOME;
+        case SDLK_END: return PLATFORM_KEY_END;
         case SDLK_TAB:
             return PLATFORM_KEY_TAB;
 
@@ -109,6 +117,18 @@ void platform_event_sdl_translate(
                 (double)sdl_event->window.data1;
             event->data.window_resized.height =
                 (double)sdl_event->window.data2;
+            break;
+
+        case SDL_EVENT_TEXT_INPUT:
+            event->type = PLATFORM_EVENT_TEXT_INPUT;
+            if (sdl_event->text.text != NULL) {
+                size_t length = strlen(sdl_event->text.text);
+                if (length >= PLATFORM_TEXT_CAPACITY) {
+                    event->data.text_input.overflow = 1;
+                } else {
+                    memcpy(event->data.text_input.text, sdl_event->text.text, length + 1);
+                }
+            }
             break;
 
         case SDL_EVENT_KEY_DOWN:

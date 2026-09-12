@@ -59,6 +59,8 @@ typedef struct RendererBackend {
     BackendClearClipRectFn clear_clip_rect;
 
     BackendPresentFn present;
+    /* Optional temporary HUD typography; screen pixels, no camera transform. */
+    void (*draw_screen_text)(void *context, Vec2 position, const char *text, Colour colour);
 } RendererBackend;
 
 #endif

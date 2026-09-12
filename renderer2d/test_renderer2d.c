@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "renderer2d.h"
 
@@ -696,8 +697,35 @@ static void test_viewport_clip_uses_renderer_viewport(void)
     renderer2d_destroy(renderer);
 }
 
+static void fake_text(void *context, Vec2 position, const char *text, Colour colour)
+{
+    FakeBackendState *state = context;
+    state->last_line_start = position;
+    state->last_colour = colour;
+    assert(strcmp(text, "4200mm") == 0);
+    state->draw_line_called++;
+}
+
+static void test_screen_text(void)
+{
+    Renderer2D *renderer = renderer2d_create();
+    assert(renderer != NULL);
+    FakeBackendState state = {0};
+    renderer2d_set_camera(renderer, (Camera2D){.position = {900, -800}, .scale = 12});
+    renderer2d_set_backend(renderer, (RendererBackend){.context = &state, .draw_screen_text = fake_text});
+    renderer2d_draw_screen_text(renderer, (Vec2){12,34}, "4200mm", (Colour){1,2,3,4});
+    assert(state.draw_line_called == 1 && state.last_line_start.x == 12 && state.last_line_start.y == 34);
+    assert(state.last_colour.r == 1 && state.last_colour.a == 4);
+    renderer2d_draw_screen_text(renderer, (Vec2){0}, NULL, (Colour){0});
+    renderer2d_draw_screen_text(NULL, (Vec2){0}, "4200mm", (Colour){0});
+    renderer2d_set_backend(renderer, (RendererBackend){0});
+    renderer2d_draw_screen_text(renderer, (Vec2){0}, "4200mm", (Colour){0});
+    renderer2d_destroy(renderer);
+}
+
 int main(void)
 {
+    test_screen_text();
     test_renderer2d_create();
     test_renderer2d_set_camera();
     test_renderer2d_set_viewport();

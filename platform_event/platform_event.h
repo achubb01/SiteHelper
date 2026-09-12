@@ -7,6 +7,7 @@ typedef enum
     PLATFORM_EVENT_QUIT,
     PLATFORM_EVENT_WINDOW_RESIZED,
     PLATFORM_EVENT_KEY_DOWN,
+    PLATFORM_EVENT_TEXT_INPUT,
     PLATFORM_EVENT_MOUSE_MOTION,
     PLATFORM_EVENT_MOUSE_WHEEL,
     PLATFORM_EVENT_MOUSE_BUTTON_DOWN,
@@ -22,7 +23,13 @@ typedef enum
     PLATFORM_KEY_DOWN_ARROW,
     PLATFORM_KEY_Y,
     PLATFORM_KEY_Z,
-    PLATFORM_KEY_TAB
+    PLATFORM_KEY_TAB,
+    PLATFORM_KEY_ENTER,
+    PLATFORM_KEY_ESCAPE,
+    PLATFORM_KEY_BACKSPACE,
+    PLATFORM_KEY_DELETE,
+    PLATFORM_KEY_HOME,
+    PLATFORM_KEY_END
 } PlatformKey;
 
 typedef enum
@@ -48,12 +55,16 @@ typedef enum
     PLATFORM_MOUSE_BUTTON_STATE_SECONDARY = 1 << 2
 } PlatformMouseButtonState;
 
+/* Owned UTF-8 payload. Oversize events are rejected whole, never truncated. */
+#define PLATFORM_TEXT_CAPACITY 256
+
 typedef struct
 {
     PlatformEventType type;
 
     union
     {
+        struct { char text[PLATFORM_TEXT_CAPACITY]; int overflow; } text_input;
         struct
         {
             double width;

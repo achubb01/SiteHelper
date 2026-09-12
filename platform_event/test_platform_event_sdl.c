@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <SDL3/SDL.h>
 
@@ -173,8 +174,42 @@ static void test_mouse_wheel_event(void)
     assert(event.data.mouse_wheel.mouse_y == 320.0);
 }
 
+static void test_text_and_editing_keys(void)
+{
+    const SDL_Keycode native[] = {SDLK_RETURN, SDLK_KP_ENTER, SDLK_ESCAPE,
+        SDLK_BACKSPACE, SDLK_DELETE, SDLK_HOME, SDLK_END, SDLK_LEFT, SDLK_RIGHT};
+    const PlatformKey keys[] = {PLATFORM_KEY_ENTER, PLATFORM_KEY_ENTER, PLATFORM_KEY_ESCAPE,
+        PLATFORM_KEY_BACKSPACE, PLATFORM_KEY_DELETE, PLATFORM_KEY_HOME, PLATFORM_KEY_END,
+        PLATFORM_KEY_LEFT, PLATFORM_KEY_RIGHT};
+    PlatformEvent event;
+    SDL_Event source = {.type = SDL_EVENT_KEY_DOWN};
+    for (size_t i = 0; i < sizeof keys / sizeof *keys; i++) {
+        source.key.key = native[i]; source.key.repeat = true;
+        platform_event_sdl_translate(&source, &event);
+        assert(event.type == PLATFORM_EVENT_KEY_DOWN && event.data.key_down.key == keys[i]);
+        assert(event.data.key_down.repeat);
+    }
+    source = (SDL_Event){.type = SDL_EVENT_TEXT_INPUT};
+    char text[] = "4.2m \xc3\xa9";
+    source.text.text = text;
+    platform_event_sdl_translate(&source, &event);
+    assert(event.type == PLATFORM_EVENT_TEXT_INPUT && !event.data.text_input.overflow);
+    assert(strcmp(event.data.text_input.text, text) == 0);
+    text[0] = '9';
+    assert(event.data.text_input.text[0] == '4'); /* Owns bytes, no SDL pointer. */
+    char full[PLATFORM_TEXT_CAPACITY + 1];
+    memset(full, '1', sizeof full - 1); full[sizeof full - 1] = 0;
+    source.text.text = full;
+    platform_event_sdl_translate(&source, &event);
+    assert(event.data.text_input.overflow && !event.data.text_input.text[0]);
+    full[PLATFORM_TEXT_CAPACITY - 1] = 0;
+    platform_event_sdl_translate(&source, &event);
+    assert(!event.data.text_input.overflow && strlen(event.data.text_input.text) == PLATFORM_TEXT_CAPACITY - 1);
+}
+
 int main(void)
 {
+    test_text_and_editing_keys();
     test_quit_event();
     test_resize_event();
     test_key_events();

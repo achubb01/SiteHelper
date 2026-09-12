@@ -308,3 +308,10 @@ void renderer2d_end_viewport_clip(
         renderer->backend.context
     );
 }
+void renderer2d_draw_screen_text(Renderer2D *renderer, Vec2 position,
+    const char *text, Colour colour)
+{
+    if (renderer != NULL && text != NULL && renderer->backend.draw_screen_text != NULL) {
+        renderer->backend.draw_screen_text(renderer->backend.context, position, text, colour);
+    }
+}

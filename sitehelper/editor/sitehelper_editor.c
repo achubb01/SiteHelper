@@ -457,6 +457,7 @@ void sitehelper_editor_pointer_move(
             wall_tool_update(&editor->wall_tool, snap_result->position);
         }
 
+        wall_tool_update_direction(&editor->wall_tool, view_position);
         editor->opening_placement = (OpeningPlacement){0};
         return;
     }
@@ -590,6 +591,16 @@ void sitehelper_editor_complete_opening_command(
         (OpeningPlacement){0};
 }
 
+static int editor_wall_action(const SiteHelperEditor *editor,
+    WallPlanSegment segment, EditorAction *action)
+{
+    WallCommand command;
+    if (!wall_command_create(editor->current_storey_id, segment, &command) ||
+        !sitehelper_command_from_wall(&command, &action->command)) { return 0; }
+    action->kind = EDITOR_ACTION_COMMAND;
+    return 1;
+}
+
 int sitehelper_editor_primary_action(
     SiteHelperEditor *editor,
     const Wall *wall,
@@ -682,23 +693,8 @@ int sitehelper_editor_primary_action(
 
             wall_tool_update(&editor->wall_tool, position);
             WallPlanSegment segment;
-            WallCommand wall_command;
-
-            if (!wall_tool_command_data(
-                    &editor->wall_tool,
-                    &segment) ||
-                !wall_command_create(
-                    editor->current_storey_id, segment,
-                    &wall_command) ||
-                !sitehelper_command_from_wall(
-                    &wall_command,
-                    &action->command)) {
-
-                return 0;
-            }
-
-            action->kind = EDITOR_ACTION_COMMAND;
-            return 1;
+            return wall_tool_command_data(&editor->wall_tool, &segment) &&
+                editor_wall_action(editor, segment, action);
         }
 
         default:
@@ -901,4 +897,32 @@ int sitehelper_editor_get_wall_preview_segment(
 {
     return editor != NULL &&
         wall_tool_command_data(&editor->wall_tool, segment);
+}
+
+void sitehelper_editor_clear_wall_length(SiteHelperEditor *editor)
+{
+    if (editor != NULL) { wall_tool_clear_length(&editor->wall_tool); }
+}
+
+WallLengthStatus sitehelper_editor_set_wall_length(SiteHelperEditor *editor, int length_mm)
+{
+    if (!sitehelper_editor_has_wall_preview(editor)) { return WALL_LENGTH_INACTIVE; }
+    return wall_tool_set_length(&editor->wall_tool, length_mm);
+}
+
+WallLengthStatus sitehelper_editor_create_wall_length_action(const SiteHelperEditor *editor,
+    int length_mm, EditorAction *action)
+{
+    if (action == NULL) { return WALL_LENGTH_INACTIVE; }
+    *action = (EditorAction){0};
+    if (!sitehelper_editor_has_wall_preview(editor)) { return WALL_LENGTH_INACTIVE; }
+    WallPlanSegment segment;
+    WallLengthStatus status = wall_tool_resolve_length(&editor->wall_tool, length_mm, &segment);
+    if (status != WALL_LENGTH_OK) { return status; }
+    return editor_wall_action(editor, segment, action) ? WALL_LENGTH_OK : WALL_LENGTH_INACTIVE;
+}
+
+void sitehelper_editor_cancel_wall_placement(SiteHelperEditor *editor)
+{
+    if (editor != NULL) { wall_tool_cancel(&editor->wall_tool); sitehelper_editor_clear_snap(editor); }
 }

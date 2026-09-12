@@ -15,4 +15,8 @@ void renderer2d_sdl_destroy_backend(
     RendererBackend *backend
 );
 
+/* This SDL adapter already owns the native window. Call on the main thread.
+ * Idempotent; returns zero on SDL failure. No native objects escape. */
+int renderer2d_sdl_set_text_input(RendererBackend *backend, int enabled);
+
 #endif
