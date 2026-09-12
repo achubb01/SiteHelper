@@ -38,7 +38,9 @@ typedef struct
     SnapType type;
 } SnapResult;
 
-/* Input, candidates, and result share the caller's geometry space. */
+/* Input, candidates, result, grid_spacing and object_snap_tolerance all share
+ * the caller's geometry space and distance unit. No pixel conversion or
+ * millimetre assumption here; SiteHelper's EditorSnapState binds them to mm. */
 SnapResult editor_snap(
     Vec2 position,
     const SnapCandidate *candidates,

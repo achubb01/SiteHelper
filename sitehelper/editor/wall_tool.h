@@ -4,6 +4,8 @@
 #include "geometry.h"
 #include "wall_plan_segment.h"
 
+/* Transient plan-space positions are double millimetres; resolved segments
+ * and numeric length constraints use integer millimetres. No screen pixels. */
 typedef struct
 {
     int active;

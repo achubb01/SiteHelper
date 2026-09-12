@@ -10,6 +10,8 @@ typedef enum
     OPENING_WINDOW
 } OpeningType;
 
+/* All positions, nominal dimensions and allowances are integer millimetres.
+ * Identity, type and the allowance-selection flag carry no distance unit. */
 typedef struct
 {
     DomainId id;

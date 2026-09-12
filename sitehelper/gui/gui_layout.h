@@ -3,6 +3,8 @@
 
 #include "geometry.h"
 
+/* Layout bounds, window dimensions and GUI hit positions are screen pixels.
+ * They must not be passed to construction APIs without camera unprojection. */
 typedef struct
 {
     Rect2 toolbar;

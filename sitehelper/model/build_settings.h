@@ -9,7 +9,9 @@ typedef enum
     STUD_SPACING_MAXIMISE
 } StudSpacingMode;
 
-/* Complete scalar configuration. Stored in Project as defaults; Wall APIs
+/* All physical dimensions, spacings and allowances below are integer millimetres
+ * (see MEASUREMENTS.md); flags and spacing modes are dimensionless.
+ * Complete scalar configuration. Stored in Project as defaults; Wall APIs
  * consume a transient, resolved copy supplied by project orchestration. */
 typedef struct
 {

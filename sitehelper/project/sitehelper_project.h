@@ -5,6 +5,9 @@
 #include "storey.h"
 #include "domain_id.h"
 
+/* Physical coordinates, dimensions, elevations, settings and mutation arguments
+ * use integer millimetres (../model/MEASUREMENTS.md). Callers convert external
+ * units before these APIs; Project never interprets unit strings or magnitudes. */
 typedef struct
 {
     /* Stored defaults. Live changes must use the transactional setters below;

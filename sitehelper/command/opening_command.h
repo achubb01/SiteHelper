@@ -4,6 +4,8 @@
 #include "sitehelper_project.h"
 #include "opening.h"
 
+/* Typed construction intent: clear U/Z position and nominal width/height are
+ * integer millimetres, with the same geometry semantics as Opening. */
 typedef struct
 {
 

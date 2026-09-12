@@ -19,6 +19,10 @@ typedef enum
 } SiteHelperPersistenceResult;
 
 /*
+ * Persisted authoritative physical measurements are integer millimetres,
+ * without suffixes/unit markers (../model/MEASUREMENTS.md). IDs, counts, flags
+ * and modes are not measurements. Supported versions 1-10 all use millimetres;
+ * legacy geometry-reference migrations below do not change dimensional units.
  * Version 10 stores canonical clear-opening geometry. Otherwise it retains
  * version 9's ordered Storeys, each as "storey ID elevation MM", followed
  * by "stud_height inherit" or "stud_height override N", then

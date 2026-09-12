@@ -6,6 +6,7 @@
 #include <errno.h>
 
 #include "actions.h"
+#include "length_parse.h"
 #include "sitehelper_model.h"
 #include "wall.h"
 #include "appstate.h"
@@ -27,17 +28,34 @@ static int read_setting(const char *prompt, int *value)
     return 1;
 }
 
+/* Construction input shares the GUI parser. Reject an overlong line whole,
+ * so a valid prefix cannot acquire a different meaning or feed the next prompt. */
+static int read_measurement(const char *prompt, int *millimetres)
+{
+    char buffer[256];
+    printf("%s", prompt);
+    if (fgets(buffer, sizeof buffer, stdin) == NULL) { return 0; }
+    if (strchr(buffer, '\n') == NULL) {
+        int ch = getchar();
+        if (ch != EOF) {
+            while (ch != '\n' && ch != EOF) { ch = getchar(); }
+            return 0;
+        }
+    }
+    return length_parse_mm(buffer, millimetres) == LENGTH_PARSE_OK;
+}
+
 void setBuildSettings(void *context)
 {
     AppContext *app = context;
     if (app == NULL) { return; }
     BuildSettings defaults = app->project.settings;
     int mode;
-    if (!read_setting("Select default Stud Height: ", &defaults.stud_height) ||
-        !read_setting("Select Timber Width: ", &defaults.stud_width) ||
-        !read_setting("Select Timber Depth: ", &defaults.stud_depth) ||
-        !read_setting("Select Noggin Spacing: ", &defaults.nog_spacing) ||
-        !read_setting("Select Stud Spacing: ", &defaults.stud_spacing) ||
+    if (!read_measurement("Select default Stud Height (mm or m): ", &defaults.stud_height) ||
+        !read_measurement("Select Timber Width (mm or m): ", &defaults.stud_width) ||
+        !read_measurement("Select Timber Depth (mm or m): ", &defaults.stud_depth) ||
+        !read_measurement("Select Noggin Spacing (mm or m): ", &defaults.nog_spacing) ||
+        !read_measurement("Select Stud Spacing (mm or m): ", &defaults.stud_spacing) ||
         !read_setting("1. Even\n2. Maximum\nSelect Spacing Mode: ", &mode) ||
         mode < 1 || mode > 2) {
         printf("Invalid settings input.\n");
@@ -62,7 +80,7 @@ void describeStandardStud (void *context){
         return;
     }
 
-    printf("Standard Stud Dimensions are:\nHeight: %i\nWidth: %i\nDepth: %i\nNoggin spacing is set to: %i\nStud spacing is set to: %i\nStud spacing mode is set to %i\n", app->project.settings.stud_height, app->project.settings.stud_width, app->project.settings.stud_depth, app->project.settings.nog_spacing, app->project.settings.stud_spacing, app->project.settings.stud_spacing_mode);
+    printf("Standard Stud Dimensions are:\nHeight: %i mm\nWidth: %i mm\nDepth: %i mm\nNoggin spacing is set to: %i mm\nStud spacing is set to: %i mm\nStud spacing mode is set to %i\n", app->project.settings.stud_height, app->project.settings.stud_width, app->project.settings.stud_depth, app->project.settings.nog_spacing, app->project.settings.stud_spacing, app->project.settings.stud_spacing_mode);
 }
 
 
@@ -186,7 +204,6 @@ void generateWall(void *context)
 void setWallLength(void *context)
 {
     AppContext *app = context;
-    char buffer[256];
 
     if (app == NULL) {
         return;
@@ -202,69 +219,46 @@ void setWallLength(void *context)
         return;
     }
 
-    printf("Enter wall length: ");
-
-    if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-        fprintf(stderr, "Failed to read wall length.\n");
-        return;
-    }
-
-    char *end;
-    errno = 0;
-    long input = strtol(buffer, &end, 10);
-
-    if (end == buffer || input < 1 || input > INT_MAX) {
-        printf("Please enter a number.\n");
+    int input;
+    if (!read_measurement("Enter wall length (mm or m): ", &input)) {
+        printf("Invalid wall length.\n");
         return;
     }
 
     PlanPosition start = wall->definition.segment.start;
     BuildSettings resolved;
     /* Legacy length editing deliberately establishes a horizontal segment. */
-    if (errno == ERANGE || input <= 0 || input > INT_MAX ||
+    if (input <= 0 ||
         start.x > INT_MAX - input ||
         !sitehelper_project_resolve_storey_build_settings(&app->project, app->editor.current_storey_id, &resolved) ||
         !wall_apply_plan_segment(wall, &resolved, (WallPlanSegment){
             .start = start,
-            .end = { .x = start.x + (int)input, .y = start.y }
+            .end = { .x = start.x + input, .y = start.y }
         })) {
         printf("Invalid wall length.\n");
         return;
     }
 
     sitehelper_editor_reconcile(&app->editor, &app->project);
-    printf("Wall length set to %ld mm.\n", input);
+    printf("Wall length set to %d mm.\n", input);
 }
 
 void setStudSpacing(void *context)
 {
     AppContext *app = context;
-    char buffer[256];
 
     if (app == NULL) {
         return;
     }
 
-    printf("Enter stud spacing: ");
-
-    if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-        fprintf(
-            stderr,
-            "Failed to read stud spacing.\n"
-        );
-        return;
-    }
-
-    char *end;
-    long input = strtol(buffer, &end, 10);
-
-    if (end == buffer || input < 1 || input > INT_MAX) {
-        printf("Please enter a number.\n");
+    int input;
+    if (!read_measurement("Enter stud spacing (mm or m): ", &input)) {
+        printf("Invalid stud spacing.\n");
         return;
     }
 
     BuildSettings defaults = app->project.settings;
-    if (!build_set_stud_spacing(&defaults, (int)input) ||
+    if (!build_set_stud_spacing(&defaults, input) ||
         !sitehelper_project_set_build_settings(&app->project, &defaults)) {
 
         printf("Invalid stud spacing.\n");
@@ -274,7 +268,7 @@ void setStudSpacing(void *context)
     sitehelper_editor_reconcile(&app->editor, &app->project);
 
     printf(
-        "Stud spacing set to %ld mm.\n",
+        "Stud spacing set to %d mm.\n",
         input
     );
 }
@@ -592,89 +586,24 @@ void addOpening(void *context)
             ? OPENING_DOOR
             : OPENING_WINDOW;
 
-    printf("Enter framed opening position: ");
-
-    if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-        fprintf(stderr, "Failed to read opening position.\n");
-        return;
-    }
-
-    long position = strtol(buffer, &end, 10);
-
-    if (end == buffer || position < 0) {
+    int position, width, height;
+    if (!read_measurement("Enter framed opening position U (mm or m): ", &position) || position < 0) {
         printf("Invalid opening position.\n");
         return;
     }
-
-    printf("Enter nominal opening width: ");
-
-    if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-        fprintf(stderr, "Failed to read opening width.\n");
-        return;
-    }
-
-    long width = strtol(buffer, &end, 10);
-
-    if (end == buffer || width <= 0) {
+    if (!read_measurement("Enter nominal opening width (mm or m): ", &width) || width <= 0) {
         printf("Invalid opening width.\n");
         return;
     }
-
-    printf("Enter nominal opening height: ");
-
-    if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-        fprintf(
-            stderr,
-            "Failed to read opening height.\n"
-        );
+    if (!read_measurement("Enter nominal opening height (mm or m): ", &height) || height <= 0) {
+        printf("Invalid opening height.\n");
         return;
     }
-
-    long height =
-        strtol(
-            buffer,
-            &end,
-            10
-        );
-
-    if (end == buffer || height <= 0) {
-        printf(
-            "Invalid opening height.\n"
-        );
-        return;
-    }
-
     int frame_bottom = 0;
-
-    if (type == OPENING_WINDOW) {
-        printf(
-            "Enter framed opening bottom height: "
-        );
-
-        if (fgets(buffer, sizeof buffer, stdin) == NULL) {
-            fprintf(
-                stderr,
-                "Failed to read opening bottom height.\n"
-            );
-            return;
-        }
-
-        long bottom =
-            strtol(
-                buffer,
-                &end,
-                10
-            );
-
-        if (end == buffer || bottom < 0) {
-            printf(
-                "Invalid opening bottom height.\n"
-            );
-            return;
-        }
-
-        frame_bottom =
-            (int)bottom;
+    if (type == OPENING_WINDOW &&
+        (!read_measurement("Enter framed opening bottom Z (mm or m): ", &frame_bottom) || frame_bottom < 0)) {
+        printf("Invalid opening bottom height.\n");
+        return;
     }
 
     OpeningCommand opening_command;
@@ -682,10 +611,10 @@ void addOpening(void *context)
     if (!opening_command_create(
             app->editor.current_wall_id,
             type,
-            (int)position,
+            position,
             frame_bottom,
-            (int)width,
-            (int)height,
+            width,
+            height,
             &opening_command)) {
 
         printf(

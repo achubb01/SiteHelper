@@ -46,6 +46,8 @@ typedef struct
     int placeholder;
 } Plate;
 
+/* Member length/depth/width and wall-local U/Z position are integer millimetres,
+ * including generated framing. Kinds, types and bay indices are not distances. */
 typedef struct Timber
 {
     int length;

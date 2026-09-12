@@ -3,6 +3,8 @@
 
 #include "sitehelper_editor.h"
 
+/* Physical snapshot values (including resolved settings) are integer
+ * millimetres. Display/unit conversion belongs to the GUI/application. */
 typedef struct
 {
     DomainId wall_id;                 /* Read-only identity. */

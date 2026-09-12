@@ -3,6 +3,9 @@
 
 #include "snap.h"
 
+/* SiteHelper binds generic SnapSettings/results to physical millimetres in the
+ * active plan X/Y or elevation U/Z space. Grid spacing and object tolerance are
+ * millimetres, not fixed screen-pixel radii; they do not scale with camera zoom. */
 typedef struct
 {
     SnapSettings settings;

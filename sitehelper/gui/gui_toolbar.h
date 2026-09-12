@@ -5,6 +5,8 @@
 
 #include "gui_button.h"
 
+/* Bounds, padding, button_size, spacing and pointer positions share the
+ * caller geometry unit (screen pixels in the SiteHelper GUI). */
 typedef struct
 {
     GuiButton *buttons;

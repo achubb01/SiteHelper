@@ -10,6 +10,8 @@ typedef struct Colour {
     unsigned char a;
 } Colour;
 
+/* Geometric backend arguments are screen pixels, already transformed by
+ * renderer2d; no physical construction-unit interpretation occurs here. */
 typedef void (*BackendClearFn)(
     void *context,
     Colour colour

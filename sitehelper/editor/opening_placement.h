@@ -5,6 +5,8 @@
 #include "opening_tool.h"
 #include "wall.h"
 
+/* Nominal dimensions are integer millimetres; calculated preview positions
+ * retain millimetre units while using double. */
 typedef struct
 {
     int has_candidate;

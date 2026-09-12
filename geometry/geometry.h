@@ -1,16 +1,21 @@
 #ifndef GEOMETRY_H
 #define GEOMETRY_H
 
+/* Vec2/Rect2 are generic caller-owned geometry: neither encodes a unit or
+ * coordinate space. Arguments used together must share both. */
 typedef struct Vec2 {
     double x;
     double y;
 } Vec2;
 
+/* Position uses caller world units; scale is screen pixels per world unit.
+ * Camera transforms map world +Y up to screen +Y down. */
 typedef struct Camera2D {
     Vec2 position;
     double scale;
 } Camera2D;
 
+/* Screen-space origin and extents in pixels, independent of world units. */
 typedef struct Viewport2D {
     Vec2 position;
 

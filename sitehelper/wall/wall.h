@@ -4,6 +4,12 @@
 #include "../model/sitehelper_model.h"
 #include <stdint.h>
 
+/* All physical construction inputs/results in this subsystem are integer
+ * millimetres: segment coordinates, lengths, opening extents/allowances and
+ * framing positions/dimensions. Scalar stud positions are U; noggin vertical
+ * positions are Z. IDs, counts, indices (including bay) and modes are unitless.
+ * Wide checked intermediate extents remain millimetres. See ../model/MEASUREMENTS.md. */
+
 /* Checked effective clear rectangle. Wide extents let validation distinguish
  * out-of-Wall coordinates from invalid dimensions without overflowing. */
 typedef struct

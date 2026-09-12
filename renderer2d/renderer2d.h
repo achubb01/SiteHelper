@@ -4,6 +4,10 @@
 #include "../geometry/geometry.h"
 #include "renderer2d_backend.h"
 
+/* Drawing primitives and camera positions/deltas use caller world units.
+ * Viewports, screen_point and explicit *_screen_* primitives use pixels.
+ * Camera scale is pixels per world unit; zoom factors are dimensionless.
+ * SiteHelper supplies millimetres as world units; renderer2d stays generic. */
 typedef struct Renderer2D Renderer2D;
 
 void renderer2d_draw_line(

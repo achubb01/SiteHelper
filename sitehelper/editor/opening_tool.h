@@ -4,6 +4,8 @@
 #include "geometry.h"
 #include "sitehelper_model.h"
 
+/* Width, height and bottom are integer millimetres. Preview coordinates and
+ * rectangles are calculated wall-local U/Z millimetres, not screen pixels. */
 typedef struct
 {
     int active;

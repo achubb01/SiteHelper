@@ -3,6 +3,8 @@
 
 #include "wall.h"
 
+/* Generation coordinates, callback positions, lengths and spacing are integer
+ * millimetres in wall-local U/Z. Position ranges/callbacks run along U. */
 typedef int (*PositionCallback)(
     int position,
     void *context

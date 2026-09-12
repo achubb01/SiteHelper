@@ -780,6 +780,7 @@ target_link_libraries(sitehelper
         sitehelper_app_core
         sitehelper_wall
         commandmenu
+        sitehelper_gui
 )
 
 add_executable(sitehelper_sdl
@@ -817,3 +818,8 @@ add_test(NAME app_input_tests COMMAND test_app_input)
 add_executable(test_sdl_input app/tests/test_sdl_input.c app/viewport_input.c)
 target_link_libraries(test_sdl_input PRIVATE sitehelper_app_core renderer2d_sdl platform_event_sdl SDL3::SDL3)
 add_test(NAME sdl_input_tests COMMAND test_sdl_input)
+
+add_executable(test_cli_measurements cli/tests/test_cli_measurements.c cli/actions.c)
+target_include_directories(test_cli_measurements PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cli)
+target_link_libraries(test_cli_measurements PRIVATE sitehelper_app_core sitehelper_gui)
+add_test(NAME cli_measurement_tests COMMAND test_cli_measurements)

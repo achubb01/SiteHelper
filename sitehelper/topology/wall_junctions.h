@@ -12,7 +12,7 @@ typedef enum {
 typedef struct {
     DomainId wall_id;
     WallJunctionParticipantPosition position;
-    /* Exact parameter on the original ordered Wall source, copied unchanged.
+    /* Exact dimensionless parameter on the ordered Wall source, copied unchanged.
      * t == 0 is START, t == 1 is END, otherwise INTERIOR. */
     PlanTopologyRational source_t;
 } WallJunctionParticipant;

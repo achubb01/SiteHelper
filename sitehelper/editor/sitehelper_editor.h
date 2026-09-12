@@ -120,7 +120,9 @@ void sitehelper_editor_update_snap(
     Vec2 position
 );
 
-/* Pointer APIs receive active view world coordinates, after camera unprojection.
+/* Pointer APIs receive millimetres in the active view after camera unprojection:
+ * plan X/Y or wall-local elevation U/Z, with fractional coordinates allowed.
+ * Preview geometry and editor snap distances use these same physical units.
  * This low-level helper requires resolved construction settings. Applications
  * should use pointer_move_in_project, which resolves the active Storey. */
 void sitehelper_editor_pointer_move(

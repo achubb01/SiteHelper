@@ -17,6 +17,8 @@ enum
     GUI_BUTTON_ID_NONE = -1
 };
 
+/* Bounds and pointer/hit-test positions use the same caller geometry space;
+ * SiteHelper GUI supplies screen pixels. The control performs no conversion. */
 typedef struct
 {
     Rect2 bounds;

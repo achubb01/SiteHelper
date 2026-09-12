@@ -10,7 +10,9 @@ struct Storey;
 
 /* Exact reduced rational: (-1)^negative * numerator / denominator. Limbs
  * encode lo + hi * 2^64; denominator is positive, zero is nonnegative / 1.
- * These are derived coordinates, never rounded authoritative PlanPositions. */
+ * Numeric representation alone has no unit: vertex X/Y values are derived
+ * millimetres; source parameters t are dimensionless. Neither is a rounded
+ * authoritative PlanPosition or persisted model state. */
 typedef struct { uint64_t lo, hi; } PlanTopologyMagnitude;
 typedef struct {
     PlanTopologyMagnitude numerator, denominator;
