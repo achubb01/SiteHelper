@@ -411,8 +411,30 @@ static void test_intersection_beats_endpoint_at_same_position(void)
     assert(result.type == SNAP_INTERSECTION);
 }
 
+static void test_centreline_priority_and_enablement(void)
+{
+    SnapSettings settings = {.endpoint_enabled = 1, .intersection_enabled = 1,
+        .wall_centreline_enabled = 1, .grid_enabled = 1, .grid_spacing = 100,
+        .object_snap_tolerance = 80};
+    SnapCandidate candidates[] = {
+        {{10, 0}, SNAP_WALL_CENTRELINE}, {{0, 10}, SNAP_ENDPOINT},
+        {{-10, 0}, SNAP_INTERSECTION}
+    };
+    /* Semantic priorities apply only to equal object distances. Grid remains
+     * fallback even when its point is closer than every object candidate. */
+    assert(editor_snap((Vec2){0,0}, candidates, 3, &settings).type == SNAP_INTERSECTION);
+    settings.intersection_enabled = 0;
+    assert(editor_snap((Vec2){0,0}, candidates, 3, &settings).type == SNAP_ENDPOINT);
+    assert(editor_snap((Vec2){1,0}, candidates, 3, &settings).type == SNAP_WALL_CENTRELINE);
+    settings.endpoint_enabled = 0;
+    assert(editor_snap((Vec2){0,0}, candidates, 3, &settings).type == SNAP_WALL_CENTRELINE);
+    settings.wall_centreline_enabled = 0;
+    assert(editor_snap((Vec2){0,0}, candidates, 3, &settings).type == SNAP_GRID);
+}
+
 int main(void)
 {
+    test_centreline_priority_and_enablement();
     test_snap_to_grid_returns_grid_result();
     test_invalid_spacing_returns_no_snap();
     test_negative_spacing_returns_no_snap();

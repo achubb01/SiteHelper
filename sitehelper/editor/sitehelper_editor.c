@@ -5,6 +5,7 @@
 #include "wall_query.h"
 #include "wall_plan_transform.h"
 #include "wall_snap.h"
+#include "plan_snap.h"
 
 int sitehelper_editor_set_current_storey(SiteHelperEditor *editor,
     const SiteHelperProject *project, DomainId storey_id)
@@ -425,9 +426,8 @@ void sitehelper_editor_update_snap(
     );
 }
 
-/* Both motion and clicks resolve through the normal snap path. Recompute at
- * the supplied position rather than trusting an earlier pointer event. */
-static int editor_measurement_point(SiteHelperEditor *editor, const Wall *wall,
+/* Tool consumers use the snap resolved for this event by their entry point. */
+static int editor_measurement_point(SiteHelperEditor *editor,
     Vec2 position, PlanPoint *point)
 {
     if (editor->active_view != EDITOR_VIEW_PLAN ||
@@ -435,7 +435,6 @@ static int editor_measurement_point(SiteHelperEditor *editor, const Wall *wall,
         sitehelper_editor_clear_snap(editor);
         return 0;
     }
-    sitehelper_editor_update_snap(editor, wall, position);
     const SnapResult *snap = sitehelper_editor_get_snap_result(editor);
     if (snap != NULL && snap->type != SNAP_NONE) { position = snap->position; }
     if (!isfinite(position.x) || !isfinite(position.y)) {
@@ -446,26 +445,56 @@ static int editor_measurement_point(SiteHelperEditor *editor, const Wall *wall,
     return 1;
 }
 
+void sitehelper_editor_update_snap_in_project(SiteHelperEditor *editor,
+    const SiteHelperProject *project, Vec2 position)
+{
+    if (editor == NULL) { return; }
+    const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
+    if (storey == NULL || !isfinite(position.x) || !isfinite(position.y)) {
+        sitehelper_editor_clear_snap(editor);
+        return;
+    }
+    if (editor->active_view == EDITOR_VIEW_PLAN) {
+        SnapCandidate candidates[PLAN_SNAP_CANDIDATE_CAPACITY];
+        size_t count = plan_collect_snap_candidates(storey, position, &editor->snap.settings, candidates);
+        sitehelper_editor_set_snap_result(editor,
+            editor_snap(position, candidates, count, &editor->snap.settings));
+    }
+    else {
+        const Wall *wall = build_find_wall_by_id_const(&storey->structure, editor->current_wall_id);
+        sitehelper_editor_update_snap(editor, wall, position);
+    }
+}
+
+static void editor_pointer_move_resolved(SiteHelperEditor *editor,
+    const Wall *wall, const BuildSettings *settings, Vec2 view_position);
+
 void sitehelper_editor_pointer_move_in_project(SiteHelperEditor *editor,
     const SiteHelperProject *project, Vec2 view_position)
 {
     if (editor == NULL) { return; }
     const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
-    /* A geometric query requires a valid view context, not construction settings. */
-    if (storey != NULL && editor->active_tool == EDITOR_TOOL_MEASURE) {
-        sitehelper_editor_pointer_move(editor, NULL, NULL, view_position);
-        return;
-    }
-    BuildSettings resolved;
-    if (storey == NULL || !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved)) {
+    BuildSettings resolved = {0};
+    /* Measurement needs the view context, not construction settings. */
+    if (storey == NULL || (editor->active_tool != EDITOR_TOOL_MEASURE &&
+        !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved))) {
         sitehelper_editor_invalidate_transient_state(editor);
         return;
     }
     const Wall *wall = build_find_wall_by_id_const(&storey->structure, editor->current_wall_id);
-    sitehelper_editor_pointer_move(editor, wall, &resolved, view_position);
+    sitehelper_editor_update_snap_in_project(editor, project, view_position);
+    editor_pointer_move_resolved(editor, wall, &resolved, view_position);
 }
 
-void sitehelper_editor_pointer_move(
+void sitehelper_editor_pointer_move(SiteHelperEditor *editor,
+    const Wall *wall, const BuildSettings *settings, Vec2 view_position)
+{
+    if (editor == NULL) { return; }
+    sitehelper_editor_update_snap(editor, wall, view_position);
+    editor_pointer_move_resolved(editor, wall, settings, view_position);
+}
+
+static void editor_pointer_move_resolved(
     SiteHelperEditor *editor,
     const Wall *wall,
     const BuildSettings *settings,
@@ -478,29 +507,25 @@ void sitehelper_editor_pointer_move(
 
     if (editor->active_tool == EDITOR_TOOL_MEASURE) {
         PlanPoint point;
-        if (editor_measurement_point(editor, wall, view_position, &point)) {
+        if (editor_measurement_point(editor, view_position, &point)) {
             (void)measurement_tool_update(&editor->measurement_tool, point);
         }
         return;
     }
 
     if (editor->active_tool == EDITOR_TOOL_WALL) {
-        sitehelper_editor_update_snap(editor, NULL, view_position);
-
         const SnapResult *snap_result = editor_snap_state_get_result(
             &editor->snap
         );
 
-        if (snap_result != NULL && snap_result->type != SNAP_NONE) {
-            wall_tool_update(&editor->wall_tool, snap_result->position);
-        }
+        wall_tool_update(&editor->wall_tool,
+            snap_result != NULL && snap_result->type != SNAP_NONE
+                ? snap_result->position : view_position);
 
         wall_tool_update_direction(&editor->wall_tool, view_position);
         editor->opening_placement = (OpeningPlacement){0};
         return;
     }
-
-    sitehelper_editor_update_snap(editor, wall, view_position);
 
     switch (editor->active_tool) {
         case EDITOR_TOOL_OPENING:
@@ -639,7 +664,7 @@ static int editor_wall_action(const SiteHelperEditor *editor,
     return 1;
 }
 
-int sitehelper_editor_primary_action(
+static int editor_primary_action_resolved(
     SiteHelperEditor *editor,
     const Wall *wall,
     Vec2 view_position,
@@ -661,7 +686,7 @@ int sitehelper_editor_primary_action(
         case EDITOR_TOOL_MEASURE:
         {
             PlanPoint point;
-            return editor_measurement_point(editor, wall, view_position, &point) &&
+            return editor_measurement_point(editor, view_position, &point) &&
                 measurement_tool_click(&editor->measurement_tool, point);
         }
         case EDITOR_TOOL_SELECT:
@@ -746,6 +771,16 @@ int sitehelper_editor_primary_action(
     }
 }
 
+int sitehelper_editor_primary_action(SiteHelperEditor *editor,
+    const Wall *wall, Vec2 view_position, EditorAction *action)
+{
+    if (editor == NULL || action == NULL) { return 0; }
+    if (editor->active_view == EDITOR_VIEW_PLAN) {
+        sitehelper_editor_update_snap(editor, wall, view_position);
+    }
+    return editor_primary_action_resolved(editor, wall, view_position, action);
+}
+
 int sitehelper_editor_primary_action_in_project(
     SiteHelperEditor *editor,
     const SiteHelperProject *project,
@@ -780,6 +815,7 @@ int sitehelper_editor_primary_action_in_project(
             }
         }
         editor_selection_set_wall(&editor->selection, editor->current_wall_id);
+        sitehelper_editor_update_snap_in_project(editor, project, view_position);
         return 1;
     }
 
@@ -792,7 +828,11 @@ int sitehelper_editor_primary_action_in_project(
         sitehelper_editor_pointer_move_in_project(editor, project, view_position);
     }
 
-    int success = sitehelper_editor_primary_action(
+    if (editor->active_view == EDITOR_VIEW_PLAN) {
+        sitehelper_editor_update_snap_in_project(editor, project, view_position);
+    }
+
+    int success = editor_primary_action_resolved(
         editor,
         wall,
         view_position,

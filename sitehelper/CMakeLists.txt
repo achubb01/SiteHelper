@@ -145,6 +145,7 @@ add_library(sitehelper_editor
     editor/editor_properties.c
     editor/editor_snap_state.c
     editor/snap.c
+    editor/plan_snap.c
     editor/opening_tool.c
     editor/opening_placement.c
     editor/wall_tool.c
@@ -168,6 +169,11 @@ target_link_libraries(sitehelper_editor
     PRIVATE
         sitehelper_grid
 )
+
+if(SITEHELPER_BUILD_TOPOLOGY)
+    target_link_libraries(sitehelper_editor PRIVATE sitehelper_topology)
+    target_compile_definitions(sitehelper_editor PRIVATE SITEHELPER_HAS_TOPOLOGY)
+endif()
 
 add_library(sitehelper_gui
     gui/text_edit.c
@@ -832,3 +838,21 @@ add_test(NAME measurement_tool_tests COMMAND test_measurement_tool)
 add_executable(test_editor_measurement editor/tests/test_editor_measurement.c)
 target_link_libraries(test_editor_measurement PRIVATE sitehelper_app_core sitehelper_persistence)
 add_test(NAME editor_measurement_tests COMMAND test_editor_measurement)
+
+add_executable(test_plan_snap editor/tests/test_plan_snap.c)
+target_link_libraries(test_plan_snap PRIVATE sitehelper_editor)
+add_test(NAME plan_snap_tests COMMAND test_plan_snap)
+
+add_executable(test_editor_plan_snap editor/tests/test_editor_plan_snap.c)
+target_link_libraries(test_editor_plan_snap PRIVATE sitehelper_editor sitehelper_persistence)
+add_test(NAME editor_plan_snap_tests COMMAND test_editor_plan_snap)
+if(SITEHELPER_BUILD_TOPOLOGY)
+    target_compile_definitions(test_plan_snap PRIVATE SITEHELPER_TEST_TOPOLOGY)
+    target_link_libraries(test_plan_snap PRIVATE sitehelper_topology)
+    target_compile_definitions(test_editor_plan_snap PRIVATE SITEHELPER_TEST_TOPOLOGY)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(test_plan_snap PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+        target_link_options(test_plan_snap PRIVATE
+            "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+    endif()
+endif()

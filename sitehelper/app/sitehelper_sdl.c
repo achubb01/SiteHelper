@@ -797,6 +797,10 @@ static void sitehelper_app_render_snap_cursor(
             };
             break;
 
+        case SNAP_WALL_CENTRELINE:
+            marker_colour = (Colour){220, 120, 255, 255};
+            break;
+
         case SNAP_INTERSECTION:
             marker_colour = (Colour){
                 .r = 80,

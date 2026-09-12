@@ -12,7 +12,8 @@ typedef enum
     SNAP_STUD,
     SNAP_ENDPOINT,
     SNAP_OPENING,
-    SNAP_INTERSECTION
+    SNAP_INTERSECTION,
+    SNAP_WALL_CENTRELINE
 } SnapType;
 
 typedef struct
@@ -28,6 +29,7 @@ typedef struct
 
     int endpoint_enabled;
     int intersection_enabled;
+    int wall_centreline_enabled;
 
     double object_snap_tolerance;
 } SnapSettings;

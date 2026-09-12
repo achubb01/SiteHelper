@@ -37,12 +37,16 @@ static void motion(SiteHelperApp *app, float x, float y)
 static int saw_text, saw_cursor, saw_valid, saw_invalid;
 static int measurement_live_text, measurement_complete_text, measurement_live_line, measurement_complete_line;
 static RendererBackend original_backend;
+static int record_snap, snap_lines;
+static Colour snap_colour;
+static Vec2 snap_a, snap_b;
 static void record_line(void *context, Vec2 a, Vec2 b, Colour colour)
 {
     if (fabs(a.x - 164) < 1e-9 && fabs(a.y - 500) < 1e-9) {
         if (fabs(b.x - 344) < 1e-9 && fabs(b.y - 260) < 1e-9) { measurement_live_line = 1; }
         if (fabs(b.x - 464) < 1e-9 && fabs(b.y - 100) < 1e-9) { measurement_complete_line = 1; }
     }
+    if (record_snap) { snap_lines++; snap_colour = colour; snap_a = a; snap_b = b; }
     original_backend.draw_line(context, a, b, colour);
 }
 static void record_text(void *context, Vec2 position, const char *text, Colour colour)
@@ -122,6 +126,55 @@ static void test_measurement(SiteHelperApp *app)
     click(app, 164,500);
     assert(sitehelper_editor_get_measurement(&app->editor, &query) && !query.completed && query.distance_mm == 0);
     assert(app->history.count == count && app->history.cursor == cursor && app->project.domain_ids.next == next_id);
+}
+
+static void test_plan_snapping(SiteHelperApp *app)
+{
+    DomainId storey = sitehelper_project_add_storey(&app->project, 2700); assert(storey);
+    assert(sitehelper_project_add_wall(&app->project, storey, (WallPlanSegment){{1000,1000},{3000,1000}}));
+    assert(sitehelper_project_add_wall(&app->project, storey, (WallPlanSegment){{2000,0},{2000,3000}}));
+    assert(sitehelper_editor_set_current_storey(&app->editor, &app->project, storey));
+    renderer2d_set_camera(app->renderer, (Camera2D){.position = {0,0}, .scale = .1});
+    click(app, 32,200);
+    DomainId next_id = app->project.domain_ids.next;
+    size_t count = app->history.count, cursor = app->history.cursor;
+    char before[16384], after[16384]; save_project_text(app, before, sizeof before);
+    motion(app, 364,499); /* Stale result at the other endpoint. */
+    click(app, 163,499);
+    PlanMeasurementQuery query;
+    assert(sitehelper_editor_get_measurement(&app->editor, &query));
+    assert(query.start.x == 1000 && query.start.y == 1000);
+    assert(sitehelper_editor_get_snap_result(&app->editor)->type == SNAP_ENDPOINT);
+    motion(app, 244,499);
+    assert(sitehelper_editor_get_measurement(&app->editor, &query));
+    assert(query.end.x == 1800 && query.end.y == 1000 && query.distance_mm == 800);
+    assert(sitehelper_editor_get_snap_result(&app->editor)->type == SNAP_WALL_CENTRELINE);
+    record_snap = 1; snap_lines = 0;
+    sitehelper_app_render_snap_cursor(app);
+    record_snap = 0;
+    assert(snap_lines == 2 && snap_colour.r == 220 && snap_colour.g == 120 && snap_colour.b == 255);
+    assert(fabs(snap_a.x - 244) < 1e-9 && fabs(snap_b.x - 244) < 1e-9);
+    assert(fabs(fabs(snap_a.y - snap_b.y) - 8) < 1e-9);
+    click(app, 264,500); /* Actual B is the shared wall junction. */
+    assert(sitehelper_editor_get_measurement(&app->editor, &query));
+    assert(query.completed && query.end.x == 2000 && query.end.y == 1000 && query.distance_mm == 1000);
+    save_project_text(app, after, sizeof after);
+    assert(strcmp(before, after) == 0 && app->project.domain_ids.next == next_id);
+    assert(app->history.count == count && app->history.cursor == cursor);
+
+    click(app, 32,144);
+    click(app, 244,499); /* Centreline start. */
+    click(app, 263,400); /* Centreline end, no motion before either click. */
+    assert(app->history.count == count + 1 && app->history.cursor == cursor + 1);
+    const Storey *active = sitehelper_project_find_storey_by_id_const(&app->project, storey);
+    assert(active && active->structure.wall_count == 3);
+    WallPlanSegment segment = active->structure.walls[2].definition.segment;
+    assert(segment.start.x == 1800 && segment.start.y == 1000 && segment.end.x == 2000 && segment.end.y == 2000);
+    assert(app->history.entries[count].command.type == SITEHELPER_COMMAND_ADD_WALL);
+    send_key(app, SDLK_Z, SDL_KMOD_CTRL);
+    assert(sitehelper_project_find_storey_by_id_const(&app->project, storey)->structure.wall_count == 2);
+    send_key(app, SDLK_Y, SDL_KMOD_CTRL);
+    assert(sitehelper_project_find_storey_by_id_const(&app->project, storey)->structure.wall_count == 3);
 }
 
 int main(void)
@@ -234,6 +287,7 @@ int main(void)
     assert(SDL_PushEvent(&middle)); sitehelper_app_process_events(&app);
     assert(!viewport_input_allows_pan(&app.viewport_input));
     test_measurement(&app);
+    test_plan_snapping(&app);
     sitehelper_app_destroy(&app);
     puts("SDL application input tests passed");
 }

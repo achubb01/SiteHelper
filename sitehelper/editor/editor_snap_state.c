@@ -15,6 +15,7 @@ void editor_snap_state_init(
 
             .endpoint_enabled = 1,
             .intersection_enabled = 1,
+            .wall_centreline_enabled = 1,
 
             .object_snap_tolerance = 80.0
         },

@@ -59,7 +59,7 @@ static void test_editor_lifecycle_and_ownership(void)
     assert(sitehelper_editor_set_active_tool(&editor, EDITOR_TOOL_MEASURE));
     sitehelper_editor_pointer_move_in_project(&editor, &project, (Vec2){999,999});
     assert(!sitehelper_editor_get_measurement(&editor, &query));
-    click(&editor, &project, (Vec2){12,22}); /* Replaces stale snap at (1000,1000). */
+    click(&editor, &project, (Vec2){-12,22}); /* Replaces stale snap at (1000,1000). */
     query = get(&editor);
     assert(query.start.x == 0 && query.start.y == 0 && !query.completed);
     sitehelper_editor_pointer_move_in_project(&editor, &project, (Vec2){312,422});
@@ -85,7 +85,11 @@ static void test_editor_lifecycle_and_ownership(void)
     assert(app_input_route(&input, &editor, &escape, &action) == APP_INPUT_CONSUMED);
     assert(!sitehelper_editor_get_measurement(&editor, &query) && editor.active_tool == EDITOR_TOOL_MEASURE);
     assert(!app_input_wants_text(&input, &editor));
+    /* Exercise raw fractional coordinates independently of object snapping. */
     editor.snap.settings.grid_enabled = 0;
+    editor.snap.settings.endpoint_enabled = 0;
+    editor.snap.settings.wall_centreline_enabled = 0;
+    editor.snap.settings.intersection_enabled = 0;
     click(&editor, &project, (Vec2){-.25,-.5});
     click(&editor, &project, (Vec2){2.75,3.5});
     query = get(&editor);

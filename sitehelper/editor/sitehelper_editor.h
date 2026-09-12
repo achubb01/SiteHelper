@@ -114,8 +114,13 @@ void sitehelper_editor_set_snap_result(
     SnapResult result
 );
 
-/* Active view world coordinates: Plan X/Y or elevation U/Z.
- * Generated wall snap candidates are used only in elevation. */
+/* Fresh active-Storey Plan candidates (mm); elevation retains framing U/Z
+ * candidates. Called once per project pointer/click event before tool handling.
+ * No Project mutation; missing context clears the transient snap result. */
+void sitehelper_editor_update_snap_in_project(SiteHelperEditor *editor,
+    const SiteHelperProject *project, Vec2 position);
+
+/* Low-level path: generated framing in elevation, grid-only in Plan. */
 void sitehelper_editor_update_snap(
     SiteHelperEditor *editor,
     const Wall *wall,
@@ -126,7 +131,8 @@ void sitehelper_editor_update_snap(
  * plan X/Y or wall-local elevation U/Z, with fractional coordinates allowed.
  * Preview geometry and editor snap distances use these same physical units.
  * This low-level helper requires resolved construction settings. Applications
- * should use pointer_move_in_project, which resolves the active Storey. */
+ * should use pointer_move_in_project, which resolves the active Storey and
+ * its Plan geometry. */
 void sitehelper_editor_pointer_move(
     SiteHelperEditor *editor,
     const Wall *wall,
@@ -152,6 +158,8 @@ void sitehelper_editor_complete_opening_command(
     SiteHelperEditor *editor
 );
 
+/* Plan clicks resolve fresh grid-only snapping at view_position. Use the
+ * project-aware entry point below to include physical Plan geometry. */
 int sitehelper_editor_primary_action(
     SiteHelperEditor *editor,
     const Wall *wall,
@@ -159,7 +167,9 @@ int sitehelper_editor_primary_action(
     EditorAction *action
 );
 
-/* Select in Plan sets both wall navigation and authoritative WALL selection.
+/* Plan clicks resolve current Storey geometry at the actual event position,
+ * then tools consume that result without another low-level snap update.
+ * Select in Plan sets both wall navigation and authoritative WALL selection.
  * Elevation preserves member hit precedence, then tests clear Opening geometry
  * with owning-Storey settings. The lower-level primary_action lacks Project
  * settings and therefore retains member-only elevation selection. */

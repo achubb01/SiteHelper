@@ -144,6 +144,9 @@ static int snap_type_enabled(
         case SNAP_INTERSECTION:
             return settings->intersection_enabled;
 
+        case SNAP_WALL_CENTRELINE:
+            return settings->wall_centreline_enabled;
+
         default:
             return 0;
     }
@@ -155,9 +158,12 @@ static int snap_priority(
 {
     switch (type) {
         case SNAP_INTERSECTION:
-            return 3;
+            return 4;
 
         case SNAP_ENDPOINT:
+            return 3;
+
+        case SNAP_WALL_CENTRELINE:
             return 2;
 
         case SNAP_GRID:

@@ -32,9 +32,12 @@ framework was added.
 Motion and each click call the existing editor snap resolver at that event's
 position. A snap result supplies the point when present; otherwise the raw Plan
 pointer is used. This avoids stale motion/snap coordinates on clicks. Current
-Plan snapping supplies grid points; it does not yet gather Wall endpoint or
-intersection candidates. Measure shares the resolver so it can use richer Plan
-candidates later. No topology dependency or snap-system redesign was introduced.
+Plan snapping supplies grid fallback plus the active Storey's physical Wall
+endpoints, finite centreline projections and (with optional topology enabled)
+exact-derived junctions, including fractional positions. Project-aware motion
+and clicks resolve once before tool handling; the low-level path without Project
+context remains grid-only in Plan. See [Plan snapping](PLAN_SNAPPING.md) for
+candidate reduction, tie rules, topology failure fallback and deferred sources.
 
 `sitehelper_editor_cancel_tool_interaction` lets application Escape routing
 dispatch cancellation to the editor tool. Measure clears its query and snap while
