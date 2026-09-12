@@ -33,12 +33,13 @@ typedef enum
 {
     SITEHELPER_TOOLBAR_ACTION_SELECT = 10,
     SITEHELPER_TOOLBAR_ACTION_OPENING = 20,
-    SITEHELPER_TOOLBAR_ACTION_WALL = 30
+    SITEHELPER_TOOLBAR_ACTION_WALL = 30,
+    SITEHELPER_TOOLBAR_ACTION_MEASURE = 40
 } SiteHelperToolbarAction;
 
 enum
 {
-    SITEHELPER_TOOLBAR_BUTTON_COUNT = 3
+    SITEHELPER_TOOLBAR_BUTTON_COUNT = 4
 };
 
 static const GuiButtonId sitehelper_toolbar_button_ids[
@@ -46,7 +47,8 @@ static const GuiButtonId sitehelper_toolbar_button_ids[
 ] = {
     SITEHELPER_TOOLBAR_ACTION_SELECT,
     SITEHELPER_TOOLBAR_ACTION_OPENING,
-    SITEHELPER_TOOLBAR_ACTION_WALL
+    SITEHELPER_TOOLBAR_ACTION_WALL,
+    SITEHELPER_TOOLBAR_ACTION_MEASURE
 };
 
 typedef struct
@@ -360,6 +362,8 @@ static void sitehelper_app_render(
         );
     }
 
+    app_render_measurement(app->renderer, &app->editor);
+
     sitehelper_app_render_snap_cursor(
         app
     );
@@ -379,6 +383,16 @@ static void sitehelper_app_render(
         &app->toolbar,
         &app->gui_style
     );
+
+    /* Identify the new query tool by action ID, independent of toolbar order. */
+    for (size_t i = 0; i < app->toolbar.button_count; i++) {
+        const GuiButton *button = &app->toolbar.buttons[i];
+        if (button->id == SITEHELPER_TOOLBAR_ACTION_MEASURE) {
+            renderer2d_draw_screen_text(app->renderer,
+                (Vec2){button->bounds.position.x + 4, button->bounds.position.y + 20},
+                "Meas.", button->enabled ? (Colour){230,230,230,255} : (Colour){100,100,100,255});
+        }
+    }
 
     app_input_draw_hud(app->renderer, &app->input, app->gui_layout.viewport);
     if (app->text_input_failed) {
@@ -897,6 +911,10 @@ static int sitehelper_app_toolbar_action_tool(
 
         case SITEHELPER_TOOLBAR_ACTION_OPENING:
             *tool = EDITOR_TOOL_OPENING;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_MEASURE:
+            *tool = EDITOR_TOOL_MEASURE;
             return 1;
 
         case SITEHELPER_TOOLBAR_ACTION_WALL:

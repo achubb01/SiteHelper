@@ -1,5 +1,8 @@
 #include "app_view.h"
 #include "appstate.h"
+#include <float.h>
+#include <math.h>
+#include <stdio.h>
 
 void app_views_init(AppViews *views, Camera2D initial_camera)
 {
@@ -53,4 +56,29 @@ void app_render_walls(
         wall_plan_render(renderer, wall, wall->id == editor->current_wall_id
             ? style->selected_colour : style->timber_colour);
     }
+}
+
+void app_render_measurement(Renderer2D *renderer, const SiteHelperEditor *editor)
+{
+    PlanMeasurementQuery query;
+    if (renderer == NULL || !sitehelper_editor_get_measurement(editor, &query)) { return; }
+    Vec2 a = {query.start.x, query.start.y}, b = {query.end.x, query.end.y};
+    /* Half each coordinate before adding to avoid overflowing a finite midpoint. */
+    Vec2 midpoint = {a.x * 0.5 + b.x * 0.5, a.y * 0.5 + b.y * 0.5};
+    Camera2D camera = renderer2d_get_camera(renderer);
+    Viewport2D viewport = renderer2d_get_viewport(renderer);
+    Vec2 label = camera_world_to_screen(&camera, viewport, midpoint);
+    Vec2 screen_a = camera_world_to_screen(&camera, viewport, a);
+    Vec2 screen_b = camera_world_to_screen(&camera, viewport, b);
+    if (!isfinite(label.x) || !isfinite(label.y) ||
+        !isfinite(screen_a.x) || !isfinite(screen_a.y) ||
+        !isfinite(screen_b.x) || !isfinite(screen_b.y)) { return; }
+    Colour colour = query.completed ? (Colour){255, 220, 90, 255} : (Colour){110, 210, 255, 255};
+    renderer2d_draw_line(renderer, a, b, colour);
+    /* Enough room for any finite double's fixed integer digits plus suffix.
+     * Explicit round gives nearest mm, half upward, without narrowing to int. */
+    char text[DBL_MAX_10_EXP + 32];
+    snprintf(text, sizeof text, "%.0f mm", round(query.distance_mm));
+    label.y -= 12.0; /* Pixels above the physical midpoint. */
+    renderer2d_draw_screen_text(renderer, label, text, colour);
 }

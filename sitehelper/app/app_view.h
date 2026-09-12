@@ -19,4 +19,7 @@ void app_render_walls(
     const SiteHelperEditor *editor, const WallRenderStyle *style
 );
 
+/* Caller supplies the normal viewport clip; label formatting stays in app. */
+void app_render_measurement(Renderer2D *renderer, const SiteHelperEditor *editor);
+
 #endif

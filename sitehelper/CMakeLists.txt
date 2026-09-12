@@ -148,6 +148,7 @@ add_library(sitehelper_editor
     editor/opening_tool.c
     editor/opening_placement.c
     editor/wall_tool.c
+    editor/measurement_tool.c
     editor/editor_action.c
 
     wall/wall_snap.c
@@ -816,10 +817,18 @@ target_link_libraries(test_app_input PRIVATE sitehelper_app_core)
 add_test(NAME app_input_tests COMMAND test_app_input)
 
 add_executable(test_sdl_input app/tests/test_sdl_input.c app/viewport_input.c)
-target_link_libraries(test_sdl_input PRIVATE sitehelper_app_core renderer2d_sdl platform_event_sdl SDL3::SDL3)
+target_link_libraries(test_sdl_input PRIVATE sitehelper_app_core sitehelper_persistence renderer2d_sdl platform_event_sdl SDL3::SDL3)
 add_test(NAME sdl_input_tests COMMAND test_sdl_input)
 
 add_executable(test_cli_measurements cli/tests/test_cli_measurements.c cli/actions.c)
 target_include_directories(test_cli_measurements PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/cli)
 target_link_libraries(test_cli_measurements PRIVATE sitehelper_app_core sitehelper_gui)
 add_test(NAME cli_measurement_tests COMMAND test_cli_measurements)
+
+add_executable(test_measurement_tool editor/tests/test_measurement_tool.c)
+target_link_libraries(test_measurement_tool PRIVATE sitehelper_editor)
+add_test(NAME measurement_tool_tests COMMAND test_measurement_tool)
+
+add_executable(test_editor_measurement editor/tests/test_editor_measurement.c)
+target_link_libraries(test_editor_measurement PRIVATE sitehelper_app_core sitehelper_persistence)
+add_test(NAME editor_measurement_tests COMMAND test_editor_measurement)

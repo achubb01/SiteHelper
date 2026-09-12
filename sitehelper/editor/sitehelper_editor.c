@@ -24,7 +24,7 @@ int sitehelper_editor_set_current_storey(SiteHelperEditor *editor,
 int sitehelper_editor_tool_available(EditorView view, EditorTool tool)
 {
     return (view == EDITOR_VIEW_PLAN &&
-            (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_WALL)) ||
+            (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_WALL || tool == EDITOR_TOOL_MEASURE)) ||
         (view == EDITOR_VIEW_WALL_ELEVATION &&
             (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_OPENING));
 }
@@ -96,6 +96,9 @@ int sitehelper_editor_set_active_tool(
         editor->wall_tool.active = 0;
     }
 
+    if (tool == EDITOR_TOOL_MEASURE) { measurement_tool_activate(&editor->measurement_tool); }
+    else { measurement_tool_init(&editor->measurement_tool); }
+
     editor->active_tool = tool;
 
     return 1;
@@ -129,6 +132,7 @@ void sitehelper_editor_init(
     );
 
     wall_tool_init(&editor->wall_tool);
+    measurement_tool_init(&editor->measurement_tool);
 
     editor->opening_placement =
         (OpeningPlacement){0};
@@ -421,11 +425,37 @@ void sitehelper_editor_update_snap(
     );
 }
 
+/* Both motion and clicks resolve through the normal snap path. Recompute at
+ * the supplied position rather than trusting an earlier pointer event. */
+static int editor_measurement_point(SiteHelperEditor *editor, const Wall *wall,
+    Vec2 position, PlanPoint *point)
+{
+    if (editor->active_view != EDITOR_VIEW_PLAN ||
+        !isfinite(position.x) || !isfinite(position.y)) {
+        sitehelper_editor_clear_snap(editor);
+        return 0;
+    }
+    sitehelper_editor_update_snap(editor, wall, position);
+    const SnapResult *snap = sitehelper_editor_get_snap_result(editor);
+    if (snap != NULL && snap->type != SNAP_NONE) { position = snap->position; }
+    if (!isfinite(position.x) || !isfinite(position.y)) {
+        sitehelper_editor_clear_snap(editor);
+        return 0;
+    }
+    *point = (PlanPoint){position.x, position.y};
+    return 1;
+}
+
 void sitehelper_editor_pointer_move_in_project(SiteHelperEditor *editor,
     const SiteHelperProject *project, Vec2 view_position)
 {
     if (editor == NULL) { return; }
     const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
+    /* A geometric query requires a valid view context, not construction settings. */
+    if (storey != NULL && editor->active_tool == EDITOR_TOOL_MEASURE) {
+        sitehelper_editor_pointer_move(editor, NULL, NULL, view_position);
+        return;
+    }
     BuildSettings resolved;
     if (storey == NULL || !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved)) {
         sitehelper_editor_invalidate_transient_state(editor);
@@ -443,6 +473,14 @@ void sitehelper_editor_pointer_move(
 )
 {
     if (editor == NULL) {
+        return;
+    }
+
+    if (editor->active_tool == EDITOR_TOOL_MEASURE) {
+        PlanPoint point;
+        if (editor_measurement_point(editor, wall, view_position, &point)) {
+            (void)measurement_tool_update(&editor->measurement_tool, point);
+        }
         return;
     }
 
@@ -620,6 +658,12 @@ int sitehelper_editor_primary_action(
     };
 
     switch (editor->active_tool) {
+        case EDITOR_TOOL_MEASURE:
+        {
+            PlanPoint point;
+            return editor_measurement_point(editor, wall, view_position, &point) &&
+                measurement_tool_click(&editor->measurement_tool, point);
+        }
         case EDITOR_TOOL_SELECT:
         {
             if (wall == NULL) {
@@ -882,6 +926,7 @@ void sitehelper_editor_invalidate_transient_state(
 
     editor->opening_tool.preview_valid = 0;
     wall_tool_cancel(&editor->wall_tool);
+    measurement_tool_cancel(&editor->measurement_tool);
 }
 
 int sitehelper_editor_has_wall_preview(const SiteHelperEditor *editor)
@@ -925,4 +970,29 @@ WallLengthStatus sitehelper_editor_create_wall_length_action(const SiteHelperEdi
 void sitehelper_editor_cancel_wall_placement(SiteHelperEditor *editor)
 {
     if (editor != NULL) { wall_tool_cancel(&editor->wall_tool); sitehelper_editor_clear_snap(editor); }
+}
+
+int sitehelper_editor_get_measurement(const SiteHelperEditor *editor, PlanMeasurementQuery *query)
+{
+    if (query == NULL) { return 0; }
+    *query = (PlanMeasurementQuery){0};
+    return editor != NULL && editor->active_view == EDITOR_VIEW_PLAN &&
+        editor->active_tool == EDITOR_TOOL_MEASURE &&
+        measurement_tool_get_query(&editor->measurement_tool, query);
+}
+
+int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor)
+{
+    if (editor == NULL) { return 0; }
+    switch (editor->active_tool) {
+        case EDITOR_TOOL_MEASURE:
+            measurement_tool_cancel(&editor->measurement_tool);
+            sitehelper_editor_clear_snap(editor);
+            return 1;
+        case EDITOR_TOOL_WALL:
+            if (!sitehelper_editor_has_wall_preview(editor)) { return 0; }
+            sitehelper_editor_cancel_wall_placement(editor);
+            return 1;
+        default: return 0;
+    }
 }

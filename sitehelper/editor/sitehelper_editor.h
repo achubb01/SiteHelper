@@ -8,6 +8,7 @@
 #include "opening_tool.h"
 #include "opening_placement.h"
 #include "wall_tool.h"
+#include "measurement_tool.h"
 #include "opening_command.h"
 #include "editor_action.h"
 #include "sitehelper_project.h"
@@ -36,6 +37,7 @@ typedef struct
     OpeningTool opening_tool;
     OpeningPlacement opening_placement;
     WallTool wall_tool;
+    MeasurementTool measurement_tool;
 } SiteHelperEditor;
 
 void sitehelper_editor_init(
@@ -196,6 +198,13 @@ int sitehelper_editor_get_wall_preview_segment(
     const SiteHelperEditor *editor,
     WallPlanSegment *segment
 );
+
+/* Copied transient Plan query. Zero distance is valid; no Wall length range
+ * restriction. Absence clears output. Application must not inspect tool state. */
+int sitehelper_editor_get_measurement(const SiteHelperEditor *editor, PlanMeasurementQuery *query);
+/* Cancel an active tool interaction without changing tools or Project state.
+ * Returns whether handled. Application gives focused text input first refusal. */
+int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor);
 
 void sitehelper_editor_invalidate_transient_state(
     SiteHelperEditor *editor

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <SDL3/SDL.h>
+#include "sitehelper_persistence.h"
 
 /* Exercise the real private application wiring without exposing it as a public
  * library API or adding test hooks to production state. */
@@ -34,15 +35,95 @@ static void motion(SiteHelperApp *app, float x, float y)
     assert(SDL_PushEvent(&event)); sitehelper_app_process_events(app);
 }
 static int saw_text, saw_cursor, saw_valid, saw_invalid;
+static int measurement_live_text, measurement_complete_text, measurement_live_line, measurement_complete_line;
 static RendererBackend original_backend;
+static void record_line(void *context, Vec2 a, Vec2 b, Colour colour)
+{
+    if (fabs(a.x - 164) < 1e-9 && fabs(a.y - 500) < 1e-9) {
+        if (fabs(b.x - 344) < 1e-9 && fabs(b.y - 260) < 1e-9) { measurement_live_line = 1; }
+        if (fabs(b.x - 464) < 1e-9 && fabs(b.y - 100) < 1e-9) { measurement_complete_line = 1; }
+    }
+    original_backend.draw_line(context, a, b, colour);
+}
 static void record_text(void *context, Vec2 position, const char *text, Colour colour)
 {
+    if (strcmp(text, "3000 mm") == 0) { measurement_live_text = 1; }
+    if (strcmp(text, "5000 mm") == 0) { measurement_complete_text = 1; }
     if (strcmp(text, "4200") == 0) { saw_text = 1; }
     if (strchr(text, '^')) { saw_cursor = 1; }
     if (colour.g > colour.r) { saw_valid = 1; }
     if (colour.r > colour.g) { saw_invalid = 1; }
     original_backend.draw_screen_text(context, position, text, colour);
 }
+static void save_project_text(const SiteHelperApp *app, char *buffer, size_t capacity)
+{
+    const char *path = "sdl_measurement_project.tmp";
+    assert(sitehelper_project_save_file(&app->project, path) == SITEHELPER_PERSISTENCE_SUCCESS);
+    FILE *file = fopen(path, "rb"); assert(file);
+    size_t count = fread(buffer, 1, capacity - 1, file);
+    assert(count < capacity - 1 && !ferror(file)); buffer[count] = 0;
+    assert(fclose(file) == 0 && remove(path) == 0);
+}
+static void test_measurement(SiteHelperApp *app)
+{
+    renderer2d_set_camera(app->renderer, (Camera2D){.position = {0,0}, .scale = .1});
+    char before[8192], after[8192]; save_project_text(app, before, sizeof before);
+    DomainId next_id = app->project.domain_ids.next;
+    size_t count = app->history.count, cursor = app->history.cursor;
+    PlanMeasurementQuery query;
+    click(app, 32, 200); /* Appended button; existing tool positions unchanged. */
+    assert(app->editor.active_tool == EDITOR_TOOL_MEASURE);
+    GuiButton *button = NULL;
+    for (size_t i = 0; i < app->toolbar.button_count; i++) {
+        if (app->toolbar.buttons[i].id == SITEHELPER_TOOLBAR_ACTION_MEASURE) { button = &app->toolbar.buttons[i]; }
+    }
+    assert(button && button->enabled && button->active);
+    assert(!sitehelper_editor_get_measurement(&app->editor, &query));
+    assert(!SDL_TextInputActive(SDL_GetKeyboardFocus()));
+    motion(app, 300,300); click(app, 164,500);
+    assert(sitehelper_editor_get_measurement(&app->editor, &query));
+    assert(!query.completed && query.start.x == 1000 && query.start.y == 1000);
+    motion(app, 344,260);
+    sitehelper_app_render(app);
+    assert(measurement_live_text && measurement_live_line);
+    click(app, 464,100); /* Fresh click point, not previous motion. */
+    assert(sitehelper_editor_get_measurement(&app->editor, &query));
+    assert(query.completed && query.distance_mm == 5000);
+    sitehelper_app_render(app);
+    assert(measurement_complete_text && measurement_complete_line);
+    motion(app, 300,300);
+    assert(sitehelper_editor_get_measurement(&app->editor, &query) && query.distance_mm == 5000);
+    assert(app->history.count == count && app->history.cursor == cursor && app->project.domain_ids.next == next_id);
+    save_project_text(app, after, sizeof after); assert(strcmp(before, after) == 0);
+    send_key(app, SDLK_ESCAPE, 0);
+    assert(!sitehelper_editor_get_measurement(&app->editor, &query));
+    assert(app->editor.active_tool == EDITOR_TOOL_MEASURE);
+    click(app, 164,500); send_key(app, SDLK_ESCAPE, 0);
+    assert(!sitehelper_editor_get_measurement(&app->editor, &query));
+    click(app, 164,500); click(app, 464,100);
+    send_key(app, SDLK_Z, SDL_KMOD_CTRL);
+    assert(app->history.cursor == cursor - 1 && !sitehelper_editor_get_measurement(&app->editor, &query));
+    send_key(app, SDLK_Y, SDL_KMOD_CTRL);
+    assert(app->history.cursor == cursor && !sitehelper_editor_get_measurement(&app->editor, &query));
+    save_project_text(app, after, sizeof after); assert(strcmp(before, after) == 0);
+    click(app, 164,500); click(app, 464,100);
+    send_key(app, SDLK_TAB, 0);
+    assert(app->editor.active_view == EDITOR_VIEW_WALL_ELEVATION && app->editor.active_tool == EDITOR_TOOL_SELECT);
+    assert(!button->enabled && !button->active && !sitehelper_editor_get_measurement(&app->editor, &query));
+    click(app, 32,200); assert(app->editor.active_tool == EDITOR_TOOL_SELECT);
+    send_key(app, SDLK_TAB, 0);
+    assert(button->enabled);
+    click(app, 32,200); click(app, 164,500); click(app, 464,100);
+    click(app, 32,144);
+    assert(app->editor.active_tool == EDITOR_TOOL_WALL && !sitehelper_editor_get_measurement(&app->editor, &query));
+    click(app, 32,200); click(app, 164,500); click(app, 464,100);
+    motion(app, 550,300); /* Follow existing pointer-leave invalidation. */
+    assert(!sitehelper_editor_get_measurement(&app->editor, &query));
+    click(app, 164,500);
+    assert(sitehelper_editor_get_measurement(&app->editor, &query) && !query.completed && query.distance_mm == 0);
+    assert(app->history.count == count && app->history.cursor == cursor && app->project.domain_ids.next == next_id);
+}
+
 int main(void)
 {
     assert(SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy"));
@@ -52,7 +133,7 @@ int main(void)
     assert(app.backend.context != NULL);
     sitehelper_app_process_events(&app);
     original_backend = app.backend;
-    RendererBackend recording = app.backend; recording.draw_screen_text = record_text;
+    RendererBackend recording = app.backend; recording.draw_screen_text = record_text; recording.draw_line = record_line;
     renderer2d_set_backend(app.renderer, recording);
 
     click(&app, 32, 144); /* Wall toolbar. */
@@ -152,6 +233,7 @@ int main(void)
     middle.type = SDL_EVENT_MOUSE_BUTTON_UP;
     assert(SDL_PushEvent(&middle)); sitehelper_app_process_events(&app);
     assert(!viewport_input_allows_pan(&app.viewport_input));
+    test_measurement(&app);
     sitehelper_app_destroy(&app);
     puts("SDL application input tests passed");
 }

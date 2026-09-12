@@ -105,8 +105,7 @@ AppInputResult app_input_route(AppInput *input, SiteHelperEditor *editor,
         /* All keys belong to the focus owner, including Ctrl+Z/Y and Tab. */
         return APP_INPUT_CONSUMED;
     }
-    if (key == PLATFORM_KEY_ESCAPE && !repeat && sitehelper_editor_has_wall_preview(editor)) {
-        sitehelper_editor_cancel_wall_placement(editor);
+    if (key == PLATFORM_KEY_ESCAPE && !repeat && sitehelper_editor_cancel_tool_interaction(editor)) {
         return APP_INPUT_CONSUMED;
     }
     if (!repeat && (modifiers & PLATFORM_MODIFIER_CTRL)) {
