@@ -41,16 +41,18 @@ static void test_positioned_walls_select_by_stable_identity(void)
     assert(sitehelper_editor_primary_action_in_project(
         &editor, &project, (Vec2){ 10, 10 }, &action));
     assert(editor.selection.kind == EDITOR_SELECTION_WALL);
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_PLAN);
     assert(editor.selection.wall_id == editor.current_wall_id);
     assert(editor.current_wall_id == 20);
-    assert(editor_selection_get_wall_member(&editor.selection, 30) == NULL);
+    assert(editor_selection_get_wall_member(&editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, 30) == NULL);
 
     assert(sitehelper_editor_primary_action_in_project(
         &editor, &project, (Vec2){ 5010, 3010 }, &action));
     assert(editor.selection.kind == EDITOR_SELECTION_WALL);
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_PLAN);
     assert(editor.selection.wall_id == editor.current_wall_id);
     assert(editor.current_wall_id == 30);
-    assert(editor_selection_get_wall_member(&editor.selection, 20) == NULL);
+    assert(editor_selection_get_wall_member(&editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, 20) == NULL);
 
     for (DomainId id = 40; id < 50; id++) {
         add_wall(&project, id, (PlanPosition){ (int)id * 1000, 0 });
@@ -60,6 +62,7 @@ static void test_positioned_walls_select_by_stable_identity(void)
     assert(build_find_wall_by_id(
         &project.storeys[0].structure, editor.current_wall_id)->id == 30);
     assert(editor.selection.kind == EDITOR_SELECTION_WALL);
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_PLAN);
     assert(editor.selection.wall_id == editor.current_wall_id);
 
     sitehelper_project_destroy(&project);
@@ -183,12 +186,14 @@ static void test_delete_wall_reconciliation_does_not_restore_transient_state(voi
     assert(editor.current_room_id == room_id);
     assert(editor.current_wall_id == DOMAIN_ID_INVALID);
     assert(editor_selection_is_empty(&editor.selection));
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
     assert(!editor.opening_placement.has_candidate);
     assert(sitehelper_command_history_undo(&history, &project));
     sitehelper_editor_reconcile(&editor, &project);
     assert(build_find_wall_by_id(&project.storeys[0].structure, wall_id) != NULL);
     assert(editor.current_wall_id == DOMAIN_ID_INVALID);
     assert(editor_selection_is_empty(&editor.selection));
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
     sitehelper_command_history_destroy(&history);
     sitehelper_project_destroy(&project);
 }
@@ -258,7 +263,7 @@ static void test_endpoint_move_reconciles_regenerated_selection(void)
     editor.current_room_id = room_id;
     editor.current_wall_id = wall_id;
     assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
-    editor_selection_set_wall_member(&editor.selection, wall_id,
+    editor_selection_set_wall_member(&editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, wall_id,
         WALL_MEMBER_STUD, &wall->framing.studs[0]);
     assert(!editor_selection_is_empty(&editor.selection));
 
@@ -270,18 +275,21 @@ static void test_endpoint_move_reconciles_regenerated_selection(void)
     assert(editor.current_wall_id == wall_id && editor.current_room_id == room_id);
     assert(editor.active_view == EDITOR_VIEW_WALL_ELEVATION);
     assert(wall_selection_resolve(&editor.selection.wall_member, wall));
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
     assert(sitehelper_command_history_undo(&history, &project));
     sitehelper_editor_reconcile(&editor, &project);
     assert(editor.current_wall_id == wall_id);
     assert(wall_selection_resolve(&editor.selection.wall_member, wall));
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
     assert(sitehelper_command_history_redo(&history, &project));
     sitehelper_editor_reconcile(&editor, &project);
     assert(editor.current_wall_id == wall_id);
     assert(wall_selection_resolve(&editor.selection.wall_member, wall));
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
 
     /* The old far-end stud disappears when the wall gets shorter. Selection
      * owns a value, so reconciliation must drop it if it cannot resolve. */
-    editor_selection_set_wall_member(&editor.selection, wall_id,
+    editor_selection_set_wall_member(&editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, wall_id,
         WALL_MEMBER_STUD, &wall->framing.studs[wall->framing.stud_count - 1]);
     assert(!editor_selection_is_empty(&editor.selection));
     command.data.move_wall_endpoint.new_position = (PlanPosition){1000, 5000};
@@ -290,16 +298,19 @@ static void test_endpoint_move_reconciles_regenerated_selection(void)
     sitehelper_editor_reconcile(&editor, &project);
     assert(editor.current_wall_id == wall_id);
     assert(editor_selection_is_empty(&editor.selection));
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
     assert(!editor.opening_placement.has_candidate);
     assert(editor.active_view == EDITOR_VIEW_WALL_ELEVATION);
     assert(sitehelper_command_history_undo(&history, &project));
     sitehelper_editor_reconcile(&editor, &project);
     assert(editor.current_wall_id == wall_id);
     assert(editor_selection_is_empty(&editor.selection));
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
     assert(sitehelper_command_history_redo(&history, &project));
     sitehelper_editor_reconcile(&editor, &project);
     assert(editor.current_wall_id == wall_id);
     assert(editor_selection_is_empty(&editor.selection));
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
     sitehelper_command_history_destroy(&history);
     sitehelper_project_destroy(&project);
 }

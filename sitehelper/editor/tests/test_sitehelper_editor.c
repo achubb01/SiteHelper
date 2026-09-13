@@ -209,6 +209,7 @@ static void test_editor_selects_wall_member_at_position(void)
         &editor
     );
     editor.current_storey_id = 1;
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_select_wall_member_at_position(
         &editor,
@@ -227,6 +228,7 @@ static void test_editor_selects_wall_member_at_position(void)
     const WallSelection *wall_selection =
         editor_selection_get_wall_member(
             selection,
+            EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
             wall.id
         );
 
@@ -266,6 +268,7 @@ static void test_editor_clicking_empty_space_clears_selection(void)
         &editor
     );
     editor.current_storey_id = 1;
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_select_wall_member_at_position(
         &editor,
@@ -320,6 +323,7 @@ static void test_editor_clear_selection_clears_selection(void)
         &editor
     );
     editor.current_storey_id = 1;
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_select_wall_member_at_position(
         &editor,
@@ -369,6 +373,7 @@ static void test_editor_selecting_null_wall_preserves_selection(void)
         &editor
     );
     editor.current_storey_id = 1;
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
 
     sitehelper_editor_select_wall_member_at_position(
         &editor,
@@ -1041,6 +1046,7 @@ static void test_select_primary_action_selects_wall_member(void)
     const WallSelection *wall_selection =
         editor_selection_get_wall_member(
             selection,
+            EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
             wall.id
         );
 

@@ -3,6 +3,18 @@
 
 #include "editor_selection.h"
 
+static void assert_empty(const EditorSelection *selection)
+{
+    assert(editor_selection_is_empty(selection));
+    assert(selection->kind == EDITOR_SELECTION_NONE);
+    assert(selection->scope == EDITOR_SELECTION_SCOPE_NONE);
+    assert(selection->wall_id == DOMAIN_ID_INVALID && selection->opening_id == DOMAIN_ID_INVALID);
+    assert(wall_selection_is_empty(&selection->wall_member));
+    assert(selection->wall_member.timber.length == 0);
+    assert(!editor_selection_matches_scope(selection, EDITOR_SELECTION_SCOPE_NONE));
+    assert(!editor_selection_matches_scope(selection, EDITOR_SELECTION_SCOPE_PLAN));
+}
+
 static Timber make_test_stud(void)
 {
     return (Timber){
@@ -30,6 +42,7 @@ static void test_selection_initialises_empty(void)
     editor_selection_init(
         &selection
     );
+    assert_empty(&selection);
 
     assert(
         editor_selection_is_empty(
@@ -51,10 +64,17 @@ static void test_selection_can_store_wall_member(void)
 
     editor_selection_set_wall_member(
         &selection,
+        EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
         10,
         WALL_MEMBER_STUD,
         &stud
     );
+    assert(selection.kind == EDITOR_SELECTION_WALL_MEMBER);
+    assert(selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
+    editor_selection_set_wall_member(&selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
+        10, WALL_MEMBER_STUD, &selection.wall_member.timber);
+    assert(selection.wall_member.timber.length == stud.length);
+    assert(editor_selection_get_wall_member(&selection, EDITOR_SELECTION_SCOPE_PLAN, 10) == NULL);
 
     assert(
         !editor_selection_is_empty(
@@ -65,6 +85,7 @@ static void test_selection_can_store_wall_member(void)
     assert(
         editor_selection_get_wall_member(
             &selection,
+            EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
             10
         ) != NULL
     );
@@ -83,6 +104,7 @@ static void test_wall_member_selection_is_scoped_to_wall(void)
 
     editor_selection_set_wall_member(
         &selection,
+        EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
         10,
         WALL_MEMBER_STUD,
         &stud
@@ -91,6 +113,7 @@ static void test_wall_member_selection_is_scoped_to_wall(void)
     assert(
         editor_selection_get_wall_member(
             &selection,
+            EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
             11
         ) == NULL
     );
@@ -109,6 +132,7 @@ static void test_selection_can_be_cleared(void)
 
     editor_selection_set_wall_member(
         &selection,
+        EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
         10,
         WALL_MEMBER_STUD,
         &stud
@@ -117,6 +141,7 @@ static void test_selection_can_be_cleared(void)
     editor_selection_clear(
         &selection
     );
+    assert_empty(&selection);
 
     assert(
         editor_selection_is_empty(
@@ -138,6 +163,7 @@ static void test_invalid_wall_clears_selection(void)
 
     editor_selection_set_wall_member(
         &selection,
+        EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
         DOMAIN_ID_INVALID,
         WALL_MEMBER_STUD,
         &stud
@@ -150,8 +176,53 @@ static void test_invalid_wall_clears_selection(void)
     );
 }
 
+static void test_kinds_scopes_and_invalid_setters(void)
+{
+    EditorSelection selection;
+    Timber stud = make_test_stud();
+    editor_selection_set_wall(&selection, EDITOR_SELECTION_SCOPE_PLAN, 42);
+    assert(selection.kind == EDITOR_SELECTION_WALL && selection.scope == EDITOR_SELECTION_SCOPE_PLAN);
+    assert(selection.wall_id == 42 && selection.opening_id == DOMAIN_ID_INVALID);
+    editor_selection_set_opening(&selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, 42, 43);
+    assert(selection.kind == EDITOR_SELECTION_OPENING && selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
+    assert(selection.wall_id == 42 && selection.opening_id == 43);
+    assert(wall_selection_is_empty(&selection.wall_member));
+    /* Container orthogonality: these combinations are representable, even
+     * though today's hit-test paths do not create them. */
+    editor_selection_set_opening(&selection, EDITOR_SELECTION_SCOPE_PLAN, 42, 43);
+    assert(editor_selection_matches_scope(&selection, EDITOR_SELECTION_SCOPE_PLAN));
+    editor_selection_set_wall_member(&selection, EDITOR_SELECTION_SCOPE_PLAN, 42, WALL_MEMBER_STUD, &stud);
+    assert(editor_selection_get_wall_member(&selection, EDITOR_SELECTION_SCOPE_PLAN, 42));
+    assert(!editor_selection_get_wall_member(&selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, 42));
+    editor_selection_set_wall(&selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, 42);
+    assert(selection.kind == EDITOR_SELECTION_WALL && selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
+    assert(selection.wall_member.timber.length == 0);
+
+    EditorSelectionScope invalid[] = {EDITOR_SELECTION_SCOPE_NONE, (EditorSelectionScope)-1, (EditorSelectionScope)99};
+    for (size_t i = 0; i < sizeof invalid / sizeof invalid[0]; i++) {
+        editor_selection_set_wall(&selection, EDITOR_SELECTION_SCOPE_PLAN, 42);
+        editor_selection_set_wall(&selection, invalid[i], 42); assert_empty(&selection);
+        editor_selection_set_opening(&selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, 42, 43);
+        editor_selection_set_opening(&selection, invalid[i], 42, 43); assert_empty(&selection);
+        editor_selection_set_wall_member(&selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, 42, WALL_MEMBER_STUD, &stud);
+        editor_selection_set_wall_member(&selection, invalid[i], 42, WALL_MEMBER_STUD, &stud); assert_empty(&selection);
+    }
+    editor_selection_set_wall(&selection, EDITOR_SELECTION_SCOPE_PLAN, DOMAIN_ID_INVALID); assert_empty(&selection);
+    editor_selection_set_opening(&selection, EDITOR_SELECTION_SCOPE_PLAN, 42, DOMAIN_ID_INVALID); assert_empty(&selection);
+    editor_selection_set_opening(&selection, EDITOR_SELECTION_SCOPE_PLAN, DOMAIN_ID_INVALID, 43); assert_empty(&selection);
+    editor_selection_set_wall_member(&selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, 0, WALL_MEMBER_STUD, &stud); assert_empty(&selection);
+    editor_selection_set_wall_member(&selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, 42, WALL_MEMBER_NONE, &stud); assert_empty(&selection);
+    editor_selection_set_wall_member(&selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, 42, (WallMemberKind)99, &stud); assert_empty(&selection);
+    editor_selection_set_wall_member(&selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, 42, WALL_MEMBER_STUD, NULL); assert_empty(&selection);
+    editor_selection_set_wall(NULL, EDITOR_SELECTION_SCOPE_PLAN, 42);
+    editor_selection_set_opening(NULL, EDITOR_SELECTION_SCOPE_PLAN, 42, 43);
+    editor_selection_set_wall_member(NULL, EDITOR_SELECTION_SCOPE_PLAN, 42, WALL_MEMBER_STUD, &stud);
+    assert(!editor_selection_matches_scope(NULL, EDITOR_SELECTION_SCOPE_PLAN));
+}
+
 int main(void)
 {
+    test_kinds_scopes_and_invalid_setters();
     test_selection_initialises_empty();
     test_selection_can_store_wall_member();
     test_wall_member_selection_is_scoped_to_wall();

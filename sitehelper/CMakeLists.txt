@@ -59,6 +59,19 @@ target_link_libraries(sitehelper_project
         sitehelper_wall
 )
 
+add_library(sitehelper_takeoff takeoff/framing_takeoff.c)
+target_include_directories(sitehelper_takeoff PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/takeoff)
+target_link_libraries(sitehelper_takeoff PUBLIC sitehelper_project)
+
+add_executable(test_framing_takeoff takeoff/tests/test_framing_takeoff.c)
+target_link_libraries(test_framing_takeoff PRIVATE sitehelper_takeoff sitehelper_wall)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_framing_takeoff PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_framing_takeoff PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME framing_takeoff_tests COMMAND test_framing_takeoff)
+
 add_library(sitehelper_persistence
     persistence/sitehelper_persistence.c
 )

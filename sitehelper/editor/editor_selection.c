@@ -1,5 +1,10 @@
 #include "editor_selection.h"
 
+static bool valid_scope(EditorSelectionScope scope)
+{
+    return scope == EDITOR_SELECTION_SCOPE_PLAN || scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION;
+}
+
 void editor_selection_init(
     EditorSelection *selection
 )
@@ -10,6 +15,7 @@ void editor_selection_init(
 
     *selection = (EditorSelection){
         .kind = EDITOR_SELECTION_NONE,
+        .scope = EDITOR_SELECTION_SCOPE_NONE,
         .wall_id = DOMAIN_ID_INVALID
     };
 
@@ -29,28 +35,32 @@ void editor_selection_clear(
     editor_selection_init(selection);
 }
 
-void editor_selection_set_wall(EditorSelection *selection, DomainId wall_id)
+void editor_selection_set_wall(EditorSelection *selection,
+    EditorSelectionScope scope, DomainId wall_id)
 {
     if (selection == NULL) { return; }
     editor_selection_clear(selection);
-    if (wall_id == DOMAIN_ID_INVALID) { return; }
+    if (!valid_scope(scope) || wall_id == DOMAIN_ID_INVALID) { return; }
     selection->kind = EDITOR_SELECTION_WALL;
+    selection->scope = scope;
     selection->wall_id = wall_id;
 }
 
 void editor_selection_set_opening(EditorSelection *selection,
-    DomainId wall_id, DomainId opening_id)
+    EditorSelectionScope scope, DomainId wall_id, DomainId opening_id)
 {
     if (selection == NULL) { return; }
     editor_selection_clear(selection);
-    if (wall_id == DOMAIN_ID_INVALID || opening_id == DOMAIN_ID_INVALID) { return; }
+    if (!valid_scope(scope) || wall_id == DOMAIN_ID_INVALID || opening_id == DOMAIN_ID_INVALID) { return; }
     selection->kind = EDITOR_SELECTION_OPENING;
+    selection->scope = scope;
     selection->wall_id = wall_id;
     selection->opening_id = opening_id;
 }
 
 void editor_selection_set_wall_member(
     EditorSelection *selection,
+    EditorSelectionScope scope,
     DomainId wall_id,
     WallMemberKind member_kind,
     const Timber *timber
@@ -61,8 +71,10 @@ void editor_selection_set_wall_member(
     }
 
     if (
-        wall_id == DOMAIN_ID_INVALID
-        || member_kind == WALL_MEMBER_NONE
+        !valid_scope(scope)
+        || wall_id == DOMAIN_ID_INVALID
+        || member_kind <= WALL_MEMBER_NONE
+        || member_kind > WALL_MEMBER_GENERATED
         || timber == NULL
     ) {
         editor_selection_clear(
@@ -72,8 +84,11 @@ void editor_selection_set_wall_member(
         return;
     }
 
+    Timber value = *timber; /* Input may alias the previously selected value. */
+    editor_selection_clear(selection);
     selection->kind =
         EDITOR_SELECTION_WALL_MEMBER;
+    selection->scope = scope;
     selection->opening_id = DOMAIN_ID_INVALID;
 
     selection->wall_id =
@@ -82,7 +97,7 @@ void editor_selection_set_wall_member(
     wall_selection_set(
         &selection->wall_member,
         member_kind,
-        timber
+        &value
     );
 }
 
@@ -99,11 +114,12 @@ bool editor_selection_is_empty(
 const WallSelection *
 editor_selection_get_wall_member(
     const EditorSelection *selection,
+    EditorSelectionScope scope,
     DomainId wall_id
 )
 {
     if (
-        selection == NULL
+        !editor_selection_matches_scope(selection, scope)
         || selection->kind
             != EDITOR_SELECTION_WALL_MEMBER
         || selection->wall_id != wall_id
@@ -112,4 +128,10 @@ editor_selection_get_wall_member(
     }
 
     return &selection->wall_member;
+}
+
+bool editor_selection_matches_scope(const EditorSelection *selection,
+    EditorSelectionScope scope)
+{
+    return !editor_selection_is_empty(selection) && valid_scope(scope) && selection->scope == scope;
 }

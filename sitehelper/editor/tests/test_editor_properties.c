@@ -71,7 +71,8 @@ static void test_snapshots_are_fresh_and_navigation_independent(void)
     Fixture f;
     fixture_init(&f);
     assert_empty_projection(&f);
-    editor_selection_set_wall(&f.editor.selection, f.wall_id);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_PLAN));
+    editor_selection_set_wall(&f.editor.selection, EDITOR_SELECTION_SCOPE_PLAN, f.wall_id);
     assert(f.editor.current_wall_id == DOMAIN_ID_INVALID);
     EditorProperties properties;
     assert(sitehelper_editor_inspect_properties(&f.editor, &f.project, &properties));
@@ -89,7 +90,8 @@ static void test_snapshots_are_fresh_and_navigation_independent(void)
     /* The returned value is independent of the authoritative model. */
     properties.data.wall.segment.start.x = 999;
     assert(fixture_wall(&f)->definition.segment.start.x == 4600);
-    editor_selection_set_opening(&f.editor.selection, f.wall_id, f.opening_id);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
+    editor_selection_set_opening(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, f.wall_id, f.opening_id);
     assert(sitehelper_editor_inspect_properties(&f.editor, &f.project, &properties));
     assert(properties.kind == EDITOR_SELECTION_OPENING);
     assert(properties.data.opening.wall_id == f.wall_id);
@@ -103,7 +105,8 @@ static void test_selection_relocation_regeneration_and_stale_ids(void)
 {
     Fixture f;
     fixture_init(&f);
-    editor_selection_set_opening(&f.editor.selection, f.wall_id, f.opening_id);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
+    editor_selection_set_opening(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, f.wall_id, f.opening_id);
     EditorSelection saved = f.editor.selection;
     /* Reallocate all containing collections; selection contains only values. */
     for (int i = 0; i < 12; i++) {
@@ -118,34 +121,45 @@ static void test_selection_relocation_regeneration_and_stale_ids(void)
     assert(wall_generate(fixture_wall(&f), &settings));
     sitehelper_editor_reconcile(&f.editor, &f.project);
     assert(f.editor.selection.kind == saved.kind);
+    assert(f.editor.selection.scope == saved.scope && saved.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
     assert(f.editor.selection.wall_id == saved.wall_id && f.editor.selection.opening_id == saved.opening_id);
     EditorProperties properties;
     assert(sitehelper_editor_inspect_properties(&f.editor, &f.project, &properties));
     test_assert_opening_equal(&f.opening, &properties.data.opening.definition);
-    editor_selection_set_wall(&f.editor.selection, f.wall_id);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_PLAN));
+    editor_selection_set_wall(&f.editor.selection, EDITOR_SELECTION_SCOPE_PLAN, f.wall_id);
     assert(wall_generate(fixture_wall(&f), &settings));
     sitehelper_editor_reconcile(&f.editor, &f.project);
     assert(f.editor.selection.kind == EDITOR_SELECTION_WALL && f.editor.selection.wall_id == f.wall_id);
-    editor_selection_set_opening(&f.editor.selection, f.wall_id, f.opening_id);
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_PLAN);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
+    editor_selection_set_opening(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, f.wall_id, f.opening_id);
     assert(wall_remove_opening_by_id(fixture_wall(&f), f.opening_id));
     assert(wall_generate(fixture_wall(&f), &settings));
     assert_empty_projection(&f); /* Even before reconciliation, never returns stale values. */
     sitehelper_editor_reconcile_wall_selection(&f.editor, fixture_wall(&f));
     assert(editor_selection_is_empty(&f.editor.selection));
-    editor_selection_set_opening(&f.editor.selection, f.wall_id, f.opening_id);
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
+    editor_selection_set_opening(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, f.wall_id, f.opening_id);
     sitehelper_editor_reconcile(&f.editor, &f.project);
     assert(editor_selection_is_empty(&f.editor.selection));
-    editor_selection_set_wall(&f.editor.selection, f.wall_id);
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_PLAN));
+    editor_selection_set_wall(&f.editor.selection, EDITOR_SELECTION_SCOPE_PLAN, f.wall_id);
     f.editor.current_wall_id = f.wall_id;
     assert(sitehelper_project_remove_wall_by_id(&f.project, f.wall_id));
     assert_empty_projection(&f);
     sitehelper_editor_reconcile(&f.editor, &f.project);
     assert(editor_selection_is_empty(&f.editor.selection));
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
     assert(f.editor.current_wall_id == DOMAIN_ID_INVALID);
-    editor_selection_set_opening(&f.editor.selection, f.wall_id, f.opening_id);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
+    editor_selection_set_opening(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, f.wall_id, f.opening_id);
     assert_empty_projection(&f);
     sitehelper_editor_reconcile(&f.editor, &f.project);
     assert(editor_selection_is_empty(&f.editor.selection));
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
     fixture_destroy(&f);
 }
 
@@ -155,8 +169,10 @@ static void test_context_and_member_selection(void)
     fixture_init(&f);
     Wall *wall = fixture_wall(&f);
     Timber member = wall->framing.studs[0];
-    editor_selection_set_opening(&f.editor.selection, f.wall_id, f.opening_id);
-    editor_selection_set_wall_member(&f.editor.selection, f.wall_id, WALL_MEMBER_STUD, &member);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
+    editor_selection_set_opening(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, f.wall_id, f.opening_id);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
+    editor_selection_set_wall_member(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, f.wall_id, WALL_MEMBER_STUD, &member);
     member.length = 1; /* Setter copied the Timber value. */
     assert(f.editor.selection.opening_id == DOMAIN_ID_INVALID);
     assert(f.editor.selection.wall_member.timber.length == 3200);
@@ -166,33 +182,47 @@ static void test_context_and_member_selection(void)
     assert(wall_generate(wall, &settings));
     sitehelper_editor_reconcile(&f.editor, &f.project);
     assert(f.editor.selection.kind == EDITOR_SELECTION_WALL_MEMBER);
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
     assert(wall_selection_resolve(&f.editor.selection.wall_member, wall));
     assert(sitehelper_project_set_storey_stud_height(&f.project, f.storey_id, 3400));
     sitehelper_editor_reconcile(&f.editor, &f.project);
     assert(editor_selection_is_empty(&f.editor.selection));
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
 
     DomainId other = sitehelper_project_add_storey(&f.project, 6000);
-    editor_selection_set_opening(&f.editor.selection, f.wall_id, f.opening_id);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
+    editor_selection_set_opening(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, f.wall_id, f.opening_id);
     assert(sitehelper_editor_set_current_storey(&f.editor, &f.project, other));
     assert(editor_selection_is_empty(&f.editor.selection));
-    editor_selection_set_opening(&f.editor.selection, f.wall_id, f.opening_id);
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
+    editor_selection_set_opening(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, f.wall_id, f.opening_id);
     assert_empty_projection(&f); /* Existing object in a different Storey. */
     sitehelper_editor_reconcile(&f.editor, &f.project);
     assert(editor_selection_is_empty(&f.editor.selection));
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
     assert(sitehelper_editor_set_current_storey(&f.editor, &f.project, f.storey_id));
-    editor_selection_set_wall(&f.editor.selection, f.wall_id);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_PLAN));
+    editor_selection_set_wall(&f.editor.selection, EDITOR_SELECTION_SCOPE_PLAN, f.wall_id);
     assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
     assert(editor_selection_is_empty(&f.editor.selection));
-    editor_selection_set_wall(&f.editor.selection, f.wall_id);
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_PLAN));
+    editor_selection_set_wall(&f.editor.selection, EDITOR_SELECTION_SCOPE_PLAN, f.wall_id);
     f.editor.current_storey_id = 99999;
     assert_empty_projection(&f);
     sitehelper_editor_reconcile(&f.editor, &f.project);
     assert(f.editor.current_storey_id == DOMAIN_ID_INVALID);
     assert(editor_selection_is_empty(&f.editor.selection));
-    editor_selection_set_wall(&f.editor.selection, DOMAIN_ID_INVALID);
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_PLAN));
+    editor_selection_set_wall(&f.editor.selection, EDITOR_SELECTION_SCOPE_PLAN, DOMAIN_ID_INVALID);
     assert(editor_selection_is_empty(&f.editor.selection));
-    editor_selection_set_opening(&f.editor.selection, f.wall_id, DOMAIN_ID_INVALID);
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
+    editor_selection_set_opening(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, f.wall_id, DOMAIN_ID_INVALID);
     assert(editor_selection_is_empty(&f.editor.selection));
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
     fixture_destroy(&f);
 }
 
@@ -200,7 +230,8 @@ static void test_wall_component_intents_and_history(void)
 {
     Fixture f;
     fixture_init(&f);
-    editor_selection_set_wall(&f.editor.selection, f.wall_id);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_PLAN));
+    editor_selection_set_wall(&f.editor.selection, EDITOR_SELECTION_SCOPE_PLAN, f.wall_id);
     EditorProperty fields[] = {EDITOR_PROPERTY_WALL_START_X, EDITOR_PROPERTY_WALL_START_Y,
         EDITOR_PROPERTY_WALL_END_X, EDITOR_PROPERTY_WALL_END_Y};
     PlanPosition expected[] = {{5600, 6800}, {4600, 7800}, {0, 2000}, {1000, 1000}};
@@ -250,7 +281,8 @@ static void test_each_opening_property_intent(void)
 {
     Fixture f;
     fixture_init(&f);
-    editor_selection_set_opening(&f.editor.selection, f.wall_id, f.opening_id);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
+    editor_selection_set_opening(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, f.wall_id, f.opening_id);
     EditorPropertyEdit edits[] = {
         {.property = EDITOR_PROPERTY_OPENING_TYPE, .value.opening_type = OPENING_DOOR},
         {.property = EDITOR_PROPERTY_OPENING_FRAME_POSITION, .value.millimetres = 1200},
@@ -283,6 +315,7 @@ static void test_each_opening_property_intent(void)
         assert(sitehelper_command_history_execute(&f.history, &f.project, &command, &result));
         sitehelper_editor_reconcile(&f.editor, &f.project);
         assert(f.editor.selection.kind == EDITOR_SELECTION_OPENING);
+        assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
         assert(f.editor.selection.opening_id == f.opening_id);
         EditorProperties properties;
         assert(sitehelper_editor_inspect_properties(&f.editor, &f.project, &properties));
@@ -331,21 +364,72 @@ static void test_opening_hit_testing_and_select_tool(void)
     assert(sitehelper_editor_primary_action_in_project(&f.editor, &f.project, (Vec2){1500, 1000}, &action));
     assert(action.kind == EDITOR_ACTION_NONE);
     assert(f.editor.selection.kind == EDITOR_SELECTION_OPENING);
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
     assert(f.editor.selection.wall_id == f.wall_id && f.editor.selection.opening_id == f.opening_id);
     assert(sitehelper_editor_primary_action_in_project(&f.editor, &f.project, (Vec2){10, 10}, &action));
     assert(f.editor.selection.kind == EDITOR_SELECTION_WALL_MEMBER);
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
     assert(sitehelper_editor_primary_action_in_project(&f.editor, &f.project, (Vec2){9000, 9000}, &action));
     assert(editor_selection_is_empty(&f.editor.selection));
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+    assert(f.editor.current_wall_id == f.wall_id);
     assert(sitehelper_editor_primary_action_in_project(&f.editor, &f.project, (Vec2){NAN, INFINITY}, &action));
     assert(editor_selection_is_empty(&f.editor.selection));
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
     assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_PLAN));
     assert(sitehelper_editor_primary_action_in_project(&f.editor, &f.project, (Vec2){2800, 4400}, &action));
     assert(f.editor.selection.kind == EDITOR_SELECTION_WALL && f.editor.selection.wall_id == f.wall_id);
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_PLAN);
+    fixture_destroy(&f);
+}
+
+static void test_scope_consistency_before_and_during_reconciliation(void)
+{
+    Fixture f; fixture_init(&f);
+    f.editor.current_wall_id = f.wall_id;
+    EditorSelectionScope invalid[] = {EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
+        EDITOR_SELECTION_SCOPE_NONE, (EditorSelectionScope)99};
+    for (size_t i = 0; i < sizeof invalid / sizeof invalid[0]; i++) {
+        editor_selection_set_wall(&f.editor.selection, EDITOR_SELECTION_SCOPE_PLAN, f.wall_id);
+        f.editor.selection.scope = invalid[i]; /* Deliberately stale/manual state. */
+        assert(!sitehelper_editor_selection_matches_view(&f.editor));
+        assert_empty_projection(&f);
+        sitehelper_editor_reconcile(&f.editor, &f.project);
+        assert(f.editor.selection.kind == EDITOR_SELECTION_NONE && f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+        assert(f.editor.current_wall_id == f.wall_id);
+    }
+    /* The direct Wall reconciliation entry point must enforce the same rule. */
+    editor_selection_set_wall_member(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
+        f.wall_id, WALL_MEMBER_STUD, &fixture_wall(&f)->framing.studs[0]);
+    sitehelper_editor_reconcile_wall_selection(&f.editor, fixture_wall(&f));
+    assert(f.editor.selection.kind == EDITOR_SELECTION_NONE && f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+    editor_selection_set_wall(&f.editor.selection, EDITOR_SELECTION_SCOPE_PLAN, f.wall_id);
+    assert(sitehelper_editor_selection_matches_view(&f.editor));
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_WALL_ELEVATION));
+    assert(f.editor.selection.kind == EDITOR_SELECTION_NONE && f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+    assert(f.editor.current_wall_id == f.wall_id);
+    editor_selection_set_opening(&f.editor.selection, EDITOR_SELECTION_SCOPE_PLAN, f.wall_id, f.opening_id);
+    assert_empty_projection(&f);
+    sitehelper_editor_reconcile(&f.editor, &f.project);
+    assert(f.editor.selection.kind == EDITOR_SELECTION_NONE && f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+    editor_selection_set_opening(&f.editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, f.wall_id, f.opening_id);
+    assert(sitehelper_editor_selection_matches_view(&f.editor));
+    sitehelper_editor_clear_selection(&f.editor);
+    assert(f.editor.current_wall_id == f.wall_id && f.editor.current_storey_id == f.storey_id);
+    assert(sitehelper_editor_set_active_view(&f.editor, EDITOR_VIEW_PLAN));
+    assert(f.editor.selection.kind == EDITOR_SELECTION_NONE && f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+    /* Empty but malformed payload is normalized by reconciliation too. */
+    f.editor.selection.scope = EDITOR_SELECTION_SCOPE_PLAN;
+    f.editor.selection.opening_id = f.opening_id;
+    sitehelper_editor_reconcile(&f.editor, &f.project);
+    assert(f.editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE && f.editor.selection.opening_id == DOMAIN_ID_INVALID);
+    assert(!sitehelper_editor_selection_matches_view(NULL));
     fixture_destroy(&f);
 }
 
 int main(void)
 {
+    test_scope_consistency_before_and_during_reconciliation();
     test_snapshots_are_fresh_and_navigation_independent();
     test_selection_relocation_regeneration_and_stale_ids();
     test_context_and_member_selection();

@@ -9,6 +9,7 @@
 
 typedef struct {
     size_t line_count, rect_count;
+    size_t selected_rect_count;
     Rect2 rects[256];
 } Drawing;
 
@@ -20,10 +21,10 @@ static void record_line(void *context, Vec2 start, Vec2 end, Colour colour)
 
 static void record_rect(void *context, Rect2 rect, Colour colour)
 {
-    (void)colour;
     Drawing *drawing = context;
     assert(drawing->rect_count < 256);
     drawing->rects[drawing->rect_count++] = rect;
+    if (colour.r == 255 && colour.g == 0 && colour.b == 0) { drawing->selected_rect_count++; }
 }
 
 static void assert_same_rects(const Drawing *a, const Drawing *b)
@@ -104,6 +105,7 @@ static void test_view_rendering_and_local_pointer(void)
     assert(sitehelper_editor_primary_action_in_project(&editor, &project, pointer, &action));
     assert(editor.selection.wall_id == second);
     assert(editor.selection.wall_member.kind == WALL_MEMBER_BOTTOM_PLATE);
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
     /* A click on the other wall's physical plan origin is not elevation input. */
     assert(sitehelper_editor_primary_action_in_project(&editor, &project, (Vec2){5010, 3010}, &action));
     assert(editor_selection_is_empty(&editor.selection));
@@ -365,7 +367,7 @@ static void test_plan_commands_and_navigation_without_rooms(void)
     app_render_walls(renderer, &project, &editor, &style);
     assert(drawing.rect_count > 2 && drawing.line_count == 0);
     const Wall *selected_wall = app_current_wall_const(&project, &editor);
-    editor_selection_set_wall_member(&editor.selection, first,
+    editor_selection_set_wall_member(&editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, first,
         WALL_MEMBER_BOTTOM_PLATE, &selected_wall->framing.bottomplate);
     editor.current_room_id = 999;
     sitehelper_editor_reconcile(&editor, &project);
@@ -509,8 +511,45 @@ static void test_separator_inputs_stay_out_of_wall_views_and_navigation(void)
     sitehelper_project_destroy(&project);
 }
 
+static void test_elevation_highlight_requires_scope_and_owner(void)
+{
+    SiteHelperProject project; sitehelper_project_init(&project);
+    DomainId storey = sitehelper_project_add_storey(&project, 0);
+    DomainId first = sitehelper_project_add_wall(&project, storey, (WallPlanSegment){{0,0},{4200,0}});
+    DomainId second = sitehelper_project_add_wall(&project, storey, (WallPlanSegment){{0,1000},{4200,1000}});
+    Wall *wall = sitehelper_project_find_wall_by_id(&project, first);
+    assert(wall_generate(wall, &project.settings));
+    SiteHelperEditor editor; sitehelper_editor_init(&editor);
+    assert(sitehelper_editor_set_current_storey(&editor, &project, storey));
+    editor.current_wall_id = first;
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
+    Renderer2D *renderer = renderer2d_create(); assert(renderer);
+    Drawing drawing = {0};
+    renderer2d_set_backend(renderer, (RendererBackend){.context = &drawing, .fill_rect = record_rect});
+    renderer2d_set_camera(renderer, (Camera2D){.scale = .1});
+    renderer2d_set_viewport(renderer, (Vec2){0,0}, 800,600);
+    WallRenderStyle style = {.timber_colour = {100,100,100,255}, .selected_colour = {255,0,0,255}};
+    editor_selection_set_wall_member(&editor.selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
+        first, WALL_MEMBER_BOTTOM_PLATE, &wall->framing.bottomplate);
+    app_render_walls(renderer, &project, &editor, &style);
+    assert(drawing.selected_rect_count == 1);
+    editor.selection.scope = EDITOR_SELECTION_SCOPE_PLAN;
+    drawing = (Drawing){0}; app_render_walls(renderer, &project, &editor, &style);
+    assert(drawing.rect_count > 0 && drawing.selected_rect_count == 0);
+    editor.selection.scope = EDITOR_SELECTION_SCOPE_WALL_ELEVATION;
+    editor.selection.wall_id = second;
+    drawing = (Drawing){0}; app_render_walls(renderer, &project, &editor, &style);
+    assert(drawing.rect_count > 0 && drawing.selected_rect_count == 0);
+    sitehelper_editor_clear_selection(&editor);
+    assert(editor.current_wall_id == first);
+    drawing = (Drawing){0}; app_render_walls(renderer, &project, &editor, &style);
+    assert(drawing.rect_count > 0 && drawing.selected_rect_count == 0);
+    renderer2d_destroy(renderer); sitehelper_project_destroy(&project);
+}
+
 int main(void)
 {
+    test_elevation_highlight_requires_scope_and_owner();
     test_separator_inputs_stay_out_of_wall_views_and_navigation();
     test_room_placement_preserves_wall_navigation_and_rendering();
     test_plan_commands_and_navigation_without_rooms();

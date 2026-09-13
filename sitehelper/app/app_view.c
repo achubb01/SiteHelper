@@ -42,7 +42,7 @@ void app_render_walls(
         const Wall *wall = app_current_wall_const(project, editor);
         if (wall != NULL) {
             const WallSelection *selection = editor_selection_get_wall_member(
-                &editor->selection, wall->id
+                &editor->selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, wall->id
             );
             wall_elevation_render(renderer, wall,
                 wall_selection_resolve(selection, wall), style);

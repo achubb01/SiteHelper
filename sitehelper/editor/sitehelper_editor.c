@@ -177,6 +177,11 @@ void sitehelper_editor_select_wall_member_at_position(
         return;
     }
 
+    if (editor->active_view != EDITOR_VIEW_WALL_ELEVATION) {
+        sitehelper_editor_clear_selection(editor);
+        return;
+    }
+
     WallMemberHit hit =
         wall_find_member_at_position(
             wall,
@@ -185,10 +190,23 @@ void sitehelper_editor_select_wall_member_at_position(
 
     editor_selection_set_wall_member(
         &editor->selection,
+        EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
         wall->id,
         hit.kind,
         hit.timber
     );
+}
+
+int sitehelper_editor_selection_matches_view(const SiteHelperEditor *editor)
+{
+    if (editor == NULL) { return 0; }
+    EditorSelectionScope scope;
+    switch (editor->active_view) {
+        case EDITOR_VIEW_PLAN: scope = EDITOR_SELECTION_SCOPE_PLAN; break;
+        case EDITOR_VIEW_WALL_ELEVATION: scope = EDITOR_SELECTION_SCOPE_WALL_ELEVATION; break;
+        default: return 0;
+    }
+    return editor_selection_matches_scope(&editor->selection, scope);
 }
 
 void sitehelper_editor_reconcile_wall_selection(
@@ -196,12 +214,12 @@ void sitehelper_editor_reconcile_wall_selection(
     const Wall *wall
 )
 {
-    if (
-        editor == NULL
-        || wall == NULL
-    ) {
+    if (editor == NULL) { return; }
+    if (!sitehelper_editor_selection_matches_view(editor)) {
+        sitehelper_editor_clear_selection(editor);
         return;
     }
+    if (wall == NULL) { return; }
 
     if (editor->selection.wall_id == wall->id &&
         editor->selection.kind == EDITOR_SELECTION_OPENING &&
@@ -213,6 +231,7 @@ void sitehelper_editor_reconcile_wall_selection(
     const WallSelection *wall_selection =
         editor_selection_get_wall_member(
             &editor->selection,
+            editor->selection.scope,
             wall->id
         );
 
@@ -243,6 +262,10 @@ void sitehelper_editor_reconcile(
 {
     if (editor == NULL) {
         return;
+    }
+
+    if (!sitehelper_editor_selection_matches_view(editor)) {
+        sitehelper_editor_clear_selection(editor);
     }
 
     const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
@@ -701,7 +724,7 @@ static int editor_primary_action_resolved(
                     wall->definition.segment, view_position
                 ) <= editor->snap.settings.object_snap_tolerance
                     ? wall->id : DOMAIN_ID_INVALID;
-                editor_selection_set_wall(&editor->selection, editor->current_wall_id);
+                editor_selection_set_wall(&editor->selection, EDITOR_SELECTION_SCOPE_PLAN, editor->current_wall_id);
                 return 1;
             }
 
@@ -814,7 +837,7 @@ int sitehelper_editor_primary_action_in_project(
                 editor->current_wall_id = wall->id;
             }
         }
-        editor_selection_set_wall(&editor->selection, editor->current_wall_id);
+        editor_selection_set_wall(&editor->selection, EDITOR_SELECTION_SCOPE_PLAN, editor->current_wall_id);
         sitehelper_editor_update_snap_in_project(editor, project, view_position);
         return 1;
     }
@@ -851,7 +874,7 @@ int sitehelper_editor_primary_action_in_project(
             DomainId opening_id = wall_find_opening_at_position(wall, &resolved,
                 (WallLocalPosition){(int)view_position.x, (int)view_position.y});
             if (opening_id != DOMAIN_ID_INVALID) {
-                editor_selection_set_opening(&editor->selection, wall->id, opening_id);
+                editor_selection_set_opening(&editor->selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, wall->id, opening_id);
             }
         }
     }

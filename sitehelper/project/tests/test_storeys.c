@@ -417,8 +417,18 @@ static void test_editor_isolation(void)
     assert(app_current_room(&p, &editor)->id == room && app_current_wall(&p, &editor)->id == wa);
     Wall *wall = sitehelper_project_find_wall_by_id(&p, wa);
     assert(wall_generate(wall, &p.settings));
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
     sitehelper_editor_select_wall_member_at_position(&editor, wall, (WallLocalPosition){10, 10});
     assert(!editor_selection_is_empty(&editor.selection));
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION);
+    assert(sitehelper_editor_set_current_storey(&editor, &p, b));
+    assert(editor.selection.kind == EDITOR_SELECTION_NONE && editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
+    assert(editor.current_wall_id == DOMAIN_ID_INVALID && editor.current_room_id == DOMAIN_ID_INVALID);
+    assert(sitehelper_editor_set_current_storey(&editor, &p, a));
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_PLAN));
+    assert(sitehelper_editor_primary_action_in_project(&editor, &p, (Vec2){1000, 0}, &action));
+    assert(editor.selection.kind == EDITOR_SELECTION_WALL && editor.selection.scope == EDITOR_SELECTION_SCOPE_PLAN);
+    editor.current_room_id = room;
     assert(sitehelper_editor_set_active_tool(&editor, EDITOR_TOOL_WALL));
     assert(wall_tool_begin(&editor.wall_tool, (Vec2){100, 100}));
     sitehelper_editor_set_snap_result(&editor, (SnapResult){.type = SNAP_ENDPOINT, .position = {100, 100}});
@@ -427,6 +437,7 @@ static void test_editor_isolation(void)
     assert(sitehelper_editor_set_current_storey(&editor, &p, b));
     assert(editor.current_room_id == 0 && editor.current_wall_id == 0);
     assert(editor_selection_is_empty(&editor.selection) && !sitehelper_editor_has_wall_preview(&editor));
+    assert(editor.selection.scope == EDITOR_SELECTION_SCOPE_NONE);
     assert(!sitehelper_editor_has_snap(&editor) && !editor.opening_placement.has_candidate && !editor.opening_tool.preview_valid);
     assert(sitehelper_editor_set_active_tool(&editor, EDITOR_TOOL_SELECT));
     assert(sitehelper_editor_primary_action_in_project(&editor, &p, (Vec2){1000, 0}, &action));

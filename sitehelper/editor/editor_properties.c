@@ -6,7 +6,8 @@ int sitehelper_editor_inspect_properties(const SiteHelperEditor *editor,
 {
     if (properties == NULL) { return 0; }
     *properties = (EditorProperties){0};
-    if (editor == NULL || project == NULL) { return 0; }
+    if (editor == NULL || project == NULL ||
+        !sitehelper_editor_selection_matches_view(editor)) { return 0; }
     const EditorSelection *selection = &editor->selection;
     if (selection->kind != EDITOR_SELECTION_WALL &&
         selection->kind != EDITOR_SELECTION_OPENING) { return 0; }

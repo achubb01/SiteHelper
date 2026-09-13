@@ -23,6 +23,7 @@ typedef enum
 
 typedef struct
 {
+    /* Navigation/focus, independent of the single transient selection. */
     DomainId current_storey_id;
     /* Independent room navigation; never gates physical wall access. */
     DomainId current_room_id;
@@ -31,6 +32,7 @@ typedef struct
     EditorView active_view;
     EditorTool active_tool;
 
+    /* Non-empty scope must match active_view; changing views clears it. */
     EditorSelection selection;
     EditorSnapState snap;
 
@@ -70,11 +72,17 @@ void sitehelper_editor_clear_selection(
     SiteHelperEditor *editor
 );
 
+/* Wall-local U/Z hit testing requires the Elevation view. */
 void sitehelper_editor_select_wall_member_at_position(
     SiteHelperEditor *editor,
     const Wall *wall,
     WallLocalPosition position
 );
+
+/* Non-empty selection context matches Plan or Wall Elevation respectively.
+ * Does not infer ownership from navigation; property resolution uses IDs and
+ * current Storey, while elevation rendering also checks the viewed Wall. */
+int sitehelper_editor_selection_matches_view(const SiteHelperEditor *editor);
 
 void sitehelper_editor_reconcile_wall_selection(
     SiteHelperEditor *editor,
