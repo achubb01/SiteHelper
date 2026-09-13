@@ -1,3 +1,15 @@
+add_library(sitehelper_optimisation optimisation/linear_cut_optimizer.c)
+target_include_directories(sitehelper_optimisation PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/optimisation)
+
+add_executable(test_linear_cut_optimizer optimisation/tests/test_linear_cut_optimizer.c)
+target_link_libraries(test_linear_cut_optimizer PRIVATE sitehelper_optimisation)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_linear_cut_optimizer PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_linear_cut_optimizer PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME linear_cut_optimizer_tests COMMAND test_linear_cut_optimizer)
+
 add_library(sitehelper_model
     model/build_structure.c
     domain/domain_id.c
@@ -71,6 +83,19 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
         "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
 endif()
 add_test(NAME framing_takeoff_tests COMMAND test_framing_takeoff)
+
+add_library(sitehelper_cutlist cutlist/cut_list.c)
+target_include_directories(sitehelper_cutlist PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/cutlist)
+target_link_libraries(sitehelper_cutlist PUBLIC sitehelper_takeoff)
+
+add_executable(test_cut_list cutlist/tests/test_cut_list.c)
+target_link_libraries(test_cut_list PRIVATE sitehelper_cutlist sitehelper_wall)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_cut_list PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_cut_list PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME cut_list_tests COMMAND test_cut_list)
 
 add_library(sitehelper_persistence
     persistence/sitehelper_persistence.c
