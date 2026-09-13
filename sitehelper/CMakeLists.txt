@@ -52,6 +52,19 @@ target_link_libraries(sitehelper_wall
         sitehelper_model
 )
 
+add_library(sitehelper_surface surface/wall_surface.c)
+target_include_directories(sitehelper_surface PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/surface)
+target_link_libraries(sitehelper_surface PUBLIC sitehelper_model PRIVATE sitehelper_wall)
+
+add_executable(test_wall_surface surface/tests/test_wall_surface.c)
+target_link_libraries(test_wall_surface PRIVATE sitehelper_surface sitehelper_wall)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_wall_surface PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_wall_surface PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME wall_surface_tests COMMAND test_wall_surface)
+
 add_library(sitehelper_project
     project/project_settings.c
     project/room_separator.c
