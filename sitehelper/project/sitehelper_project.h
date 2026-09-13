@@ -39,7 +39,13 @@ typedef enum
     SITEHELPER_PROJECT_OVERLAPPING_OPENINGS,
     SITEHELPER_PROJECT_INVALID_ROOM_SEPARATOR_COLLECTION,
     SITEHELPER_PROJECT_INVALID_ROOM_SEPARATOR_ID,
-    SITEHELPER_PROJECT_INVALID_ROOM_SEPARATOR_GEOMETRY
+    SITEHELPER_PROJECT_INVALID_ROOM_SEPARATOR_GEOMETRY,
+    SITEHELPER_PROJECT_INVALID_SLAB_COLLECTION,
+    SITEHELPER_PROJECT_INVALID_SLAB_OUTLINE_COLLECTION,
+    SITEHELPER_PROJECT_INVALID_SLAB_ID,
+    SITEHELPER_PROJECT_INVALID_SLAB_GEOMETRY,
+    SITEHELPER_PROJECT_INVALID_SLAB_THICKNESS,
+    SITEHELPER_PROJECT_SLAB_NUMERIC_OVERFLOW
 } SiteHelperProjectValidationCode;
 
 typedef struct
@@ -50,7 +56,7 @@ typedef struct
     DomainId subject_id;
     /* Containing wall for invalid
      * openings; preceding conflicting opening for OVERLAPPING_OPENINGS.
-     * Zero for all other categories. */
+     * For slab errors, owning Storey ID. Zero for other categories. */
     DomainId related_id;
 } SiteHelperProjectValidation;
 
@@ -60,9 +66,9 @@ typedef struct
  * and region association are not project-integrity invariants.
  * Returns the first failure in deterministic order: settings, all collection
  * metadata, Storey settings, identities/allocator, then wall geometry/openings
- * and separators (using each Storey's resolved settings).
+ * and separators (using each Storey's resolved settings), then slab geometry.
  * Within each pass, Storeys are visited in stored order. Identity order is
- * Storey, Rooms, Walls (each before its openings), then separators. All nested
+ * Storey, Rooms, Walls (each before its openings), separators, then slabs. All nested
  * collection metadata is checked before any global identity traversal.
  * Metadata checks cannot establish the
  * actual allocation size or validity of arbitrary non-null C pointers. */
@@ -149,5 +155,17 @@ int sitehelper_project_remove_wall_by_id(SiteHelperProject *project, DomainId id
 /* Existing-identity insertion checks the entire project namespace. */
 int sitehelper_project_insert_room_separator(SiteHelperProject *project, DomainId storey_id,
     const RoomSeparator *separator, size_t index);
+
+/* Storey-owned slabs, independent of BuildStructure. Deep-copies the ordered
+ * outline; failure preserves project allocations and ID watermark. A successful
+ * add/insert may invalidate borrowed slab pointers in that Storey. */
+DomainId sitehelper_project_add_slab(SiteHelperProject *project, DomainId storey_id,
+    const PlanPosition *vertices, size_t vertex_count, int thickness_mm, int top_level_offset_mm);
+Slab *sitehelper_project_find_slab_by_id(SiteHelperProject *project, DomainId id);
+const Slab *sitehelper_project_find_slab_by_id_const(const SiteHelperProject *project, DomainId id);
+int sitehelper_project_remove_slab_by_id(SiteHelperProject *project, DomainId id);
+/* Restoration: appends an independent copy with its existing identity; checks
+ * the global namespace but does not advance the watermark. Caller establishes it. */
+int sitehelper_project_insert_slab(SiteHelperProject *project, DomainId storey_id, const Slab *slab);
 
 #endif

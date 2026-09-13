@@ -2,6 +2,7 @@
 #include "sitehelper_project.h"
 
 #include "wall.h"
+#include "slab.h"
 
 void sitehelper_project_init(
     SiteHelperProject *project
@@ -43,6 +44,7 @@ void sitehelper_project_destroy(
 
     for (size_t i = 0; i < project->storey_count; i++) {
         build_destroy(&project->storeys[i].structure);
+        slab_collection_destroy(&project->storeys[i].slabs);
     }
     free(project->storeys);
 
@@ -149,7 +151,8 @@ Storey *sitehelper_project_find_owning_storey(SiteHelperProject *project, Domain
     if (project == NULL || id == DOMAIN_ID_INVALID) { return NULL; }
     for (size_t i = 0; i < project->storey_count; i++) {
         Storey *s = &project->storeys[i];
-        if (s->id == id || build_contains_domain_id(&s->structure, id)) { return s; }
+        if (s->id == id || build_contains_domain_id(&s->structure, id) ||
+            slab_collection_find_by_id_const(&s->slabs, id) != NULL) { return s; }
     }
     return NULL;
 }
@@ -159,7 +162,8 @@ const Storey *sitehelper_project_find_owning_storey_const(const SiteHelperProjec
     if (project == NULL || id == DOMAIN_ID_INVALID) { return NULL; }
     for (size_t i = 0; i < project->storey_count; i++) {
         const Storey *s = &project->storeys[i];
-        if (s->id == id || build_contains_domain_id(&s->structure, id)) { return s; }
+        if (s->id == id || build_contains_domain_id(&s->structure, id) ||
+            slab_collection_find_by_id_const(&s->slabs, id) != NULL) { return s; }
     }
     return NULL;
 }

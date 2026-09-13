@@ -65,7 +65,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
 endif()
 add_test(NAME wall_surface_tests COMMAND test_wall_surface)
 
+add_library(sitehelper_slab slab/slab.c)
+target_include_directories(sitehelper_slab PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/slab)
+target_link_libraries(sitehelper_slab PUBLIC sitehelper_model)
+if(NOT MSVC)
+    target_link_libraries(sitehelper_slab PRIVATE m)
+endif()
+
 add_library(sitehelper_project
+    project/project_slabs.c
     project/project_settings.c
     project/room_separator.c
     project/sitehelper_project.c
@@ -80,6 +88,7 @@ target_include_directories(sitehelper_project
 target_link_libraries(sitehelper_project
     PUBLIC
         sitehelper_model
+        sitehelper_slab
     PRIVATE
         sitehelper_wall
 )
@@ -906,4 +915,19 @@ if(SITEHELPER_BUILD_TOPOLOGY)
         target_link_options(test_plan_snap PRIVATE
             "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
     endif()
+endif()
+
+add_executable(test_slab slab/tests/test_slab.c)
+target_link_libraries(test_slab PRIVATE sitehelper_slab)
+add_test(NAME slab_tests COMMAND test_slab)
+
+add_executable(test_project_slabs project/tests/test_project_slabs.c)
+target_link_libraries(test_project_slabs PRIVATE sitehelper_persistence sitehelper_test_support)
+add_test(NAME project_slab_tests COMMAND test_project_slabs)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    foreach(slab_test test_slab test_project_slabs)
+        target_compile_definitions(${slab_test} PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+        target_link_options(${slab_test} PRIVATE
+            "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+    endforeach()
 endif()

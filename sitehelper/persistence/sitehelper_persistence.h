@@ -21,8 +21,10 @@ typedef enum
 /*
  * Persisted authoritative physical measurements are integer millimetres,
  * without suffixes/unit markers (../model/MEASUREMENTS.md). IDs, counts, flags
- * and modes are not measurements. Supported versions 1-10 all use millimetres;
+ * and modes are not measurements. Supported versions 1-11 all use millimetres;
  * legacy geometry-reference migrations below do not change dimensional units.
+ * Version 11 adds Storey-owned slabs (ID, relative top level, thickness and
+ * ordered integer-mm vertices), after room_separators and before end_storey.
  * Version 10 stores canonical clear-opening geometry. Otherwise it retains
  * version 9's ordered Storeys, each as "storey ID elevation MM", followed
  * by "stud_height inherit" or "stud_height override N", then
@@ -36,9 +38,10 @@ SiteHelperPersistenceResult sitehelper_project_save_file(
 );
 
 /*
- * Loads versions 1-10 transactionally into an initialized destination. Parse,
+ * Loads versions 1-11 transactionally into an initialized destination. Parse,
  * authoritative validation and framing regeneration must all succeed before
  * replacing it. On failure destination remains unchanged.
+ * Versions 1-10 load with zero slabs. Slab quantities are never serialized.
  * Versions 1-7 migrate into one elevation-zero Storey. Existing entity IDs
  * and ordered geometry are preserved. The old watermark supplies the fresh
  * Storey ID and advances once; collision/exhaustion fails without wrapping.

@@ -8,7 +8,7 @@ type/API contract; never infer them from a field's name, magnitude or source.
 This covers plan wall/separator endpoints, Room locations, Storey elevations,
 wall-local U/Z positions, opening dimensions and allowances, timber dimensions
 and positions, and construction settings including stud/noggin spacing and
-Storey height overrides. IDs, counts, indices, flags and modes are not distances.
+Storey height overrides, slab outlines, thicknesses and relative top levels. IDs, counts, indices, flags and modes are not distances.
 Existing ordinary integers are intentional: the domain has no runtime unit tags,
 unit-carrying wrappers, or per-value unit metadata.
 
@@ -20,6 +20,8 @@ Representation and coordinate space
 | `PlanPosition`, segment endpoints, Room location | Authoritative integer plan X/Y millimetres. |
 | `WallLocalPosition`, Opening, Timber | Integer wall-local U/Z and physical dimensions in millimetres; generated framing retains these units. |
 | `Storey.elevation_mm` | Integer vertical offset from Project datum; Wall Z=0 is relative to that Storey plane. |
+| Slab outline, thickness, top-level offset | Authoritative integer plan X/Y and physical millimetres; top offset is relative to Storey elevation. |
+| Slab quantities | Derived exact doubled area (half mm²) and volume (half mm³); edge lengths/perimeter use floating-point millimetres. |
 | Wall length | Integer millimetres derived by rounding endpoint Euclidean distance; not independently stored. |
 | `PlanPoint`, editor pointer/previews, transforms, snap calculations | Calculated/transient millimetres, potentially fractional `double`; not authoritative persisted dimensions. |
 | Topology/junction vertices | Derived exact rational X/Y millimetres; source parameters `t` are dimensionless (`U = t * wall_length_mm`). |
@@ -56,7 +58,7 @@ Persistence and external import
 -------------------------------
 
 Persisted authoritative physical measurements are integer millimetres without
-unit markers. Current format **10** and supported legacy formats **1–9** use the
+unit markers. Current format **11** and supported legacy formats **1–10** use the
 same unit. Existing legacy wall/origin and opening-reference migrations reinterpret
 geometry within millimetres, not through unit rescaling. No format/version change
 is needed for this contract; existing files keep their meaning. Derived framing,

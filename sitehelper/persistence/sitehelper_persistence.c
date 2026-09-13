@@ -10,11 +10,12 @@
 #include <string.h>
 
 #include "wall.h"
+#include "slab.h"
 #include "project_settings_internal.h"
 
 enum
 {
-    SITEHELPER_PROJECT_FORMAT_VERSION = 10,
+    SITEHELPER_PROJECT_FORMAT_VERSION = 11,
     PERSISTENCE_TOKEN_CAPACITY = 64
 };
 
@@ -737,6 +738,62 @@ static SiteHelperPersistenceResult parse_structure(FILE *file, SiteHelperProject
     return SITEHELPER_PERSISTENCE_SUCCESS;
 }
 
+static SiteHelperPersistenceResult parse_slabs(FILE *file, SiteHelperProject *project, Storey *storey)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    size_t count;
+    if (expect_token(file, "slabs") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token, &count)) { return SITEHELPER_PERSISTENCE_MALFORMED_DATA; }
+    if (count > SIZE_MAX / sizeof(Slab)) { return SITEHELPER_PERSISTENCE_INVALID_PROJECT; }
+    for (size_t i = 0; i < count; i++) {
+        Slab slab = {0};
+        SlabOutline *outline = &slab.definition.outline;
+        if (expect_token(file, "slab") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token, &slab.id) || slab.id == DOMAIN_ID_INVALID ||
+            project_contains_id(project, slab.id) ||
+            expect_token(file, "top_level_offset") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &slab.definition.top_level_offset_mm) ||
+            expect_token(file, "thickness") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &slab.definition.thickness_mm) ||
+            expect_token(file, "outline") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_size_token(token, &outline->vertex_count)) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        if (outline->vertex_count < 3 || outline->vertex_count > SIZE_MAX / sizeof *outline->vertices ||
+            slab.definition.thickness_mm <= 0) { return SITEHELPER_PERSISTENCE_INVALID_PROJECT; }
+        outline->vertex_capacity = outline->vertex_count;
+        outline->vertices = malloc(outline->vertex_count * sizeof *outline->vertices);
+        if (outline->vertices == NULL) { return SITEHELPER_PERSISTENCE_ALLOCATION_FAILED; }
+        SiteHelperPersistenceResult result = SITEHELPER_PERSISTENCE_SUCCESS;
+        for (size_t j = 0; j < outline->vertex_count; j++) {
+            if (expect_token(file, "vertex") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &outline->vertices[j].x) ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &outline->vertices[j].y)) {
+                result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+                break;
+            }
+        }
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS) { result = expect_token(file, "end_slab"); }
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS && slab_validate(&slab) != SLAB_SUCCESS) {
+            result = SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS &&
+            !sitehelper_project_insert_slab(project, storey->id, &slab)) {
+            result = SITEHELPER_PERSISTENCE_ALLOCATION_FAILED;
+        }
+        slab_destroy(&slab);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
 static SiteHelperPersistenceResult parse_project(
     FILE *file,
     SiteHelperProject *project
@@ -832,6 +889,10 @@ static SiteHelperPersistenceResult parse_project(
         }
         result = parse_structure(file, project, &storey->structure, version, &resolved);
         if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+        if (version >= 11) {
+            result = parse_slabs(file, project, storey);
+            if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+        }
         if (version >= 8 && expect_token(file, "end_storey") != SITEHELPER_PERSISTENCE_SUCCESS) {
             return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
         }
@@ -998,6 +1059,17 @@ static int write_project(
             if (fprintf(file, "room_separator %" PRIu64 " segment %d %d %d %d\n",
                     (uint64_t)separator->id, separator->segment.start.x, separator->segment.start.y,
                     separator->segment.end.x, separator->segment.end.y) < 0) { return 0; }
+        }
+        if (fprintf(file, "slabs %zu\n", storey->slabs.count) < 0) { return 0; }
+        for (size_t i = 0; i < storey->slabs.count; i++) {
+            const Slab *slab = &storey->slabs.items[i];
+            const SlabDefinition *d = &slab->definition;
+            if (fprintf(file, "slab %" PRIu64 " top_level_offset %d thickness %d outline %zu\n",
+                    (uint64_t)slab->id, d->top_level_offset_mm, d->thickness_mm, d->outline.vertex_count) < 0) { return 0; }
+            for (size_t j = 0; j < d->outline.vertex_count; j++) {
+                if (fprintf(file, "vertex %d %d\n", d->outline.vertices[j].x, d->outline.vertices[j].y) < 0) { return 0; }
+            }
+            if (fputs("end_slab\n", file) == EOF) { return 0; }
         }
         if (fputs("end_storey\n", file) == EOF) { return 0; }
     }

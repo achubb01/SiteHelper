@@ -379,7 +379,7 @@ static void test_undo_regenerates_with_current_settings(void)
     fixture_destroy(&f);
 }
 
-static void test_moved_segment_persists_in_v10(void)
+static void test_moved_segment_persists_in_current_format(void)
 {
     Fixture f;
     fixture_init(&f);
@@ -389,7 +389,7 @@ static void test_moved_segment_persists_in_v10(void)
     FILE *file = fopen(path, "r");
     char header[128];
     assert(file && fgets(header, sizeof header, file));
-    assert(strcmp(header, "sitehelper_project 10\n") == 0);
+    assert(strcmp(header, "sitehelper_project 11\n") == 0);
     assert(fclose(file) == 0);
     SiteHelperProject loaded;
     sitehelper_project_init(&loaded);
@@ -462,7 +462,7 @@ int main(void)
     test_generation_failures_and_retry();
     test_branch_discard_and_state_relocation();
     test_undo_regenerates_with_current_settings();
-    test_moved_segment_persists_in_v10();
+    test_moved_segment_persists_in_current_format();
     test_spatial_moves_and_repeated_history();
     test_invalid_moves_preserve_model_framing_and_redo();
     puts("move wall endpoint command tests passed");

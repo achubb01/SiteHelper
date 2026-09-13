@@ -1,5 +1,6 @@
 #include "sitehelper_project.h"
 #include "wall.h"
+#include "slab.h"
 #include "project_settings_internal.h"
 
 static SiteHelperProjectValidation validation(SiteHelperProjectValidationCode code,
@@ -36,6 +37,10 @@ static int duplicate_id(const SiteHelperProject *project, DomainId id)
             if (structure->room_separators[i].id == id && seen++) {
                 return 1;
             }
+        }
+        const SlabCollection *slabs = &project->storeys[s].slabs;
+        for (size_t i = 0; i < slabs->count; i++) {
+            if (slabs->items[i].id == id && seen++) { return 1; }
         }
     }
     return 0;
@@ -93,6 +98,31 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
             }
         }
     }
+    /* Slab metadata is established before any global identity traversal. */
+    for (size_t s = 0; s < project->storey_count; s++) {
+        const Storey *storey = &project->storeys[s];
+        const SlabCollection *slabs = &storey->slabs;
+        if (slabs->count > slabs->capacity ||
+            (slabs->capacity == 0 && slabs->items != NULL) ||
+            (slabs->capacity != 0 && slabs->items == NULL)) {
+            return validation(SITEHELPER_PROJECT_INVALID_SLAB_COLLECTION, storey->id, storey->id);
+        }
+        if (slabs->capacity > SIZE_MAX / sizeof *slabs->items) {
+            return validation(SITEHELPER_PROJECT_SLAB_NUMERIC_OVERFLOW, storey->id, storey->id);
+        }
+        for (size_t i = 0; i < slabs->count; i++) {
+            const Slab *slab = &slabs->items[i];
+            const SlabOutline *o = &slab->definition.outline;
+            if (o->vertex_count > o->vertex_capacity ||
+                (o->vertex_capacity == 0 && o->vertices != NULL) ||
+                (o->vertex_capacity != 0 && o->vertices == NULL)) {
+                return validation(SITEHELPER_PROJECT_INVALID_SLAB_OUTLINE_COLLECTION, slab->id, storey->id);
+            }
+            if (o->vertex_capacity > SIZE_MAX / sizeof *o->vertices) {
+                return validation(SITEHELPER_PROJECT_SLAB_NUMERIC_OVERFLOW, slab->id, storey->id);
+            }
+        }
+    }
     for (size_t s = 0; s < project->storey_count; s++) {
         if (!storey_build_settings_valid(&project->storeys[s].settings)) {
             return validation(SITEHELPER_PROJECT_INVALID_STOREY_SETTINGS, project->storeys[s].id, 0);
@@ -132,6 +162,12 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
             if (result.code != SITEHELPER_PROJECT_VALID) {
                 return result;
             }
+        }
+        const SlabCollection *slabs = &project->storeys[s].slabs;
+        for (size_t i = 0; i < slabs->count; i++) {
+            SiteHelperProjectValidation result = validate_id(project, slabs->items[i].id,
+                SITEHELPER_PROJECT_INVALID_SLAB_ID, project->storeys[s].id, &maximum);
+            if (result.code != SITEHELPER_PROJECT_VALID) { return result; }
         }
     }
     if (project->domain_ids.next == DOMAIN_ID_INVALID || project->domain_ids.next <= maximum) {
@@ -173,6 +209,19 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
             const RoomSeparator *separator = &structure->room_separators[i];
             if (!plan_segment_valid(separator->segment)) {
                 return validation(SITEHELPER_PROJECT_INVALID_ROOM_SEPARATOR_GEOMETRY, separator->id, 0);
+            }
+        }
+    }
+    for (size_t s = 0; s < project->storey_count; s++) {
+        const Storey *storey = &project->storeys[s];
+        for (size_t i = 0; i < storey->slabs.count; i++) {
+            const Slab *slab = &storey->slabs.items[i];
+            SlabCode code = slab_definition_validate(&slab->definition);
+            if (code != SLAB_SUCCESS) {
+                SiteHelperProjectValidationCode project_code = code == SLAB_INVALID_THICKNESS ?
+                    SITEHELPER_PROJECT_INVALID_SLAB_THICKNESS : code == SLAB_NUMERIC_OVERFLOW ?
+                    SITEHELPER_PROJECT_SLAB_NUMERIC_OVERFLOW : SITEHELPER_PROJECT_INVALID_SLAB_GEOMETRY;
+                return validation(project_code, slab->id, storey->id);
             }
         }
     }

@@ -198,6 +198,18 @@ static inline void test_assert_wall_definition_equal(
     }
 }
 
+static inline void test_assert_slab_equal(const Slab *expected, const Slab *actual)
+{
+    assert(expected && actual && expected->id == actual->id);
+    assert(expected->definition.thickness_mm == actual->definition.thickness_mm);
+    assert(expected->definition.top_level_offset_mm == actual->definition.top_level_offset_mm);
+    const SlabOutline *a = &expected->definition.outline, *b = &actual->definition.outline;
+    assert(a->vertex_count == b->vertex_count);
+    for (size_t i = 0; i < a->vertex_count; i++) {
+        assert(a->vertices[i].x == b->vertices[i].x && a->vertices[i].y == b->vertices[i].y);
+    }
+}
+
 static inline void test_assert_project_model_equal(
     const SiteHelperProject *expected,
     const SiteHelperProject *actual
@@ -210,6 +222,10 @@ static inline void test_assert_project_model_equal(
     assert(expected->storey_count == actual->storey_count);
     for (size_t level = 0; level < expected->storey_count; level++) {
         assert(expected->storeys[level].id == actual->storeys[level].id);
+        assert(expected->storeys[level].slabs.count == actual->storeys[level].slabs.count);
+        for (size_t i = 0; i < expected->storeys[level].slabs.count; i++) {
+            test_assert_slab_equal(&expected->storeys[level].slabs.items[i], &actual->storeys[level].slabs.items[i]);
+        }
         assert(expected->storeys[level].elevation_mm == actual->storeys[level].elevation_mm);
         assert(expected->storeys[level].settings.has_stud_height_override == actual->storeys[level].settings.has_stud_height_override);
         assert(expected->storeys[level].settings.stud_height == actual->storeys[level].settings.stud_height);
@@ -317,6 +333,9 @@ static inline void test_clone_project_authoritative(
         assert(sitehelper_project_insert_storey(destination, source->storeys[level].id,
             source->storeys[level].elevation_mm));
         destination->storeys[level].settings = source->storeys[level].settings;
+        for (size_t i = 0; i < source->storeys[level].slabs.count; i++) {
+            assert(sitehelper_project_insert_slab(destination, source->storeys[level].id, &source->storeys[level].slabs.items[i]));
+        }
         for (size_t i = 0; i < source->storeys[level].structure.wall_count; i++) {
             Wall wall = {0};
             test_clone_wall_definition(&source->storeys[level].structure.walls[i], &wall);
