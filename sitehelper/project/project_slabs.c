@@ -30,9 +30,12 @@ DomainId sitehelper_project_add_slab(SiteHelperProject *project, DomainId storey
 int sitehelper_project_insert_slab(SiteHelperProject *project, DomainId storey_id, const Slab *slab)
 {
     Storey *storey = sitehelper_project_find_storey_by_id(project, storey_id);
-    if (slab_validate(slab) != SLAB_SUCCESS) { return 0; }
-    return append_slab(project, storey, slab->id, slab->definition.outline.vertices,
-        slab->definition.outline.vertex_count, slab->definition.thickness_mm, slab->definition.top_level_offset_mm);
+    if (storey == NULL || slab == NULL || sitehelper_project_contains_domain_id(project,slab->id)) { return 0; }
+    Slab candidate = {0};
+    if (slab_clone(slab,&candidate) != SLAB_SUCCESS) { return 0; }
+    SlabCode code = slab_collection_append(&storey->slabs,&candidate);
+    slab_destroy(&candidate);
+    return code == SLAB_SUCCESS;
 }
 
 Slab *sitehelper_project_find_slab_by_id(SiteHelperProject *project, DomainId id)

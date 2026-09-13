@@ -121,6 +121,25 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
             if (o->vertex_capacity > SIZE_MAX / sizeof *o->vertices) {
                 return validation(SITEHELPER_PROJECT_SLAB_NUMERIC_OVERFLOW, slab->id, storey->id);
             }
+            const SlabPenetrationCollection *p = &slab->definition.penetrations;
+            if (p->count > p->capacity || (p->capacity == 0 && p->items != NULL) ||
+                (p->capacity != 0 && p->items == NULL)) {
+                return validation(SITEHELPER_PROJECT_INVALID_SLAB_PENETRATION_COLLECTION,slab->id,storey->id);
+            }
+            if (p->capacity > SIZE_MAX / sizeof *p->items) {
+                return validation(SITEHELPER_PROJECT_SLAB_NUMERIC_OVERFLOW,slab->id,storey->id);
+            }
+            for (size_t j = 0; j < p->count; j++) {
+                const SlabOutline *hole = &p->items[j].outline;
+                if (hole->vertex_count > hole->vertex_capacity ||
+                    (hole->vertex_capacity == 0 && hole->vertices != NULL) ||
+                    (hole->vertex_capacity != 0 && hole->vertices == NULL)) {
+                    return validation(SITEHELPER_PROJECT_INVALID_SLAB_PENETRATION_OUTLINE_COLLECTION,slab->id,storey->id);
+                }
+                if (hole->vertex_capacity > SIZE_MAX / sizeof *hole->vertices) {
+                    return validation(SITEHELPER_PROJECT_SLAB_NUMERIC_OVERFLOW,slab->id,storey->id);
+                }
+            }
         }
     }
     for (size_t s = 0; s < project->storey_count; s++) {
@@ -221,6 +240,9 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
                 SiteHelperProjectValidationCode project_code = code == SLAB_INVALID_THICKNESS ?
                     SITEHELPER_PROJECT_INVALID_SLAB_THICKNESS : code == SLAB_NUMERIC_OVERFLOW ?
                     SITEHELPER_PROJECT_SLAB_NUMERIC_OVERFLOW : SITEHELPER_PROJECT_INVALID_SLAB_GEOMETRY;
+                if (code == SLAB_INVALID_PENETRATION_OUTLINE) { project_code = SITEHELPER_PROJECT_INVALID_SLAB_PENETRATION_OUTLINE; }
+                if (code == SLAB_PENETRATION_OUTSIDE) { project_code = SITEHELPER_PROJECT_SLAB_PENETRATION_OUTSIDE; }
+                if (code == SLAB_PENETRATION_OVERLAP) { project_code = SITEHELPER_PROJECT_SLAB_PENETRATION_OVERLAP; }
                 return validation(project_code, slab->id, storey->id);
             }
         }

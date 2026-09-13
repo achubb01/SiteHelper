@@ -21,8 +21,10 @@ typedef enum
 /*
  * Persisted authoritative physical measurements are integer millimetres,
  * without suffixes/unit markers (../model/MEASUREMENTS.md). IDs, counts, flags
- * and modes are not measurements. Supported versions 1-11 all use millimetres;
+ * and modes are not measurements. Supported versions 1-12 all use millimetres;
  * legacy geometry-reference migrations below do not change dimensional units.
+ * Version 12 adds slab-owned penetration outlines, without IDs, between the
+ * exterior vertices and end_slab. Versions 1-11 have zero penetrations.
  * Version 11 adds Storey-owned slabs (ID, relative top level, thickness and
  * ordered integer-mm vertices), after room_separators and before end_storey.
  * Version 10 stores canonical clear-opening geometry. Otherwise it retains
@@ -38,7 +40,7 @@ SiteHelperPersistenceResult sitehelper_project_save_file(
 );
 
 /*
- * Loads versions 1-11 transactionally into an initialized destination. Parse,
+ * Loads versions 1-12 transactionally into an initialized destination. Parse,
  * authoritative validation and framing regeneration must all succeed before
  * replacing it. On failure destination remains unchanged.
  * Versions 1-10 load with zero slabs. Slab quantities are never serialized.

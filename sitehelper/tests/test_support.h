@@ -208,6 +208,15 @@ static inline void test_assert_slab_equal(const Slab *expected, const Slab *actu
     for (size_t i = 0; i < a->vertex_count; i++) {
         assert(a->vertices[i].x == b->vertices[i].x && a->vertices[i].y == b->vertices[i].y);
     }
+    const SlabPenetrationCollection *pa = &expected->definition.penetrations, *pb = &actual->definition.penetrations;
+    assert(pa->count == pb->count);
+    for (size_t i = 0; i < pa->count; i++) {
+        const SlabOutline *oa = &pa->items[i].outline, *ob = &pb->items[i].outline;
+        assert(oa->vertex_count == ob->vertex_count);
+        for (size_t j = 0; j < oa->vertex_count; j++) {
+            assert(oa->vertices[j].x == ob->vertices[j].x && oa->vertices[j].y == ob->vertices[j].y);
+        }
+    }
 }
 
 static inline void test_assert_project_model_equal(

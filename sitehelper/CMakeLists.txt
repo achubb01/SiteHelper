@@ -931,3 +931,21 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
             "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
     endforeach()
 endif()
+
+add_executable(test_slab_penetrations slab/tests/test_slab_penetrations.c)
+target_link_libraries(test_slab_penetrations PRIVATE sitehelper_slab)
+add_test(NAME slab_penetration_tests COMMAND test_slab_penetrations)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_slab_penetrations PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_slab_penetrations PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+
+add_executable(test_project_slab_penetrations project/tests/test_project_slab_penetrations.c)
+target_link_libraries(test_project_slab_penetrations PRIVATE sitehelper_persistence sitehelper_test_support)
+add_test(NAME project_slab_penetration_tests COMMAND test_project_slab_penetrations)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_project_slab_penetrations PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_project_slab_penetrations PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()

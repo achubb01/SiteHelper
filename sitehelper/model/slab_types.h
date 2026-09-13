@@ -12,10 +12,21 @@ typedef struct {
     size_t vertex_count, vertex_capacity;
 } SlabOutline;
 
+/* Subordinate slab-owned geometry; no global identity. */
+typedef struct {
+    SlabOutline outline;
+} SlabPenetration;
+
+typedef struct {
+    SlabPenetration *items;
+    size_t count, capacity;
+} SlabPenetrationCollection;
+
 typedef struct {
     SlabOutline outline;
     int thickness_mm;
     int top_level_offset_mm; /* Signed relative to the owning Storey elevation. */
+    SlabPenetrationCollection penetrations;
 } SlabDefinition;
 
 typedef struct {
