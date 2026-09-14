@@ -184,5 +184,10 @@ int sitehelper_project_remove_slab_by_id(SiteHelperProject *project, DomainId id
 /* Restoration: appends an independent copy with its existing identity; checks
  * the global namespace but does not advance the watermark. Caller establishes it. */
 int sitehelper_project_insert_slab(SiteHelperProject *project, DomainId storey_id, const Slab *slab);
+/* Indexed restoration preserves Storey collection order. Like insert_slab it
+ * does not advance/check the allocator watermark because transactional loading
+ * establishes that watermark after inserting all persisted identities. */
+int sitehelper_project_insert_slab_at(SiteHelperProject *project, DomainId storey_id,
+    const Slab *slab, size_t index);
 
 #endif

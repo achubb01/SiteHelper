@@ -7,8 +7,8 @@
 
 typedef struct SiteHelperCommandUndoState SiteHelperCommandUndoState;
 
-/* Entries own undo_state exclusively. They may be moved, never shallow-copied
- * into another owning entry. Commands and public results remain plain values. */
+/* Entries own command payload and undo_state exclusively. They may be moved,
+ * never shallow-copied into another owning entry. */
 typedef struct
 {
     SiteHelperCommand command;

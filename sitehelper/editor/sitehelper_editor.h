@@ -9,6 +9,7 @@
 #include "opening_placement.h"
 #include "wall_tool.h"
 #include "measurement_tool.h"
+#include "slab_tool.h"
 #include "opening_command.h"
 #include "editor_action.h"
 #include "sitehelper_project.h"
@@ -21,6 +22,8 @@ typedef enum
     EDITOR_VIEW_COUNT
 } EditorView;
 
+/* Owns SlabTool vertex storage after a slab sketch begins. Initialize/destroy;
+ * do not shallow-copy an editor containing an active sketch. */
 typedef struct
 {
     /* Navigation/focus, independent of the single transient selection. */
@@ -40,11 +43,13 @@ typedef struct
     OpeningPlacement opening_placement;
     WallTool wall_tool;
     MeasurementTool measurement_tool;
+    SlabTool slab_tool;
 } SiteHelperEditor;
 
 void sitehelper_editor_init(
     SiteHelperEditor *editor
 );
+void sitehelper_editor_destroy(SiteHelperEditor *editor);
 
 /* Switching clears Room/Wall navigation, selection and previews. Invalid ID
  * clears active Storey; a missing nonzero ID fails without changing state. */
@@ -227,6 +232,12 @@ int sitehelper_editor_get_wall_preview_segment(
 /* Copied transient Plan query. Zero distance is valid; no Wall length range
  * restriction. Absence clears output. Application must not inspect tool state. */
 int sitehelper_editor_get_measurement(const SiteHelperEditor *editor, PlanMeasurementQuery *query);
+int sitehelper_editor_create_slab_action(const SiteHelperEditor *editor, EditorAction *action);
+int sitehelper_editor_create_delete_selection_action(const SiteHelperEditor *editor,
+    EditorAction *action);
+int sitehelper_editor_get_slab_preview(const SiteHelperEditor *editor,
+    const PlanPosition **vertices, size_t *count, PlanPoint *preview,
+    int *has_preview);
 /* Cancel an active tool interaction without changing tools or Project state.
  * Returns whether handled. Application gives focused text input first refusal. */
 int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor);

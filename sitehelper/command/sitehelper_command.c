@@ -4,6 +4,13 @@
 #include "sitehelper_command_internal.h"
 #include "delete_wall_command_internal.h"
 #include "wall.h"
+#include "slab.h"
+
+typedef struct {
+    DomainId storey_id;
+    size_t index;
+    Slab slab;
+} DeletedSlabSnapshot;
 
 struct SiteHelperCommandUndoState
 {
@@ -23,6 +30,7 @@ struct SiteHelperCommandUndoState
             RoomSeparator definition;
             size_t index; /* Delete undo restores stored collection order. */
         } room_separator;
+        DeletedSlabSnapshot deleted_slab;
     };
 };
 
@@ -39,7 +47,8 @@ int sitehelper_command_capture_undo_state(
         command->type != SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT &&
         command->type != SITEHELPER_COMMAND_SET_ROOM_LOCATION &&
         command->type != SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR &&
-        command->type != SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT) {
+        command->type != SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT &&
+        command->type != SITEHELPER_COMMAND_DELETE_SLAB) {
         return 1;
     }
     SiteHelperCommandUndoState *candidate = calloc(1, sizeof *candidate);
@@ -47,7 +56,20 @@ int sitehelper_command_capture_undo_state(
         return 0;
     }
     candidate->type = command->type;
-    if (command->type == SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR ||
+    if (command->type == SITEHELPER_COMMAND_DELETE_SLAB) {
+        const Slab *slab=sitehelper_project_find_slab_by_id_const(project,
+            command->data.delete_slab.slab_id);
+        const Storey *owner=slab == NULL ? NULL :
+            sitehelper_project_find_owning_storey_const(project,slab->id);
+        if (owner == NULL ||
+            slab_collection_find_by_id_const(&owner->slabs,slab->id) != slab ||
+            slab_clone(slab,&candidate->deleted_slab.slab) != SLAB_SUCCESS) {
+            sitehelper_command_destroy_undo_state(candidate); return 0;
+        }
+        candidate->deleted_slab.storey_id=owner->id;
+        candidate->deleted_slab.index=(size_t)(slab-owner->slabs.items);
+    }
+    else if (command->type == SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR ||
         command->type == SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT) {
         DomainId id = command->type == SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR
             ? command->data.delete_room_separator.separator_id
@@ -110,6 +132,8 @@ void sitehelper_command_destroy_undo_state(SiteHelperCommandUndoState *state)
     }
     if (state->type == SITEHELPER_COMMAND_DELETE_WALL) {
         deleted_wall_snapshot_destroy(&state->deleted_wall);
+    } else if (state->type == SITEHELPER_COMMAND_DELETE_SLAB) {
+        slab_destroy(&state->deleted_slab.slab);
     }
     free(state);
 }
@@ -120,6 +144,14 @@ int sitehelper_command_undo_with_state(
 {
     if (project == NULL || command == NULL || result == NULL || command->type != result->type) {
         return 0;
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_SLAB) {
+        DomainId id=command->data.delete_slab.slab_id;
+        return state != NULL && state->type == command->type &&
+            result->data.slab.slab_id == id && state->deleted_slab.slab.id == id &&
+            project->domain_ids.next != DOMAIN_ID_INVALID && id < project->domain_ids.next &&
+            sitehelper_project_insert_slab_at(project,state->deleted_slab.storey_id,
+                &state->deleted_slab.slab,state->deleted_slab.index);
     }
     if (command->type == SITEHELPER_COMMAND_EDIT_OPENING) {
         if (state == NULL || state->type != command->type ||
@@ -186,6 +218,45 @@ int sitehelper_command_from_edit_opening(const EditOpeningCommand *edit,
         .type = SITEHELPER_COMMAND_EDIT_OPENING, .data.edit_opening = *edit
     };
     return 1;
+}
+
+int sitehelper_command_from_create_slab(const CreateSlabCommand *create,
+    SiteHelperCommand *command)
+{
+    if (create == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate={.type=SITEHELPER_COMMAND_CREATE_SLAB};
+    if (!create_slab_command_clone(create,&candidate.data.create_slab)) { return 0; }
+    *command=candidate; return 1;
+}
+
+int sitehelper_command_from_delete_slab(const DeleteSlabCommand *deletion,
+    SiteHelperCommand *command)
+{
+    if (deletion == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_DELETE_SLAB,
+        .data.delete_slab=*deletion}; return 1;
+}
+
+int sitehelper_command_clone(const SiteHelperCommand *source, SiteHelperCommand *output)
+{
+    if (source == NULL || output == NULL || source->type <= SITEHELPER_COMMAND_NONE ||
+        source->type >= SITEHELPER_COMMAND_COUNT) { return 0; }
+    SiteHelperCommand candidate=*source;
+    if (source->type == SITEHELPER_COMMAND_CREATE_SLAB) {
+        candidate.data.create_slab=(CreateSlabCommand){0};
+        if (!create_slab_command_clone(&source->data.create_slab,
+            &candidate.data.create_slab)) { return 0; }
+    }
+    *output=candidate; return 1;
+}
+
+void sitehelper_command_destroy(SiteHelperCommand *command)
+{
+    if (command == NULL) { return; }
+    if (command->type == SITEHELPER_COMMAND_CREATE_SLAB) {
+        create_slab_command_destroy(&command->data.create_slab);
+    }
+    *command=(SiteHelperCommand){0};
 }
 
 int sitehelper_command_from_delete_wall(
@@ -313,6 +384,18 @@ int sitehelper_command_execute(
         };
 
     switch (command->type) {
+
+        case SITEHELPER_COMMAND_CREATE_SLAB: {
+            DomainId id;
+            if (!create_slab_command_execute(project,&command->data.create_slab,&id)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,.data.slab={id}};
+            return 1;
+        }
+        case SITEHELPER_COMMAND_DELETE_SLAB:
+            if (!delete_slab_command_execute(project,&command->data.delete_slab)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.slab={command->data.delete_slab.slab_id}};
+            return 1;
 
         case SITEHELPER_COMMAND_EDIT_OPENING:
             if (!edit_opening_command_execute(project, &command->data.edit_opening)) { return 0; }
@@ -453,6 +536,11 @@ int sitehelper_command_undo(
 
     switch (command->type) {
 
+        case SITEHELPER_COMMAND_CREATE_SLAB:
+            return result->data.slab.slab_id != DOMAIN_ID_INVALID &&
+                create_slab_command_undo(project,&command->data.create_slab,
+                    result->data.slab.slab_id);
+
         case SITEHELPER_COMMAND_ADD_ROOM_SEPARATOR: {
             Storey *storey = sitehelper_project_find_storey_by_id(project, command->data.add_room_separator.storey_id);
             return storey != NULL && build_remove_room_separator_by_id(&storey->structure, result->data.room_separator.separator_id);
@@ -474,6 +562,7 @@ int sitehelper_command_undo(
             );
 
         case SITEHELPER_COMMAND_DELETE_WALL:
+        case SITEHELPER_COMMAND_DELETE_SLAB:
         case SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT:
         case SITEHELPER_COMMAND_EDIT_OPENING:
         case SITEHELPER_COMMAND_SET_ROOM_LOCATION:
@@ -510,6 +599,13 @@ int sitehelper_command_redo(
     }
 
     switch (command->type) {
+
+        case SITEHELPER_COMMAND_CREATE_SLAB:
+            return create_slab_command_redo(project,&command->data.create_slab,
+                result->data.slab.slab_id);
+        case SITEHELPER_COMMAND_DELETE_SLAB:
+            return command->data.delete_slab.slab_id == result->data.slab.slab_id &&
+                delete_slab_command_execute(project,&command->data.delete_slab);
 
         case SITEHELPER_COMMAND_EDIT_OPENING:
             if (command->data.edit_opening.wall_id != result->data.edit_opening.wall_id ||

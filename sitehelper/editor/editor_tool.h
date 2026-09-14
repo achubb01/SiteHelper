@@ -7,6 +7,7 @@ typedef enum
     EDITOR_TOOL_OPENING,
     EDITOR_TOOL_WALL,
     EDITOR_TOOL_MEASURE,
+    EDITOR_TOOL_SLAB,
 
     EDITOR_TOOL_COUNT
 } EditorTool;

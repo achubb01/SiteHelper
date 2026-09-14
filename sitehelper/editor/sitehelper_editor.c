@@ -7,6 +7,7 @@
 #include "wall_snap.h"
 #include "plan_snap.h"
 #include "slab_plan_query.h"
+#include "plan_position_conversion.h"
 
 int sitehelper_editor_set_current_storey(SiteHelperEditor *editor,
     const SiteHelperProject *project, DomainId storey_id)
@@ -26,7 +27,8 @@ int sitehelper_editor_set_current_storey(SiteHelperEditor *editor,
 int sitehelper_editor_tool_available(EditorView view, EditorTool tool)
 {
     return (view == EDITOR_VIEW_PLAN &&
-            (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_WALL || tool == EDITOR_TOOL_MEASURE)) ||
+            (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_WALL || tool == EDITOR_TOOL_MEASURE ||
+             tool == EDITOR_TOOL_SLAB)) ||
         (view == EDITOR_VIEW_WALL_ELEVATION &&
             (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_OPENING));
 }
@@ -101,6 +103,9 @@ int sitehelper_editor_set_active_tool(
     if (tool == EDITOR_TOOL_MEASURE) { measurement_tool_activate(&editor->measurement_tool); }
     else { measurement_tool_init(&editor->measurement_tool); }
 
+    if (tool == EDITOR_TOOL_SLAB) { slab_tool_activate(&editor->slab_tool); }
+    else { slab_tool_cancel(&editor->slab_tool); }
+
     editor->active_tool = tool;
 
     return 1;
@@ -135,9 +140,17 @@ void sitehelper_editor_init(
 
     wall_tool_init(&editor->wall_tool);
     measurement_tool_init(&editor->measurement_tool);
+    slab_tool_init(&editor->slab_tool);
 
     editor->opening_placement =
         (OpeningPlacement){0};
+}
+
+void sitehelper_editor_destroy(SiteHelperEditor *editor)
+{
+    if (editor == NULL) { return; }
+    slab_tool_destroy(&editor->slab_tool);
+    *editor=(SiteHelperEditor){0};
 }
 
 EditorTool sitehelper_editor_get_active_tool(
@@ -559,6 +572,7 @@ void sitehelper_editor_pointer_move_in_project(SiteHelperEditor *editor,
     BuildSettings resolved = {0};
     /* Measurement needs the view context, not construction settings. */
     if (storey == NULL || (editor->active_tool != EDITOR_TOOL_MEASURE &&
+        editor->active_tool != EDITOR_TOOL_SLAB &&
         !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved))) {
         sitehelper_editor_invalidate_transient_state(editor);
         return;
@@ -606,6 +620,14 @@ static void editor_pointer_move_resolved(
 
         wall_tool_update_direction(&editor->wall_tool, view_position);
         editor->opening_placement = (OpeningPlacement){0};
+        return;
+    }
+
+    if (editor->active_tool == EDITOR_TOOL_SLAB) {
+        PlanPoint point;
+        if (editor_measurement_point(editor,view_position,&point)) {
+            slab_tool_update(&editor->slab_tool,point);
+        }
         return;
     }
 
@@ -691,9 +713,12 @@ void sitehelper_editor_pointer_leave(
         return;
     }
 
-    sitehelper_editor_invalidate_transient_state(
-        editor
-    );
+    if (editor->active_tool == EDITOR_TOOL_SLAB) {
+        editor->slab_tool.has_preview=0;
+        sitehelper_editor_clear_snap(editor);
+    } else {
+        sitehelper_editor_invalidate_transient_state(editor);
+    }
 }
 
 int sitehelper_editor_create_opening_command(
@@ -846,6 +871,22 @@ static int editor_primary_action_resolved(
             WallPlanSegment segment;
             return wall_tool_command_data(&editor->wall_tool, &segment) &&
                 editor_wall_action(editor, segment, action);
+        }
+
+        case EDITOR_TOOL_SLAB: {
+            PlanPoint point;
+            PlanPosition vertex;
+            if (!editor_measurement_point(editor,view_position,&point) ||
+                !plan_position_from_point(point,&vertex)) { return 0; }
+            SlabTool *tool=&editor->slab_tool;
+            if (tool->vertex_count != 0) {
+                double dx=point.x-tool->vertices[0].x, dy=point.y-tool->vertices[0].y;
+                if (hypot(dx,dy) <= editor->snap.settings.object_snap_tolerance) {
+                    if (tool->vertex_count < 3) { return 1; }
+                    return sitehelper_editor_create_slab_action(editor,action);
+                }
+            }
+            return slab_tool_append(tool,editor->current_storey_id,vertex);
         }
 
         default:
@@ -1032,6 +1073,15 @@ void sitehelper_editor_complete_action(
             wall_tool_cancel(&editor->wall_tool);
             break;
 
+        case SITEHELPER_COMMAND_CREATE_SLAB:
+            if (action->command.data.create_slab.storey_id == editor->current_storey_id) {
+                editor_selection_set_slab(&editor->selection,
+                    EDITOR_SELECTION_SCOPE_PLAN,result->data.slab.slab_id);
+            }
+            slab_tool_cancel(&editor->slab_tool);
+            if (editor->active_tool == EDITOR_TOOL_SLAB) { editor->slab_tool.active=1; }
+            break;
+
         case SITEHELPER_COMMAND_NONE:
         case SITEHELPER_COMMAND_COUNT:
         default:
@@ -1057,6 +1107,8 @@ void sitehelper_editor_invalidate_transient_state(
     editor->opening_tool.preview_valid = 0;
     wall_tool_cancel(&editor->wall_tool);
     measurement_tool_cancel(&editor->measurement_tool);
+    slab_tool_cancel(&editor->slab_tool);
+    if (editor->active_tool == EDITOR_TOOL_SLAB) { editor->slab_tool.active=1; }
 }
 
 int sitehelper_editor_has_wall_preview(const SiteHelperEditor *editor)
@@ -1111,6 +1163,44 @@ int sitehelper_editor_get_measurement(const SiteHelperEditor *editor, PlanMeasur
         measurement_tool_get_query(&editor->measurement_tool, query);
 }
 
+int sitehelper_editor_create_slab_action(const SiteHelperEditor *editor, EditorAction *action)
+{
+    if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->active_tool != EDITOR_TOOL_SLAB || editor->slab_tool.vertex_count < 3) { return 0; }
+    CreateSlabCommand create={0};
+    if (!create_slab_command_create(editor->slab_tool.storey_id,
+        editor->slab_tool.vertices,editor->slab_tool.vertex_count,
+        editor->slab_tool.thickness_mm,editor->slab_tool.top_level_offset_mm,&create)) { return 0; }
+    *action=(EditorAction){.kind=EDITOR_ACTION_COMMAND};
+    int ok=sitehelper_command_from_create_slab(&create,&action->command);
+    create_slab_command_destroy(&create);
+    if (!ok) { *action=(EditorAction){0}; }
+    return ok;
+}
+
+int sitehelper_editor_create_delete_selection_action(const SiteHelperEditor *editor,
+    EditorAction *action)
+{
+    if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->selection.kind != EDITOR_SELECTION_SLAB) { return 0; }
+    DeleteSlabCommand deletion;
+    if (!delete_slab_command_create(editor->selection.slab_id,&deletion) ||
+        !sitehelper_command_from_delete_slab(&deletion,&action->command)) { return 0; }
+    action->kind=EDITOR_ACTION_COMMAND; return 1;
+}
+
+int sitehelper_editor_get_slab_preview(const SiteHelperEditor *editor,
+    const PlanPosition **vertices, size_t *count, PlanPoint *preview, int *has_preview)
+{
+    if (vertices == NULL || count == NULL || preview == NULL || has_preview == NULL) { return 0; }
+    *vertices=NULL; *count=0; *preview=(PlanPoint){0}; *has_preview=0;
+    if (editor == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->active_tool != EDITOR_TOOL_SLAB || editor->slab_tool.vertex_count == 0) { return 0; }
+    *vertices=editor->slab_tool.vertices; *count=editor->slab_tool.vertex_count;
+    *preview=editor->slab_tool.preview; *has_preview=editor->slab_tool.has_preview;
+    return 1;
+}
+
 int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor)
 {
     if (editor == NULL) { return 0; }
@@ -1123,6 +1213,10 @@ int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor)
             if (!sitehelper_editor_has_wall_preview(editor)) { return 0; }
             sitehelper_editor_cancel_wall_placement(editor);
             return 1;
+        case EDITOR_TOOL_SLAB:
+            if (editor->slab_tool.vertex_count == 0) { return 0; }
+            slab_tool_cancel(&editor->slab_tool); editor->slab_tool.active=1;
+            sitehelper_editor_clear_snap(editor); return 1;
         default: return 0;
     }
 }

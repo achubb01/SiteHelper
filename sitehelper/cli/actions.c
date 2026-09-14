@@ -639,11 +639,14 @@ void addOpening(void *context)
 
     SiteHelperCommandResult result;
 
-    if (!sitehelper_command_history_execute(
+    int executed = sitehelper_command_history_execute(
             &app->history,
             &app->project,
             &command,
-            &result)) {
+            &result);
+    sitehelper_command_destroy(&command);
+
+    if (!executed) {
 
         printf(
             "Could not add opening. "

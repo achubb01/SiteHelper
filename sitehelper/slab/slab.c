@@ -919,12 +919,12 @@ const Slab *slab_collection_find_by_id_const(const SlabCollection *collection, D
     return NULL;
 }
 
-SlabCode slab_collection_append(SlabCollection *collection, Slab *candidate)
+SlabCode slab_collection_insert(SlabCollection *collection, Slab *candidate, size_t index)
 {
     if (collection == NULL || candidate == NULL) { return SLAB_INVALID_ARGUMENT; }
     if (collection->count > collection->capacity ||
         (collection->capacity == 0 && collection->items != NULL) ||
-        (collection->capacity != 0 && collection->items == NULL)) { return SLAB_INVALID_COLLECTION; }
+        (collection->capacity != 0 && collection->items == NULL) || index > collection->count) { return SLAB_INVALID_COLLECTION; }
     size_t maximum = SIZE_MAX / sizeof *collection->items;
     if (collection->capacity > maximum) { return SLAB_NUMERIC_OVERFLOW; }
     SlabCode code = slab_validate(candidate);
@@ -937,9 +937,20 @@ SlabCode slab_collection_append(SlabCollection *collection, Slab *candidate)
         if (items == NULL) { return SLAB_ALLOCATION_FAILED; }
         collection->items = items; collection->capacity = grown;
     }
-    collection->items[collection->count++] = *candidate;
+    if (index < collection->count) {
+        memmove(&collection->items[index + 1], &collection->items[index],
+            (collection->count - index) * sizeof *collection->items);
+    }
+    collection->items[index] = *candidate;
+    collection->count++;
     *candidate = (Slab){0};
     return SLAB_SUCCESS;
+}
+
+SlabCode slab_collection_append(SlabCollection *collection, Slab *candidate)
+{
+    return collection == NULL ? SLAB_INVALID_ARGUMENT :
+        slab_collection_insert(collection, candidate, collection->count);
 }
 
 int slab_collection_remove_by_id(SlabCollection *collection, DomainId id)

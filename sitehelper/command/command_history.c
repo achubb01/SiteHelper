@@ -5,6 +5,7 @@
 
 static void history_entry_destroy(SiteHelperCommandHistoryEntry *entry)
 {
+    sitehelper_command_destroy(&entry->command);
     sitehelper_command_destroy_undo_state(entry->undo_state);
     *entry = (SiteHelperCommandHistoryEntry){0};
 }
@@ -130,11 +131,12 @@ sitehelper_command_history_execute(
      * recording it must not be capable of
      * failing due to allocation.
      */
-    /* Copy before realloc: callers may pass a command from an existing entry. */
-    SiteHelperCommandHistoryEntry candidate = { .command = *command };
+    SiteHelperCommandHistoryEntry candidate = {0};
+    if (!sitehelper_command_clone(command,&candidate.command)) { return 0; }
     if (!sitehelper_command_history_reserve(
             history,
             history->cursor + 1)) {
+        history_entry_destroy(&candidate);
         return 0;
     }
 

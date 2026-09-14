@@ -30,10 +30,19 @@ DomainId sitehelper_project_add_slab(SiteHelperProject *project, DomainId storey
 int sitehelper_project_insert_slab(SiteHelperProject *project, DomainId storey_id, const Slab *slab)
 {
     Storey *storey = sitehelper_project_find_storey_by_id(project, storey_id);
-    if (storey == NULL || slab == NULL || sitehelper_project_contains_domain_id(project,slab->id)) { return 0; }
+    return storey != NULL && sitehelper_project_insert_slab_at(project, storey_id,
+        slab, storey->slabs.count);
+}
+
+int sitehelper_project_insert_slab_at(SiteHelperProject *project, DomainId storey_id,
+    const Slab *slab, size_t index)
+{
+    Storey *storey = sitehelper_project_find_storey_by_id(project, storey_id);
+    if (storey == NULL || slab == NULL || index > storey->slabs.count ||
+        sitehelper_project_contains_domain_id(project,slab->id)) { return 0; }
     Slab candidate = {0};
     if (slab_clone(slab,&candidate) != SLAB_SUCCESS) { return 0; }
-    SlabCode code = slab_collection_append(&storey->slabs,&candidate);
+    SlabCode code = slab_collection_insert(&storey->slabs,&candidate,index);
     slab_destroy(&candidate);
     return code == SLAB_SUCCESS;
 }

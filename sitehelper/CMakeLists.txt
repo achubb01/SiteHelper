@@ -169,6 +169,8 @@ add_library(sitehelper_command
     command/move_wall_endpoint_command.c
     command/room_location_command.c
     command/room_separator_command.c
+    command/create_slab_command.c
+    command/delete_slab_command.c
     command/sitehelper_command.c
     command/command_history.c
 )
@@ -217,6 +219,8 @@ add_library(sitehelper_editor
     editor/opening_placement.c
     editor/wall_tool.c
     editor/measurement_tool.c
+    editor/slab_tool.c
+    editor/plan_position_conversion.c
     editor/editor_action.c
 
     wall/wall_snap.c
@@ -620,6 +624,23 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
         "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
 endif()
 add_test(NAME room_separator_command_tests COMMAND test_room_separator_command)
+
+add_executable(test_slab_command command/tests/test_slab_command.c)
+target_link_libraries(test_slab_command PRIVATE sitehelper_command sitehelper_test_support)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_slab_command PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_slab_command PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME slab_command_tests COMMAND test_slab_command)
+
+add_executable(test_slab_tool editor/tests/test_slab_tool.c)
+target_link_libraries(test_slab_tool PRIVATE sitehelper_app_core sitehelper_test_support)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_slab_tool PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_slab_tool PRIVATE "LINKER:--wrap=realloc")
+endif()
+add_test(NAME slab_tool_lifecycle_tests COMMAND test_slab_tool)
 
 add_executable(test_domain_id
     domain/tests/test_domain_id.c

@@ -171,6 +171,9 @@ SlabCode slab_edge_rebate_length_mm(const SlabEdgeRebate *rebate, int *output);
 Slab *slab_collection_find_by_id(SlabCollection *collection, DomainId id);
 const Slab *slab_collection_find_by_id_const(const SlabCollection *collection, DomainId id);
 SlabCode slab_collection_append(SlabCollection *collection, Slab *candidate);
+/* Inserts at a specified source-order position and transfers candidate ownership
+ * only on success. Used by transactional history restoration. */
+SlabCode slab_collection_insert(SlabCollection *collection, Slab *candidate, size_t index);
 int slab_collection_remove_by_id(SlabCollection *collection, DomainId id);
 
 /* All destruction functions free owned storage and zero their object.

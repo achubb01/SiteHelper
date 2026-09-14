@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <limits.h>
 #include <math.h>
+#include "plan_position_conversion.h"
 
 void wall_tool_init(WallTool *tool)
 {
@@ -63,20 +64,9 @@ int wall_tool_command_data(
         return wall_tool_resolve_length(tool, tool->length_mm, segment) == WALL_LENGTH_OK;
     }
 
-    const double coordinates[] = {
-        tool->start.x, tool->start.y, tool->endpoint.x, tool->endpoint.y
-    };
-    for (size_t i = 0; i < sizeof coordinates / sizeof coordinates[0]; i++) {
-        if (!isfinite(coordinates[i]) || coordinates[i] < INT_MIN ||
-            coordinates[i] > INT_MAX) {
-            return 0;
-        }
-    }
-
-    WallPlanSegment candidate = {
-        .start = { .x = (int)tool->start.x, .y = (int)tool->start.y },
-        .end = { .x = (int)tool->endpoint.x, .y = (int)tool->endpoint.y }
-    };
+    WallPlanSegment candidate;
+    if (!plan_position_from_point((PlanPoint){tool->start.x,tool->start.y},&candidate.start) ||
+        !plan_position_from_point((PlanPoint){tool->endpoint.x,tool->endpoint.y},&candidate.end)) { return 0; }
     if (wall_plan_segment_length_mm(candidate) == 0) {
         return 0;
     }
@@ -126,7 +116,10 @@ WallLengthStatus wall_tool_resolve_length(const WallTool *tool, int length_mm,
     dx /= magnitude;
     dy /= magnitude;
     double distance = hypot(dx, dy);
-    PlanPosition start = {(int)tool->start.x, (int)tool->start.y};
+    PlanPosition start;
+    if (!plan_position_from_point((PlanPoint){tool->start.x,tool->start.y},&start)) {
+        return WALL_LENGTH_OUT_OF_RANGE;
+    }
     double x = (double)start.x + (dx / distance) * length_mm;
     double y = (double)start.y + (dy / distance) * length_mm;
     double xs[] = {floor(x), ceil(x)}, ys[] = {floor(y), ceil(y)};

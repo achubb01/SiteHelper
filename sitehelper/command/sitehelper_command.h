@@ -8,6 +8,8 @@
 #include "move_wall_endpoint_command.h"
 #include "room_location_command.h"
 #include "room_separator_command.h"
+#include "create_slab_command.h"
+#include "delete_slab_command.h"
 #include "sitehelper_project.h"
 
 typedef enum
@@ -23,6 +25,8 @@ typedef enum
     SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR,
     SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT,
     SITEHELPER_COMMAND_EDIT_OPENING,
+    SITEHELPER_COMMAND_CREATE_SLAB,
+    SITEHELPER_COMMAND_DELETE_SLAB,
 
     SITEHELPER_COMMAND_COUNT
 } SiteHelperCommandType;
@@ -42,6 +46,8 @@ typedef struct
         AddRoomSeparatorCommand add_room_separator;
         DeleteRoomSeparatorCommand delete_room_separator;
         MoveRoomSeparatorEndpointCommand move_room_separator_endpoint;
+        CreateSlabCommand create_slab;
+        DeleteSlabCommand delete_slab;
     } data;
 } SiteHelperCommand;
 
@@ -81,6 +87,7 @@ typedef struct
 
         struct { DomainId separator_id; } room_separator;
         struct { DomainId wall_id, opening_id; } edit_opening;
+        struct { DomainId slab_id; } slab;
 
     } data;
 
@@ -118,6 +125,14 @@ int sitehelper_command_from_room_location(
 int sitehelper_command_from_add_room_separator(const AddRoomSeparatorCommand *add, SiteHelperCommand *command);
 int sitehelper_command_from_delete_room_separator(const DeleteRoomSeparatorCommand *deletion, SiteHelperCommand *command);
 int sitehelper_command_from_move_room_separator_endpoint(const MoveRoomSeparatorEndpointCommand *move, SiteHelperCommand *command);
+int sitehelper_command_from_create_slab(const CreateSlabCommand *create, SiteHelperCommand *command);
+int sitehelper_command_from_delete_slab(const DeleteSlabCommand *deletion, SiteHelperCommand *command);
+
+/* Commands are owned values. CREATE_SLAB owns its outline. Do not shallow-copy
+ * it; clone explicitly and destroy each owner exactly once. Output arguments
+ * are fresh/zero. History clones, so caller lifetime remains independent. */
+int sitehelper_command_clone(const SiteHelperCommand *source, SiteHelperCommand *output);
+void sitehelper_command_destroy(SiteHelperCommand *command);
 
 /* Compact add-command undo. Deletion and mutation commands require state
  * owned by command history; use history execute/undo for reversible edits. */

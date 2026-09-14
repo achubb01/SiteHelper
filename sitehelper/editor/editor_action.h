@@ -19,4 +19,9 @@ typedef struct
     SiteHelperCommand command;
 } EditorAction;
 
+/* An action returned with COMMAND owns its command payload. Execute/clone it,
+ * then destroy exactly once. Output arguments must be fresh/zero or previously
+ * destroyed; action-producing APIs do not replace a live owning action. */
+void editor_action_destroy(EditorAction *action);
+
 #endif

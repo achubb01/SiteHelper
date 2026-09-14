@@ -34,12 +34,13 @@ typedef enum
     SITEHELPER_TOOLBAR_ACTION_SELECT = 10,
     SITEHELPER_TOOLBAR_ACTION_OPENING = 20,
     SITEHELPER_TOOLBAR_ACTION_WALL = 30,
-    SITEHELPER_TOOLBAR_ACTION_MEASURE = 40
+    SITEHELPER_TOOLBAR_ACTION_MEASURE = 40,
+    SITEHELPER_TOOLBAR_ACTION_SLAB = 50
 } SiteHelperToolbarAction;
 
 enum
 {
-    SITEHELPER_TOOLBAR_BUTTON_COUNT = 4
+    SITEHELPER_TOOLBAR_BUTTON_COUNT = 5
 };
 
 static const GuiButtonId sitehelper_toolbar_button_ids[
@@ -48,7 +49,8 @@ static const GuiButtonId sitehelper_toolbar_button_ids[
     SITEHELPER_TOOLBAR_ACTION_SELECT,
     SITEHELPER_TOOLBAR_ACTION_OPENING,
     SITEHELPER_TOOLBAR_ACTION_WALL,
-    SITEHELPER_TOOLBAR_ACTION_MEASURE
+    SITEHELPER_TOOLBAR_ACTION_MEASURE,
+    SITEHELPER_TOOLBAR_ACTION_SLAB
 };
 
 typedef struct
@@ -377,6 +379,30 @@ static void sitehelper_app_render(
 
     app_render_measurement(app->renderer, &app->editor);
 
+    const PlanPosition *slab_vertices;
+    size_t slab_vertex_count;
+    PlanPoint slab_cursor;
+    int slab_has_cursor;
+    if (sitehelper_editor_get_slab_preview(&app->editor,&slab_vertices,
+            &slab_vertex_count,&slab_cursor,&slab_has_cursor)) {
+        Colour colour={100,220,150,255};
+        for (size_t i=1; i<slab_vertex_count; i++) {
+            renderer2d_draw_line(app->renderer,
+                (Vec2){slab_vertices[i-1].x,slab_vertices[i-1].y},
+                (Vec2){slab_vertices[i].x,slab_vertices[i].y},colour);
+        }
+        if (slab_has_cursor) {
+            PlanPosition last=slab_vertices[slab_vertex_count-1];
+            renderer2d_draw_line(app->renderer,(Vec2){last.x,last.y},
+                (Vec2){slab_cursor.x,slab_cursor.y},colour);
+            if (slab_vertex_count >= 2) {
+                renderer2d_draw_line(app->renderer,(Vec2){slab_cursor.x,slab_cursor.y},
+                    (Vec2){slab_vertices[0].x,slab_vertices[0].y},
+                    (Colour){80,150,115,255});
+            }
+        }
+    }
+
     sitehelper_app_render_snap_cursor(
         app
     );
@@ -400,10 +426,12 @@ static void sitehelper_app_render(
     /* Identify the new query tool by action ID, independent of toolbar order. */
     for (size_t i = 0; i < app->toolbar.button_count; i++) {
         const GuiButton *button = &app->toolbar.buttons[i];
-        if (button->id == SITEHELPER_TOOLBAR_ACTION_MEASURE) {
+        if (button->id == SITEHELPER_TOOLBAR_ACTION_MEASURE ||
+            button->id == SITEHELPER_TOOLBAR_ACTION_SLAB) {
             renderer2d_draw_screen_text(app->renderer,
                 (Vec2){button->bounds.position.x + 4, button->bounds.position.y + 20},
-                "Meas.", button->enabled ? (Colour){230,230,230,255} : (Colour){100,100,100,255});
+                button->id == SITEHELPER_TOOLBAR_ACTION_MEASURE ? "Meas." : "Slab",
+                button->enabled ? (Colour){230,230,230,255} : (Colour){100,100,100,255});
         }
     }
 
@@ -416,14 +444,16 @@ static void sitehelper_app_render(
     renderer2d_present(app->renderer);
 }
 
-static int sitehelper_app_execute_action(SiteHelperApp *app, const EditorAction *action)
+static int sitehelper_app_execute_action(SiteHelperApp *app, EditorAction *action)
 {
     SiteHelperCommandResult result;
     if (action->kind != EDITOR_ACTION_COMMAND ||
         !sitehelper_command_history_execute(&app->history, &app->project, &action->command, &result)) {
+        editor_action_destroy(action);
         return 0;
     }
     sitehelper_editor_complete_action(&app->editor, action, &result);
+    editor_action_destroy(action);
     sitehelper_editor_reconcile(&app->editor, &app->project);
     app_input_refresh(&app->input, &app->editor);
     return 1;
@@ -698,6 +728,8 @@ static void sitehelper_app_destroy(
         &app->history
     );
 
+    sitehelper_editor_destroy(&app->editor);
+
     sitehelper_project_destroy(
         &app->project
     );
@@ -936,6 +968,10 @@ static int sitehelper_app_toolbar_action_tool(
 
         case SITEHELPER_TOOLBAR_ACTION_WALL:
             *tool = EDITOR_TOOL_WALL;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_SLAB:
+            *tool = EDITOR_TOOL_SLAB;
             return 1;
 
         default:
