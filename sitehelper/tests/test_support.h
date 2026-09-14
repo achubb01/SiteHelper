@@ -217,6 +217,26 @@ static inline void test_assert_slab_equal(const Slab *expected, const Slab *actu
             assert(oa->vertices[j].x == ob->vertices[j].x && oa->vertices[j].y == ob->vertices[j].y);
         }
     }
+    const SlabRegionCollection *ra = &expected->definition.regions, *rb = &actual->definition.regions;
+    assert(ra->count == rb->count);
+    for (size_t i = 0; i < ra->count; i++) {
+        assert(ra->items[i].top_level_offset_mm == rb->items[i].top_level_offset_mm);
+        assert(ra->items[i].thickness_mm == rb->items[i].thickness_mm);
+        const SlabOutline *oa = &ra->items[i].outline, *ob = &rb->items[i].outline;
+        assert(oa->vertex_count == ob->vertex_count);
+        for (size_t j = 0; j < oa->vertex_count; j++) {
+            assert(oa->vertices[j].x == ob->vertices[j].x && oa->vertices[j].y == ob->vertices[j].y);
+        }
+    }
+    const SlabEdgeRebateCollection *ea=&expected->definition.edge_rebates;
+    const SlabEdgeRebateCollection *eb=&actual->definition.edge_rebates;
+    assert(ea->count == eb->count);
+    for (size_t i=0; i<ea->count; i++) {
+        const SlabEdgeRebate *a=&ea->items[i], *b=&eb->items[i];
+        assert(a->edge_index==b->edge_index && a->start_offset_mm==b->start_offset_mm &&
+            a->end_offset_mm==b->end_offset_mm && a->width_mm==b->width_mm &&
+            a->depth_mm==b->depth_mm);
+    }
 }
 
 static inline void test_assert_project_model_equal(

@@ -140,6 +140,35 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
                     return validation(SITEHELPER_PROJECT_SLAB_NUMERIC_OVERFLOW,slab->id,storey->id);
                 }
             }
+            const SlabRegionCollection *r = &slab->definition.regions;
+            if (r->count > r->capacity || (r->capacity == 0 && r->items != NULL) ||
+                (r->capacity != 0 && r->items == NULL)) {
+                return validation(SITEHELPER_PROJECT_INVALID_SLAB_REGION_COLLECTION,slab->id,storey->id);
+            }
+            if (r->capacity > SIZE_MAX / sizeof *r->items) {
+                return validation(SITEHELPER_PROJECT_SLAB_NUMERIC_OVERFLOW,slab->id,storey->id);
+            }
+            for (size_t j = 0; j < r->count; j++) {
+                const SlabOutline *outline = &r->items[j].outline;
+                if (outline->vertex_count > outline->vertex_capacity ||
+                    (outline->vertex_capacity == 0 && outline->vertices != NULL) ||
+                    (outline->vertex_capacity != 0 && outline->vertices == NULL)) {
+                    return validation(SITEHELPER_PROJECT_INVALID_SLAB_REGION_OUTLINE_COLLECTION,slab->id,storey->id);
+                }
+                if (outline->vertex_capacity > SIZE_MAX / sizeof *outline->vertices) {
+                    return validation(SITEHELPER_PROJECT_SLAB_NUMERIC_OVERFLOW,slab->id,storey->id);
+                }
+            }
+            const SlabEdgeRebateCollection *rebates = &slab->definition.edge_rebates;
+            if (rebates->count > rebates->capacity ||
+                (rebates->capacity == 0 && rebates->items != NULL) ||
+                (rebates->capacity != 0 && rebates->items == NULL)) {
+                return validation(SITEHELPER_PROJECT_INVALID_SLAB_EDGE_REBATE_COLLECTION,
+                    slab->id,storey->id);
+            }
+            if (rebates->capacity > SIZE_MAX / sizeof *rebates->items) {
+                return validation(SITEHELPER_PROJECT_SLAB_NUMERIC_OVERFLOW,slab->id,storey->id);
+            }
         }
     }
     for (size_t s = 0; s < project->storey_count; s++) {
@@ -243,6 +272,15 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
                 if (code == SLAB_INVALID_PENETRATION_OUTLINE) { project_code = SITEHELPER_PROJECT_INVALID_SLAB_PENETRATION_OUTLINE; }
                 if (code == SLAB_PENETRATION_OUTSIDE) { project_code = SITEHELPER_PROJECT_SLAB_PENETRATION_OUTSIDE; }
                 if (code == SLAB_PENETRATION_OVERLAP) { project_code = SITEHELPER_PROJECT_SLAB_PENETRATION_OVERLAP; }
+                if (code == SLAB_INVALID_REGION_OUTLINE) { project_code = SITEHELPER_PROJECT_INVALID_SLAB_REGION_OUTLINE; }
+                if (code == SLAB_INVALID_REGION_THICKNESS) { project_code = SITEHELPER_PROJECT_INVALID_SLAB_REGION_THICKNESS; }
+                if (code == SLAB_REGION_OUTSIDE) { project_code = SITEHELPER_PROJECT_SLAB_REGION_OUTSIDE; }
+                if (code == SLAB_REGION_OVERLAP) { project_code = SITEHELPER_PROJECT_SLAB_REGION_OVERLAP; }
+                if (code == SLAB_REGION_PENETRATION_INTERSECTION) { project_code = SITEHELPER_PROJECT_SLAB_REGION_PENETRATION_INTERSECTION; }
+                if (code == SLAB_EDGE_REBATE_INVALID_EDGE) { project_code = SITEHELPER_PROJECT_SLAB_EDGE_REBATE_INVALID_EDGE; }
+                if (code == SLAB_EDGE_REBATE_INVALID_INTERVAL) { project_code = SITEHELPER_PROJECT_SLAB_EDGE_REBATE_INVALID_INTERVAL; }
+                if (code == SLAB_EDGE_REBATE_INVALID_DIMENSIONS) { project_code = SITEHELPER_PROJECT_SLAB_EDGE_REBATE_INVALID_DIMENSIONS; }
+                if (code == SLAB_EDGE_REBATE_OVERLAP) { project_code = SITEHELPER_PROJECT_SLAB_EDGE_REBATE_OVERLAP; }
                 return validation(project_code, slab->id, storey->id);
             }
         }

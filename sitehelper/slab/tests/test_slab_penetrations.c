@@ -36,6 +36,18 @@ static void equal(const Slab *a, const Slab *b)
     for(size_t i=0;i<a->definition.penetrations.count;i++) {
         outline_equal(&a->definition.penetrations.items[i].outline,&b->definition.penetrations.items[i].outline);
     }
+    assert(a->definition.regions.count==b->definition.regions.count);
+    for(size_t i=0;i<a->definition.regions.count;i++) {
+        const SlabRegion *ra=&a->definition.regions.items[i], *rb=&b->definition.regions.items[i];
+        assert(ra->top_level_offset_mm==rb->top_level_offset_mm && ra->thickness_mm==rb->thickness_mm);
+        outline_equal(&ra->outline,&rb->outline);
+    }
+    assert(a->definition.edge_rebates.count==b->definition.edge_rebates.count);
+    for(size_t i=0;i<a->definition.edge_rebates.count;i++) {
+        const SlabEdgeRebate *x=&a->definition.edge_rebates.items[i],*y=&b->definition.edge_rebates.items[i];
+        assert(x->edge_index==y->edge_index&&x->start_offset_mm==y->start_offset_mm&&
+            x->end_offset_mm==y->end_offset_mm&&x->width_mm==y->width_mm&&x->depth_mm==y->depth_mm);
+    }
 }
 static void reject(Slab *s, const PlanPosition *v, size_t n, SlabCode expected)
 {

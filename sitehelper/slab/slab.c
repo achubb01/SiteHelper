@@ -1,4 +1,5 @@
 #include <math.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include "slab.h"
@@ -48,15 +49,8 @@ static SlabCode edges_intersect(PlanPosition a, PlanPosition b, PlanPosition c,
     return SLAB_SUCCESS;
 }
 
-static SlabCode outline_area(const PlanPosition *v, size_t n, uint64_t *area2)
+static SlabCode signed_outline_area(const PlanPosition *v, size_t n, int64_t *output)
 {
-    if (n > SIZE_MAX / sizeof *v) { return SLAB_NUMERIC_OVERFLOW; }
-    if (v == NULL || n < 3) { return SLAB_INVALID_OUTLINE; }
-    for (size_t i = 0; i < n; i++) {
-        for (size_t j = i + 1; j < n; j++) {
-            if (same(v[i], v[j])) { return SLAB_INVALID_OUTLINE; }
-        }
-    }
     /* Translate shoelace triangles to vertex 0 to avoid large absolute-origin
      * products for small outlines located at extreme plan coordinates. */
     int64_t sum = 0;
@@ -66,6 +60,22 @@ static SlabCode outline_area(const PlanPosition *v, size_t n, uint64_t *area2)
             return SLAB_NUMERIC_OVERFLOW;
         }
     }
+    *output = sum;
+    return SLAB_SUCCESS;
+}
+
+static SlabCode outline_area(const PlanPosition *v, size_t n, uint64_t *area2)
+{
+    if (n > SIZE_MAX / sizeof *v) { return SLAB_NUMERIC_OVERFLOW; }
+    if (v == NULL || n < 3) { return SLAB_INVALID_OUTLINE; }
+    for (size_t i = 0; i < n; i++) {
+        for (size_t j = i + 1; j < n; j++) {
+            if (same(v[i], v[j])) { return SLAB_INVALID_OUTLINE; }
+        }
+    }
+    int64_t sum;
+    SlabCode area_code = signed_outline_area(v,n,&sum);
+    if (area_code != SLAB_SUCCESS) { return area_code; }
     if (sum == 0) { return SLAB_INVALID_OUTLINE; }
     for (size_t i = 0; i < n; i++) {
         size_t next = i + 1 == n ? 0 : i + 1;
@@ -179,6 +189,246 @@ static SlabCode penetration_relationships(const SlabDefinition *d, const SlabOut
     return SLAB_SUCCESS;
 }
 
+static SlabCode region_metadata(const SlabRegionCollection *r)
+{
+    if (r->count > r->capacity || (r->capacity == 0 && r->items != NULL) ||
+        (r->capacity != 0 && r->items == NULL)) { return SLAB_INVALID_REGION_COLLECTION; }
+    return r->capacity > SIZE_MAX / sizeof *r->items ? SLAB_NUMERIC_OVERFLOW : SLAB_SUCCESS;
+}
+
+static SlabCode region_area(const SlabRegion *r, uint64_t *area)
+{
+    SlabCode code = outline_metadata(&r->outline);
+    if (code == SLAB_INVALID_OUTLINE) { return SLAB_INVALID_REGION_OUTLINE_COLLECTION; }
+    if (code != SLAB_SUCCESS) { return code; }
+    if (r->thickness_mm <= 0) { return SLAB_INVALID_REGION_THICKNESS; }
+    code = outline_area(r->outline.vertices,r->outline.vertex_count,area);
+    return code == SLAB_INVALID_OUTLINE || code == SLAB_SELF_INTERSECTION ? SLAB_INVALID_REGION_OUTLINE : code;
+}
+
+SlabCode slab_region_validate(const SlabRegion *region)
+{
+    if (region == NULL) { return SLAB_INVALID_ARGUMENT; }
+    uint64_t area;
+    return region_area(region,&area);
+}
+
+/* Exact location of (p+q)/2. Only signs are needed: same-sign determinants need
+ * not be added (which could overflow); opposite-sign addition is always safe.
+ * Doubled coordinates are used only for comparisons, not products. */
+static SlabCode midpoint_location(const SlabOutline *o, PlanPosition p, PlanPosition q, PointLocation *location)
+{
+    int inside = 0;
+    int64_t x2 = (int64_t)p.x + q.x, y2 = (int64_t)p.y + q.y;
+    for (size_t i = 0; i < o->vertex_count; i++) {
+        PlanPosition a = o->vertices[i], b = o->vertices[(i+1)%o->vertex_count];
+        int64_t u, v;
+        if (!cross(a,b,p,&u) || !cross(a,b,q,&v)) { return SLAB_NUMERIC_OVERFLOW; }
+        int64_t turn = ((u > 0 && v > 0) || (u < 0 && v < 0)) ? u : u + v;
+        int64_t ax = (int64_t)a.x*2, bx = (int64_t)b.x*2;
+        int64_t ay = (int64_t)a.y*2, by = (int64_t)b.y*2;
+        if (turn == 0 && ((ax <= x2 && x2 <= bx) || (bx <= x2 && x2 <= ax)) &&
+            ((ay <= y2 && y2 <= by) || (by <= y2 && y2 <= ay))) {
+            *location = POINT_BOUNDARY; return SLAB_SUCCESS;
+        }
+        if ((ay > y2) != (by > y2) && ((by > ay && turn > 0) || (by < ay && turn < 0))) { inside = !inside; }
+    }
+    *location = inside ? POINT_INSIDE : POINT_OUTSIDE;
+    return SLAB_SUCCESS;
+}
+
+/* Proper edge crossings have already been excluded. Split each edge at every
+ * other polygon vertex lying on it, then classify every open interval. This
+ * handles T-junctions, collinear subdivisions and concave vertex crossings
+ * without clipping, floating point, allocation or rational intersection points. */
+static SlabCode boundary_locations(const SlabOutline *a, const SlabOutline *b, int *inside, int *outside)
+{
+    for (size_t i = 0; i < a->vertex_count; i++) {
+        PlanPosition start = a->vertices[i], end = a->vertices[(i+1)%a->vertex_count], current = start;
+        int use_x = start.x != end.x;
+        while (!same(current,end)) {
+            PlanPosition next = end;
+            for (size_t j = 0; j < b->vertex_count; j++) {
+                PlanPosition p = b->vertices[j];
+                int64_t turn;
+                if (!cross(start,end,p,&turn)) { return SLAB_NUMERIC_OVERFLOW; }
+                int value = use_x ? p.x : p.y;
+                int from = use_x ? current.x : current.y, to = use_x ? next.x : next.y;
+                if (turn == 0 && value != from && between(from,to,value)) { next = p; }
+            }
+            PointLocation location;
+            SlabCode code = midpoint_location(b,current,next,&location);
+            if (code != SLAB_SUCCESS) { return code; }
+            *inside |= location == POINT_INSIDE;
+            *outside |= location == POINT_OUTSIDE;
+            current = next;
+        }
+    }
+    return SLAB_SUCCESS;
+}
+
+typedef struct {
+    int a_inside, a_outside, b_inside, b_outside;
+    int proper_crossing, shared_interior_side;
+} PolygonRelation;
+
+static SlabCode polygon_relation(const SlabOutline *a, const SlabOutline *b, PolygonRelation *r)
+{
+    *r = (PolygonRelation){0};
+    int64_t area_a, area_b;
+    SlabCode code = signed_outline_area(a->vertices,a->vertex_count,&area_a);
+    if (code != SLAB_SUCCESS) { return code; }
+    code = signed_outline_area(b->vertices,b->vertex_count,&area_b);
+    if (code != SLAB_SUCCESS) { return code; }
+    for (size_t i = 0; i < a->vertex_count; i++) {
+        PlanPosition p = a->vertices[i], q = a->vertices[(i+1)%a->vertex_count];
+        for (size_t j = 0; j < b->vertex_count; j++) {
+            PlanPosition u = b->vertices[j], v = b->vertices[(j+1)%b->vertex_count];
+            int64_t c, d, e, f;
+            if (!cross(p,q,u,&c) || !cross(p,q,v,&d) || !cross(u,v,p,&e) || !cross(u,v,q,&f)) {
+                return SLAB_NUMERIC_OVERFLOW;
+            }
+            if (opposite(c,d) && opposite(e,f)) { r->proper_crossing = 1; return SLAB_SUCCESS; }
+            if (c == 0 && d == 0) {
+                int p0 = p.x != q.x ? p.x : p.y, p1 = p.x != q.x ? q.x : q.y;
+                int u0 = p.x != q.x ? u.x : u.y, u1 = p.x != q.x ? v.x : v.y;
+                int low_a = p0 < p1 ? p0 : p1, high_a = p0 > p1 ? p0 : p1;
+                int low_b = u0 < u1 ? u0 : u1, high_b = u0 > u1 ? u0 : u1;
+                if (low_a < high_b && low_b < high_a) {
+                    int same_direction = (p1 > p0) == (u1 > u0);
+                    if (((area_a > 0) == (area_b > 0)) == same_direction) { r->shared_interior_side = 1; }
+                }
+            }
+        }
+    }
+    code = boundary_locations(a,b,&r->a_inside,&r->a_outside);
+    if (code != SLAB_SUCCESS) { return code; }
+    return boundary_locations(b,a,&r->b_inside,&r->b_outside);
+}
+
+static int interiors_overlap(PolygonRelation r)
+{
+    return r.proper_crossing || r.a_inside || r.b_inside || r.shared_interior_side;
+}
+
+/* Regions must cover material: containment in a void (including coincidence)
+ * is invalid. A void contained by a region is subtracted. Contact alone is legal. */
+static SlabCode region_void_area(const SlabDefinition *d, const SlabOutline *region,
+    uint64_t region_area2, uint64_t *void_area)
+{
+    *void_area = 0;
+    for (size_t i = 0; i < d->penetrations.count; i++) {
+        const SlabOutline *hole = &d->penetrations.items[i].outline;
+        PolygonRelation relation;
+        SlabCode code = polygon_relation(region,hole,&relation);
+        if (code != SLAB_SUCCESS) { return code; }
+        if (relation.proper_crossing) { return SLAB_REGION_PENETRATION_INTERSECTION; }
+        if (!relation.a_outside) { return SLAB_REGION_PENETRATION_INTERSECTION; }
+        if (!relation.b_outside) {
+            uint64_t area;
+            code = outline_area(hole->vertices,hole->vertex_count,&area);
+            if (code != SLAB_SUCCESS) { return code; }
+            if (area > UINT64_MAX - *void_area) { return SLAB_NUMERIC_OVERFLOW; }
+            *void_area += area;
+        } else if (interiors_overlap(relation)) { return SLAB_REGION_PENETRATION_INTERSECTION; }
+    }
+    return *void_area >= region_area2 ? SLAB_REGION_PENETRATION_INTERSECTION : SLAB_SUCCESS;
+}
+
+static SlabCode region_relationships(const SlabDefinition *d, const SlabRegion *region,
+    uint64_t area, size_t prior_count)
+{
+    PolygonRelation relation;
+    SlabCode code = polygon_relation(&region->outline,&d->outline,&relation);
+    if (code != SLAB_SUCCESS) { return code; }
+    if (relation.proper_crossing || relation.a_outside) { return SLAB_REGION_OUTSIDE; }
+    uint64_t void_area;
+    code = region_void_area(d,&region->outline,area,&void_area);
+    if (code != SLAB_SUCCESS) { return code; }
+    for (size_t i = 0; i < prior_count; i++) {
+        code = polygon_relation(&region->outline,&d->regions.items[i].outline,&relation);
+        if (code != SLAB_SUCCESS) { return code; }
+        if (interiors_overlap(relation)) { return SLAB_REGION_OVERLAP; }
+    }
+    return SLAB_SUCCESS;
+}
+
+static SlabCode regions_validate(const SlabDefinition *d)
+{
+    SlabCode code = region_metadata(&d->regions);
+    if (code != SLAB_SUCCESS) { return code; }
+    for (size_t i = 0; i < d->regions.count; i++) {
+        uint64_t area;
+        code = region_area(&d->regions.items[i],&area);
+        if (code != SLAB_SUCCESS) { return code; }
+        code = region_relationships(d,&d->regions.items[i],area,i);
+        if (code != SLAB_SUCCESS) { return code; }
+    }
+    return SLAB_SUCCESS;
+}
+
+static SlabCode edge_rebate_metadata(const SlabEdgeRebateCollection *r)
+{
+    if (r->count > r->capacity || (r->capacity == 0 && r->items != NULL) ||
+        (r->capacity != 0 && r->items == NULL)) {
+        return SLAB_INVALID_EDGE_REBATE_COLLECTION;
+    }
+    return r->capacity > SIZE_MAX / sizeof *r->items ?
+        SLAB_NUMERIC_OVERFLOW : SLAB_SUCCESS;
+}
+
+/* Same integer local-length convention as WallPlanSegment. The endpoint remains
+ * U=edge_length exactly even when a diagonal's Euclidean length is fractional. */
+static SlabCode edge_local_length(const SlabOutline *outline, size_t index, int *output)
+{
+    if (index >= outline->vertex_count) { return SLAB_EDGE_REBATE_INVALID_EDGE; }
+    PlanPosition a = outline->vertices[index];
+    PlanPosition b = outline->vertices[index + 1 == outline->vertex_count ? 0 : index + 1];
+    double dx = (double)b.x - a.x, dy = (double)b.y - a.y;
+    double length = round(hypot(dx,dy));
+    if (!isfinite(length) || length < 1.0 || length > (double)INT_MAX) {
+        return SLAB_NUMERIC_OVERFLOW;
+    }
+    *output = (int)length;
+    return SLAB_SUCCESS;
+}
+
+static SlabCode edge_rebate_basic(const SlabDefinition *d, const SlabEdgeRebate *rebate)
+{
+    if (rebate->edge_index >= d->outline.vertex_count) { return SLAB_EDGE_REBATE_INVALID_EDGE; }
+    if (rebate->width_mm <= 0 || rebate->depth_mm <= 0) {
+        return SLAB_EDGE_REBATE_INVALID_DIMENSIONS;
+    }
+    int edge_length;
+    SlabCode code = edge_local_length(&d->outline,rebate->edge_index,&edge_length);
+    if (code != SLAB_SUCCESS) { return code; }
+    if (rebate->start_offset_mm < 0 || rebate->start_offset_mm >= rebate->end_offset_mm ||
+        rebate->end_offset_mm > edge_length) { return SLAB_EDGE_REBATE_INVALID_INTERVAL; }
+    return SLAB_SUCCESS;
+}
+
+static int rebate_intervals_overlap(const SlabEdgeRebate *a, const SlabEdgeRebate *b)
+{
+    return a->edge_index == b->edge_index &&
+        a->start_offset_mm < b->end_offset_mm && b->start_offset_mm < a->end_offset_mm;
+}
+
+static SlabCode edge_rebates_validate(const SlabDefinition *d)
+{
+    SlabCode code = edge_rebate_metadata(&d->edge_rebates);
+    if (code != SLAB_SUCCESS) { return code; }
+    for (size_t i = 0; i < d->edge_rebates.count; i++) {
+        code = edge_rebate_basic(d,&d->edge_rebates.items[i]);
+        if (code != SLAB_SUCCESS) { return code; }
+        for (size_t j = 0; j < i; j++) {
+            if (rebate_intervals_overlap(&d->edge_rebates.items[i],&d->edge_rebates.items[j])) {
+                return SLAB_EDGE_REBATE_OVERLAP;
+            }
+        }
+    }
+    return SLAB_SUCCESS;
+}
+
 static SlabCode definition_areas(const SlabDefinition *definition, uint64_t *gross, uint64_t *void_area)
 {
     if (definition == NULL) { return SLAB_INVALID_ARGUMENT; }
@@ -201,7 +451,9 @@ static SlabCode definition_areas(const SlabDefinition *definition, uint64_t *gro
         *void_area += area;
     }
     /* Positive separation guarantees material remains. Also guard subtraction. */
-    return *void_area >= *gross ? SLAB_PENETRATION_OVERLAP : SLAB_SUCCESS;
+    if (*void_area >= *gross) { return SLAB_PENETRATION_OVERLAP; }
+    code = regions_validate(definition);
+    return code == SLAB_SUCCESS ? edge_rebates_validate(definition) : code;
 }
 
 SlabCode slab_definition_validate(const SlabDefinition *definition)
@@ -257,6 +509,103 @@ SlabCode slab_measure_material(const SlabDefinition *definition, SlabMaterialQua
     return SLAB_SUCCESS;
 }
 
+static SlabCode region_quantities(const SlabDefinition *d, size_t index, SlabRegionQuantities *q)
+{
+    const SlabRegion *region = &d->regions.items[index];
+    SlabCode code = region_area(region,&q->polygon_area2_mm2);
+    if (code != SLAB_SUCCESS) { return code; }
+    code = region_void_area(d,&region->outline,q->polygon_area2_mm2,&q->void_area2_mm2);
+    if (code != SLAB_SUCCESS) { return code; }
+    q->material_area2_mm2 = q->polygon_area2_mm2 - q->void_area2_mm2;
+    q->thickness_mm = region->thickness_mm;
+    if (q->material_area2_mm2 > UINT64_MAX / (uint64_t)region->thickness_mm) { return SLAB_NUMERIC_OVERFLOW; }
+    q->volume2_mm3 = q->material_area2_mm2 * (uint64_t)region->thickness_mm;
+    return SLAB_SUCCESS;
+}
+
+SlabCode slab_region_measure(const SlabDefinition *d, size_t index, SlabRegionQuantities *output)
+{
+    if (d == NULL || output == NULL) { return SLAB_INVALID_ARGUMENT; }
+    SlabCode code = slab_definition_validate(d);
+    if (code != SLAB_SUCCESS) { return code; }
+    if (index >= d->regions.count) { return SLAB_INVALID_ARGUMENT; }
+    SlabRegionQuantities candidate = {0};
+    code = region_quantities(d,index,&candidate);
+    if (code == SLAB_SUCCESS) { *output = candidate; }
+    return code;
+}
+
+SlabCode slab_measure_construction(const SlabDefinition *d, SlabConstructionQuantities *output)
+{
+    if (output == NULL) { return SLAB_INVALID_ARGUMENT; }
+    uint64_t gross, void_area;
+    SlabCode code = definition_areas(d,&gross,&void_area);
+    if (code != SLAB_SUCCESS) { return code; }
+    SlabConstructionQuantities q = {.net_area2_mm2 = gross - void_area};
+    for (size_t i = 0; i < d->regions.count; i++) {
+        SlabRegionQuantities region = {0};
+        code = region_quantities(d,i,&region);
+        if (code != SLAB_SUCCESS) { return code; }
+        if (region.material_area2_mm2 > q.net_area2_mm2 - q.region_material_area2_mm2 ||
+            region.volume2_mm3 > UINT64_MAX - q.total_volume2_mm3) { return SLAB_NUMERIC_OVERFLOW; }
+        q.region_material_area2_mm2 += region.material_area2_mm2;
+        q.total_volume2_mm3 += region.volume2_mm3;
+    }
+    q.base_material_area2_mm2 = q.net_area2_mm2 - q.region_material_area2_mm2;
+    if (q.base_material_area2_mm2 > UINT64_MAX / (uint64_t)d->thickness_mm) { return SLAB_NUMERIC_OVERFLOW; }
+    uint64_t base_volume = q.base_material_area2_mm2 * (uint64_t)d->thickness_mm;
+    if (base_volume > UINT64_MAX - q.total_volume2_mm3) { return SLAB_NUMERIC_OVERFLOW; }
+    q.total_volume2_mm3 += base_volume;
+    *output = q;
+    return SLAB_SUCCESS;
+}
+
+SlabCode slab_properties_at_plan_position(const Slab *slab, PlanPosition point,
+    SlabPointProperties *output)
+{
+    if (output == NULL) { return SLAB_INVALID_ARGUMENT; }
+    SlabCode code = slab_validate(slab);
+    if (code != SLAB_SUCCESS) { return code; }
+    const SlabDefinition *d = &slab->definition;
+    SlabPointProperties q = {.kind=SLAB_POINT_OUTSIDE,.region_index=SIZE_MAX};
+    PointLocation location;
+    code = point_location(&d->outline,point,&location);
+    if (code != SLAB_SUCCESS) { return code; }
+    if (location != POINT_INSIDE) {
+        q.kind = location == POINT_BOUNDARY ? SLAB_POINT_OUTER_BOUNDARY : SLAB_POINT_OUTSIDE;
+        *output = q; return SLAB_SUCCESS;
+    }
+    for (size_t i = 0; i < d->penetrations.count; i++) {
+        code = point_location(&d->penetrations.items[i].outline,point,&location);
+        if (code != SLAB_SUCCESS) { return code; }
+        if (location != POINT_OUTSIDE) {
+            q.kind = location == POINT_BOUNDARY ? SLAB_POINT_PENETRATION_BOUNDARY : SLAB_POINT_PENETRATION;
+            *output = q; return SLAB_SUCCESS;
+        }
+    }
+    q.kind = SLAB_POINT_BASE;
+    int top_offset = d->top_level_offset_mm;
+    q.thickness_mm = d->thickness_mm;
+    for (size_t i = 0; i < d->regions.count; i++) {
+        code = point_location(&d->regions.items[i].outline,point,&location);
+        if (code != SLAB_SUCCESS) { return code; }
+        if (location == POINT_BOUNDARY) {
+            *output = (SlabPointProperties){.kind=SLAB_POINT_REGION_BOUNDARY,.region_index=SIZE_MAX};
+            return SLAB_SUCCESS;
+        }
+        if (location == POINT_INSIDE) {
+            q.kind = SLAB_POINT_REGION; q.region_index = i;
+            q.thickness_mm = d->regions.items[i].thickness_mm;
+            top_offset = d->regions.items[i].top_level_offset_mm;
+            break;
+        }
+    }
+    q.top_level_offset_mm = top_offset;
+    q.bottom_level_offset_mm = (int64_t)top_offset - q.thickness_mm;
+    *output = q;
+    return SLAB_SUCCESS;
+}
+
 SlabCode slab_edge_length_mm(const SlabDefinition *definition, size_t index, double *output)
 {
     if (definition == NULL || output == NULL || index >= definition->outline.vertex_count) { return SLAB_INVALID_ARGUMENT; }
@@ -264,6 +613,17 @@ SlabCode slab_edge_length_mm(const SlabDefinition *definition, size_t index, dou
     if (code != SLAB_SUCCESS) { return code; }
     *output = edge_length(&definition->outline, index);
     return SLAB_SUCCESS;
+}
+
+SlabCode slab_edge_local_length_mm(const SlabDefinition *definition, size_t index, int *output)
+{
+    if (definition == NULL || output == NULL) { return SLAB_INVALID_ARGUMENT; }
+    SlabCode code = slab_definition_validate(definition);
+    if (code != SLAB_SUCCESS) { return code; }
+    int candidate;
+    code = edge_local_length(&definition->outline,index,&candidate);
+    if (code == SLAB_SUCCESS) { *output = candidate; }
+    return code;
 }
 
 SlabCode slab_absolute_top_elevation_mm(const Slab *slab, int storey_elevation_mm, int64_t *output)
@@ -286,6 +646,10 @@ void slab_destroy(Slab *slab)
     SlabPenetrationCollection *p = &slab->definition.penetrations;
     for (size_t i = 0; i < p->count; i++) { slab_outline_destroy(&p->items[i].outline); }
     free(p->items);
+    SlabRegionCollection *r = &slab->definition.regions;
+    for (size_t i = 0; i < r->count; i++) { slab_outline_destroy(&r->items[i].outline); }
+    free(r->items);
+    free(slab->definition.edge_rebates.items);
     *slab = (Slab){0};
 }
 void slab_collection_destroy(SlabCollection *collection)
@@ -329,6 +693,15 @@ SlabCode slab_add_penetration(Slab *slab, const PlanPosition *vertices, size_t c
     SlabPenetrationCollection *p = &slab->definition.penetrations;
     code = penetration_relationships(&slab->definition,&outline,p->count);
     if (code != SLAB_SUCCESS) { return code; }
+    for (size_t i = 0; i < slab->definition.regions.count; i++) {
+        PolygonRelation relation;
+        code = polygon_relation(&slab->definition.regions.items[i].outline,&outline,&relation);
+        if (code != SLAB_SUCCESS) { return code; }
+        if (relation.proper_crossing || !relation.a_outside ||
+            (relation.b_outside && interiors_overlap(relation))) {
+            return SLAB_REGION_PENETRATION_INTERSECTION;
+        }
+    }
     size_t maximum = SIZE_MAX / sizeof *p->items;
     if (p->count == maximum) { return SLAB_NUMERIC_OVERFLOW; }
     PlanPosition *copy = malloc(count * sizeof *copy);
@@ -363,6 +736,118 @@ const SlabPenetration *slab_penetration_at(const Slab *slab, size_t index)
     return &slab->definition.penetrations.items[index];
 }
 
+SlabCode slab_add_region(Slab *slab, const PlanPosition *vertices, size_t count,
+    int top_level_offset_mm, int thickness_mm)
+{
+    SlabCode code = slab_validate(slab);
+    if (code != SLAB_SUCCESS) { return code; }
+    if (count < 3 || vertices == NULL) { return SLAB_INVALID_REGION_OUTLINE; }
+    SlabRegion candidate = {.outline={(PlanPosition *)vertices,count,count},
+        .top_level_offset_mm=top_level_offset_mm,.thickness_mm=thickness_mm};
+    uint64_t area;
+    code = region_area(&candidate,&area);
+    if (code != SLAB_SUCCESS) { return code; }
+    SlabRegionCollection *r = &slab->definition.regions;
+    code = region_relationships(&slab->definition,&candidate,area,r->count);
+    if (code != SLAB_SUCCESS) { return code; }
+    size_t maximum = SIZE_MAX / sizeof *r->items;
+    if (r->count == maximum) { return SLAB_NUMERIC_OVERFLOW; }
+    PlanPosition *copy = malloc(count * sizeof *copy);
+    if (copy == NULL) { return SLAB_ALLOCATION_FAILED; }
+    memcpy(copy,vertices,count * sizeof *copy);
+    if (r->count == r->capacity) {
+        size_t grown = r->capacity == 0 ? 1 : r->capacity > maximum/2 ? maximum : r->capacity*2;
+        SlabRegion *items = realloc(r->items,grown * sizeof *items);
+        if (items == NULL) { free(copy); return SLAB_ALLOCATION_FAILED; }
+        r->items = items; r->capacity = grown;
+    }
+    candidate.outline.vertices = copy;
+    r->items[r->count++] = candidate;
+    return SLAB_SUCCESS;
+}
+
+SlabCode slab_remove_region(Slab *slab, size_t index)
+{
+    SlabCode code = slab_validate(slab);
+    if (code != SLAB_SUCCESS) { return code; }
+    SlabRegionCollection *r = &slab->definition.regions;
+    if (index >= r->count) { return SLAB_INVALID_ARGUMENT; }
+    slab_outline_destroy(&r->items[index].outline);
+    memmove(&r->items[index],&r->items[index+1],(r->count-index-1)*sizeof *r->items);
+    r->items[--r->count] = (SlabRegion){0};
+    return SLAB_SUCCESS;
+}
+
+const SlabRegion *slab_region_at(const Slab *slab, size_t index)
+{
+    if (slab == NULL || region_metadata(&slab->definition.regions) != SLAB_SUCCESS ||
+        index >= slab->definition.regions.count) { return NULL; }
+    return &slab->definition.regions.items[index];
+}
+
+SlabCode slab_edge_rebate_validate(const SlabDefinition *definition,
+    const SlabEdgeRebate *rebate)
+{
+    if (definition == NULL || rebate == NULL) { return SLAB_INVALID_ARGUMENT; }
+    SlabCode code = outline_metadata(&definition->outline);
+    if (code != SLAB_SUCCESS) { return code; }
+    uint64_t area;
+    code = outline_area(definition->outline.vertices,definition->outline.vertex_count,&area);
+    return code == SLAB_SUCCESS ? edge_rebate_basic(definition,rebate) : code;
+}
+
+SlabCode slab_add_edge_rebate(Slab *slab, size_t edge_index,
+    int start_offset_mm, int end_offset_mm, int width_mm, int depth_mm)
+{
+    SlabCode code = slab_validate(slab);
+    if (code != SLAB_SUCCESS) { return code; }
+    SlabEdgeRebate candidate = {edge_index,start_offset_mm,end_offset_mm,width_mm,depth_mm};
+    code = edge_rebate_basic(&slab->definition,&candidate);
+    if (code != SLAB_SUCCESS) { return code; }
+    SlabEdgeRebateCollection *r = &slab->definition.edge_rebates;
+    for (size_t i = 0; i < r->count; i++) {
+        if (rebate_intervals_overlap(&candidate,&r->items[i])) { return SLAB_EDGE_REBATE_OVERLAP; }
+    }
+    size_t maximum = SIZE_MAX / sizeof *r->items;
+    if (r->count == maximum) { return SLAB_NUMERIC_OVERFLOW; }
+    if (r->count == r->capacity) {
+        size_t grown = r->capacity == 0 ? 1 : r->capacity > maximum/2 ? maximum : r->capacity*2;
+        SlabEdgeRebate *items = realloc(r->items,grown * sizeof *items);
+        if (items == NULL) { return SLAB_ALLOCATION_FAILED; }
+        r->items=items; r->capacity=grown;
+    }
+    r->items[r->count++]=candidate;
+    return SLAB_SUCCESS;
+}
+
+SlabCode slab_remove_edge_rebate(Slab *slab, size_t index)
+{
+    SlabCode code = slab_validate(slab);
+    if (code != SLAB_SUCCESS) { return code; }
+    SlabEdgeRebateCollection *r=&slab->definition.edge_rebates;
+    if (index >= r->count) { return SLAB_INVALID_ARGUMENT; }
+    memmove(&r->items[index],&r->items[index+1],(r->count-index-1)*sizeof *r->items);
+    r->items[--r->count]=(SlabEdgeRebate){0};
+    return SLAB_SUCCESS;
+}
+
+const SlabEdgeRebate *slab_edge_rebate_at(const Slab *slab, size_t index)
+{
+    if (slab == NULL || edge_rebate_metadata(&slab->definition.edge_rebates) != SLAB_SUCCESS ||
+        index >= slab->definition.edge_rebates.count) { return NULL; }
+    return &slab->definition.edge_rebates.items[index];
+}
+
+SlabCode slab_edge_rebate_length_mm(const SlabEdgeRebate *rebate, int *output)
+{
+    if (rebate == NULL || output == NULL) { return SLAB_INVALID_ARGUMENT; }
+    if (rebate->start_offset_mm < 0 || rebate->start_offset_mm >= rebate->end_offset_mm) {
+        return SLAB_EDGE_REBATE_INVALID_INTERVAL;
+    }
+    *output=rebate->end_offset_mm-rebate->start_offset_mm;
+    return SLAB_SUCCESS;
+}
+
 SlabCode slab_clone(const Slab *source, Slab *output)
 {
     if (output == NULL) { return SLAB_INVALID_ARGUMENT; }
@@ -385,6 +870,28 @@ SlabCode slab_clone(const Slab *source, Slab *output)
             memcpy(copy,o->vertices,o->vertex_count * sizeof *copy);
             p->items[p->count++] = (SlabPenetration){.outline={copy,o->vertex_count,o->vertex_count}};
         }
+    }
+    SlabRegionCollection *r = &candidate.definition.regions;
+    if (d->regions.count != 0) {
+        r->items = calloc(d->regions.count,sizeof *r->items);
+        if (r->items == NULL) { slab_destroy(&candidate); return SLAB_ALLOCATION_FAILED; }
+        r->capacity = d->regions.count;
+        for (size_t i = 0; i < d->regions.count; i++) {
+            const SlabRegion *source_region = &d->regions.items[i];
+            const SlabOutline *o = &source_region->outline;
+            PlanPosition *copy = malloc(o->vertex_count * sizeof *copy);
+            if (copy == NULL) { slab_destroy(&candidate); return SLAB_ALLOCATION_FAILED; }
+            memcpy(copy,o->vertices,o->vertex_count * sizeof *copy);
+            r->items[r->count++] = (SlabRegion){.outline={copy,o->vertex_count,o->vertex_count},
+                .top_level_offset_mm=source_region->top_level_offset_mm,.thickness_mm=source_region->thickness_mm};
+        }
+    }
+    SlabEdgeRebateCollection *rebates=&candidate.definition.edge_rebates;
+    if (d->edge_rebates.count != 0) {
+        rebates->items=malloc(d->edge_rebates.count * sizeof *rebates->items);
+        if (rebates->items == NULL) { slab_destroy(&candidate); return SLAB_ALLOCATION_FAILED; }
+        memcpy(rebates->items,d->edge_rebates.items,d->edge_rebates.count * sizeof *rebates->items);
+        rebates->count=rebates->capacity=d->edge_rebates.count;
     }
     slab_destroy(output);
     *output = candidate;

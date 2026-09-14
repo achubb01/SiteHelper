@@ -949,3 +949,39 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
     target_link_options(test_project_slab_penetrations PRIVATE
         "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
 endif()
+
+add_executable(test_slab_regions slab/tests/test_slab_regions.c)
+target_link_libraries(test_slab_regions PRIVATE sitehelper_slab)
+add_test(NAME slab_region_tests COMMAND test_slab_regions)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_slab_regions PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_slab_regions PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+
+add_executable(test_project_slab_regions project/tests/test_project_slab_regions.c)
+target_link_libraries(test_project_slab_regions PRIVATE sitehelper_persistence sitehelper_test_support)
+add_test(NAME project_slab_region_tests COMMAND test_project_slab_regions)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_project_slab_regions PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_project_slab_regions PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+
+add_executable(test_slab_edge_rebates slab/tests/test_slab_edge_rebates.c)
+target_link_libraries(test_slab_edge_rebates PRIVATE sitehelper_slab)
+add_test(NAME slab_edge_rebate_tests COMMAND test_slab_edge_rebates)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_slab_edge_rebates PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_slab_edge_rebates PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=realloc")
+endif()
+
+add_executable(test_project_slab_edge_rebates project/tests/test_project_slab_edge_rebates.c)
+target_link_libraries(test_project_slab_edge_rebates PRIVATE sitehelper_persistence sitehelper_test_support)
+add_test(NAME project_slab_edge_rebate_tests COMMAND test_project_slab_edge_rebates)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_project_slab_edge_rebates PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_project_slab_edge_rebates PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()

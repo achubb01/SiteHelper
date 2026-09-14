@@ -15,7 +15,7 @@
 
 enum
 {
-    SITEHELPER_PROJECT_FORMAT_VERSION = 12,
+    SITEHELPER_PROJECT_FORMAT_VERSION = 14,
     PERSISTENCE_TOKEN_CAPACITY = 64
 };
 
@@ -781,6 +781,95 @@ static SiteHelperPersistenceResult parse_penetrations(FILE *file, Slab *slab)
     return SITEHELPER_PERSISTENCE_SUCCESS;
 }
 
+static SiteHelperPersistenceResult parse_regions(FILE *file, Slab *slab)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    size_t count;
+    if (expect_token(file,"regions") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token,&count)) { return SITEHELPER_PERSISTENCE_MALFORMED_DATA; }
+    if (count > SIZE_MAX / sizeof(SlabRegion)) { return SITEHELPER_PERSISTENCE_INVALID_PROJECT; }
+    for (size_t i = 0; i < count; i++) {
+        size_t vertex_count;
+        int top_level, thickness;
+        if (expect_token(file,"region") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            expect_token(file,"top_level_offset") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token,&top_level) ||
+            expect_token(file,"thickness") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token,&thickness) ||
+            expect_token(file,"outline") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_size_token(token,&vertex_count)) { return SITEHELPER_PERSISTENCE_MALFORMED_DATA; }
+        if (thickness <= 0 || vertex_count < 3 || vertex_count > SIZE_MAX / sizeof(PlanPosition)) {
+            return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+        PlanPosition *vertices = malloc(vertex_count * sizeof *vertices);
+        if (vertices == NULL) { return SITEHELPER_PERSISTENCE_ALLOCATION_FAILED; }
+        SiteHelperPersistenceResult result = SITEHELPER_PERSISTENCE_SUCCESS;
+        for (size_t j = 0; j < vertex_count; j++) {
+            if (expect_token(file,"vertex") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token,&vertices[j].x) ||
+                read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token,&vertices[j].y)) {
+                result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+                break;
+            }
+        }
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS) { result = expect_token(file,"end_region"); }
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS) {
+            SlabCode code = slab_add_region(slab,vertices,vertex_count,top_level,thickness);
+            if (code != SLAB_SUCCESS) {
+                result = code == SLAB_ALLOCATION_FAILED ? SITEHELPER_PERSISTENCE_ALLOCATION_FAILED : SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+            }
+        }
+        free(vertices);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
+static SiteHelperPersistenceResult parse_edge_rebates(FILE *file, Slab *slab)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    size_t count;
+    if (expect_token(file,"edge_rebates") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token,&count)) { return SITEHELPER_PERSISTENCE_MALFORMED_DATA; }
+    if (count > SIZE_MAX / sizeof(SlabEdgeRebate)) { return SITEHELPER_PERSISTENCE_INVALID_PROJECT; }
+    for (size_t i = 0; i < count; i++) {
+        size_t edge_index;
+        int start, end, width, depth;
+        if (expect_token(file,"edge_rebate") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            expect_token(file,"edge") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_size_token(token,&edge_index) ||
+            expect_token(file,"start_offset") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token,&start) ||
+            expect_token(file,"end_offset") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token,&end) ||
+            expect_token(file,"width") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token,&width) ||
+            expect_token(file,"depth") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token,&depth) ||
+            expect_token(file,"end_edge_rebate") != SITEHELPER_PERSISTENCE_SUCCESS) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        SlabCode code = slab_add_edge_rebate(slab,edge_index,start,end,width,depth);
+        if (code != SLAB_SUCCESS) {
+            return code == SLAB_ALLOCATION_FAILED ? SITEHELPER_PERSISTENCE_ALLOCATION_FAILED :
+                SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
 static SiteHelperPersistenceResult parse_slabs(FILE *file, SiteHelperProject *project, Storey *storey, uintmax_t version)
 {
     char token[PERSISTENCE_TOKEN_CAPACITY];
@@ -824,6 +913,8 @@ static SiteHelperPersistenceResult parse_slabs(FILE *file, SiteHelperProject *pr
             }
         }
         if (result == SITEHELPER_PERSISTENCE_SUCCESS && version >= 12) { result = parse_penetrations(file,&slab); }
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS && version >= 13) { result = parse_regions(file,&slab); }
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS && version >= 14) { result = parse_edge_rebates(file,&slab); }
         if (result == SITEHELPER_PERSISTENCE_SUCCESS) { result = expect_token(file, "end_slab"); }
         if (result == SITEHELPER_PERSISTENCE_SUCCESS && slab_validate(&slab) != SLAB_SUCCESS) {
             result = SITEHELPER_PERSISTENCE_INVALID_PROJECT;
@@ -1121,6 +1212,23 @@ static int write_project(
                     if (fprintf(file,"vertex %d %d\n",o->vertices[k].x,o->vertices[k].y) < 0) { return 0; }
                 }
                 if (fputs("end_penetration\n",file) == EOF) { return 0; }
+            }
+            if (fprintf(file,"regions %zu\n",d->regions.count) < 0) { return 0; }
+            for (size_t j = 0; j < d->regions.count; j++) {
+                const SlabRegion *r = &d->regions.items[j];
+                if (fprintf(file,"region top_level_offset %d thickness %d outline %zu\n",
+                        r->top_level_offset_mm,r->thickness_mm,r->outline.vertex_count) < 0) { return 0; }
+                for (size_t k = 0; k < r->outline.vertex_count; k++) {
+                    if (fprintf(file,"vertex %d %d\n",r->outline.vertices[k].x,r->outline.vertices[k].y) < 0) { return 0; }
+                }
+                if (fputs("end_region\n",file) == EOF) { return 0; }
+            }
+            if (fprintf(file,"edge_rebates %zu\n",d->edge_rebates.count) < 0) { return 0; }
+            for (size_t j = 0; j < d->edge_rebates.count; j++) {
+                const SlabEdgeRebate *r=&d->edge_rebates.items[j];
+                if (fprintf(file,"edge_rebate edge %zu start_offset %d end_offset %d width %d depth %d\n"
+                        "end_edge_rebate\n",r->edge_index,r->start_offset_mm,r->end_offset_mm,
+                        r->width_mm,r->depth_mm) < 0) { return 0; }
             }
             if (fputs("end_slab\n", file) == EOF) { return 0; }
         }

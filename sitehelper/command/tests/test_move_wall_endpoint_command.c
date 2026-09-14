@@ -389,7 +389,7 @@ static void test_moved_segment_persists_in_current_format(void)
     FILE *file = fopen(path, "r");
     char header[128];
     assert(file && fgets(header, sizeof header, file));
-    assert(strcmp(header, "sitehelper_project 12\n") == 0);
+    assert(strcmp(header, "sitehelper_project 14\n") == 0);
     assert(fclose(file) == 0);
     SiteHelperProject loaded;
     sitehelper_project_init(&loaded);
