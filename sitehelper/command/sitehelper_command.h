@@ -10,6 +10,7 @@
 #include "room_separator_command.h"
 #include "create_slab_command.h"
 #include "delete_slab_command.h"
+#include "slab_feature_command.h"
 #include "sitehelper_project.h"
 
 typedef enum
@@ -27,6 +28,12 @@ typedef enum
     SITEHELPER_COMMAND_EDIT_OPENING,
     SITEHELPER_COMMAND_CREATE_SLAB,
     SITEHELPER_COMMAND_DELETE_SLAB,
+    SITEHELPER_COMMAND_ADD_SLAB_PENETRATION,
+    SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION,
+    SITEHELPER_COMMAND_ADD_SLAB_REGION,
+    SITEHELPER_COMMAND_DELETE_SLAB_REGION,
+    SITEHELPER_COMMAND_ADD_SLAB_EDGE_REBATE,
+    SITEHELPER_COMMAND_DELETE_SLAB_EDGE_REBATE,
 
     SITEHELPER_COMMAND_COUNT
 } SiteHelperCommandType;
@@ -48,6 +55,12 @@ typedef struct
         MoveRoomSeparatorEndpointCommand move_room_separator_endpoint;
         CreateSlabCommand create_slab;
         DeleteSlabCommand delete_slab;
+        AddSlabPenetrationCommand add_slab_penetration;
+        DeleteSlabPenetrationCommand delete_slab_penetration;
+        AddSlabRegionCommand add_slab_region;
+        DeleteSlabRegionCommand delete_slab_region;
+        AddSlabEdgeRebateCommand add_slab_edge_rebate;
+        DeleteSlabEdgeRebateCommand delete_slab_edge_rebate;
     } data;
 } SiteHelperCommand;
 
@@ -88,6 +101,7 @@ typedef struct
         struct { DomainId separator_id; } room_separator;
         struct { DomainId wall_id, opening_id; } edit_opening;
         struct { DomainId slab_id; } slab;
+        struct { DomainId slab_id; size_t feature_index; } slab_feature;
 
     } data;
 
@@ -127,10 +141,22 @@ int sitehelper_command_from_delete_room_separator(const DeleteRoomSeparatorComma
 int sitehelper_command_from_move_room_separator_endpoint(const MoveRoomSeparatorEndpointCommand *move, SiteHelperCommand *command);
 int sitehelper_command_from_create_slab(const CreateSlabCommand *create, SiteHelperCommand *command);
 int sitehelper_command_from_delete_slab(const DeleteSlabCommand *deletion, SiteHelperCommand *command);
+int sitehelper_command_from_add_slab_penetration(
+    const AddSlabPenetrationCommand *add, SiteHelperCommand *command);
+int sitehelper_command_from_delete_slab_penetration(
+    const DeleteSlabPenetrationCommand *deletion, SiteHelperCommand *command);
+int sitehelper_command_from_add_slab_region(
+    const AddSlabRegionCommand *add, SiteHelperCommand *command);
+int sitehelper_command_from_delete_slab_region(
+    const DeleteSlabRegionCommand *deletion, SiteHelperCommand *command);
+int sitehelper_command_from_add_slab_edge_rebate(
+    const AddSlabEdgeRebateCommand *add, SiteHelperCommand *command);
+int sitehelper_command_from_delete_slab_edge_rebate(
+    const DeleteSlabEdgeRebateCommand *deletion, SiteHelperCommand *command);
 
-/* Commands are owned values. CREATE_SLAB owns its outline. Do not shallow-copy
- * it; clone explicitly and destroy each owner exactly once. Output arguments
- * are fresh/zero. History clones, so caller lifetime remains independent. */
+/* Commands are owned values. CREATE_SLAB and polygon feature ADD commands own
+ * outlines. Do not shallow-copy them; clone explicitly and destroy each owner
+ * exactly once. History clones, so caller lifetime remains independent. */
 int sitehelper_command_clone(const SiteHelperCommand *source, SiteHelperCommand *output);
 void sitehelper_command_destroy(SiteHelperCommand *command);
 

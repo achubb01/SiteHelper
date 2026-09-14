@@ -1082,6 +1082,28 @@ void sitehelper_editor_complete_action(
             if (editor->active_tool == EDITOR_TOOL_SLAB) { editor->slab_tool.active=1; }
             break;
 
+        case SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION:
+            if (editor->selection.kind == EDITOR_SELECTION_SLAB_PENETRATION &&
+                editor->selection.slab_id == result->data.slab_feature.slab_id &&
+                editor->selection.slab_feature_index == result->data.slab_feature.feature_index) {
+                sitehelper_editor_clear_selection(editor);
+            }
+            break;
+        case SITEHELPER_COMMAND_DELETE_SLAB_REGION:
+            if (editor->selection.kind == EDITOR_SELECTION_SLAB_REGION &&
+                editor->selection.slab_id == result->data.slab_feature.slab_id &&
+                editor->selection.slab_feature_index == result->data.slab_feature.feature_index) {
+                sitehelper_editor_clear_selection(editor);
+            }
+            break;
+        case SITEHELPER_COMMAND_DELETE_SLAB_EDGE_REBATE:
+            if (editor->selection.kind == EDITOR_SELECTION_SLAB_EDGE_REBATE &&
+                editor->selection.slab_id == result->data.slab_feature.slab_id &&
+                editor->selection.slab_feature_index == result->data.slab_feature.feature_index) {
+                sitehelper_editor_clear_selection(editor);
+            }
+            break;
+
         case SITEHELPER_COMMAND_NONE:
         case SITEHELPER_COMMAND_COUNT:
         default:
@@ -1182,11 +1204,42 @@ int sitehelper_editor_create_delete_selection_action(const SiteHelperEditor *edi
     EditorAction *action)
 {
     if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
-        editor->selection.kind != EDITOR_SELECTION_SLAB) { return 0; }
-    DeleteSlabCommand deletion;
-    if (!delete_slab_command_create(editor->selection.slab_id,&deletion) ||
-        !sitehelper_command_from_delete_slab(&deletion,&action->command)) { return 0; }
-    action->kind=EDITOR_ACTION_COMMAND; return 1;
+        editor->selection.scope != EDITOR_SELECTION_SCOPE_PLAN) { return 0; }
+    SiteHelperCommand command={0};
+    int ok=0;
+    switch (editor->selection.kind) {
+        case EDITOR_SELECTION_SLAB: {
+            DeleteSlabCommand deletion;
+            ok=delete_slab_command_create(editor->selection.slab_id,&deletion) &&
+                sitehelper_command_from_delete_slab(&deletion,&command);
+            break;
+        }
+        case EDITOR_SELECTION_SLAB_PENETRATION: {
+            DeleteSlabPenetrationCommand deletion;
+            ok=delete_slab_penetration_command_create(editor->selection.slab_id,
+                editor->selection.slab_feature_index,&deletion) &&
+                sitehelper_command_from_delete_slab_penetration(&deletion,&command);
+            break;
+        }
+        case EDITOR_SELECTION_SLAB_REGION: {
+            DeleteSlabRegionCommand deletion;
+            ok=delete_slab_region_command_create(editor->selection.slab_id,
+                editor->selection.slab_feature_index,&deletion) &&
+                sitehelper_command_from_delete_slab_region(&deletion,&command);
+            break;
+        }
+        case EDITOR_SELECTION_SLAB_EDGE_REBATE: {
+            DeleteSlabEdgeRebateCommand deletion;
+            ok=delete_slab_edge_rebate_command_create(editor->selection.slab_id,
+                editor->selection.slab_feature_index,&deletion) &&
+                sitehelper_command_from_delete_slab_edge_rebate(&deletion,&command);
+            break;
+        }
+        default: break;
+    }
+    if (!ok) { return 0; }
+    *action=(EditorAction){.kind=EDITOR_ACTION_COMMAND,.command=command};
+    return 1;
 }
 
 int sitehelper_editor_get_slab_preview(const SiteHelperEditor *editor,

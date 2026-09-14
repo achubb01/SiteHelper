@@ -231,10 +231,11 @@ sitehelper_command_history_redo(
      * the domain mutation has been successfully
      * reapplied.
      */
-    if (!sitehelper_command_redo(
+    if (!sitehelper_command_redo_with_state(
             project,
             &entry->command,
-            &entry->result)) {
+            &entry->result,
+            entry->undo_state)) {
         return 0;
     }
 

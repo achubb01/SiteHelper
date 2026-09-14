@@ -88,6 +88,9 @@ index validates first, frees the selected outline and preserves remaining order.
 `definition.penetrations.count`. Indices are transient positions, not identities.
 `slab_penetration_validate()` checks a standalone outline; full slab validation
 additionally checks its relationships. None of these operations consumes IDs.
+Validated indexed insertion is also available for history restoration. It owns a
+fresh outline copy, preserves collection order and leaves the slab unchanged on
+invalid geometry, an invalid index or allocation failure.
 
 `SlabDefinition.regions` owns an ordered `SlabRegionCollection`. Each region owns
 its outline and stores positive `thickness_mm` and a signed
@@ -126,6 +129,9 @@ the entire slab. `slab_remove_region()` frees by index and preserves order.
 count is `definition.regions.count`. `slab_region_validate()` checks the standalone
 polygon and thickness, while full slab validation checks relationships too.
 Cloning and destruction include every owned region outline.
+Region and edge-rebate collections provide the same validated indexed insertion
+contract. These operations exist to restore authoritative source order; their
+indices remain transient collection positions rather than feature identities.
 
 `slab_measure_construction()` explicitly applies replacement thickness:
 

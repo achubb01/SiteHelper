@@ -13,5 +13,8 @@ void sitehelper_command_destroy_undo_state(SiteHelperCommandUndoState *state);
 int sitehelper_command_undo_with_state(
     SiteHelperProject *project, const SiteHelperCommand *command,
     const SiteHelperCommandResult *result, const SiteHelperCommandUndoState *state);
+int sitehelper_command_redo_with_state(
+    SiteHelperProject *project, const SiteHelperCommand *command,
+    const SiteHelperCommandResult *result, const SiteHelperCommandUndoState *state);
 
 #endif

@@ -171,6 +171,7 @@ add_library(sitehelper_command
     command/room_separator_command.c
     command/create_slab_command.c
     command/delete_slab_command.c
+    command/slab_feature_command.c
     command/sitehelper_command.c
     command/command_history.c
 )
@@ -634,6 +635,24 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
 endif()
 add_test(NAME slab_command_tests COMMAND test_slab_command)
 
+add_executable(test_slab_feature_insert slab/tests/test_slab_feature_insert.c)
+target_link_libraries(test_slab_feature_insert PRIVATE sitehelper_slab sitehelper_test_support)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_slab_feature_insert PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_slab_feature_insert PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME slab_feature_insert_tests COMMAND test_slab_feature_insert)
+
+add_executable(test_slab_feature_command command/tests/test_slab_feature_command.c)
+target_link_libraries(test_slab_feature_command PRIVATE sitehelper_command sitehelper_test_support)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_slab_feature_command PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_slab_feature_command PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME slab_feature_command_tests COMMAND test_slab_feature_command)
+
 add_executable(test_slab_tool editor/tests/test_slab_tool.c)
 target_link_libraries(test_slab_tool PRIVATE sitehelper_app_core sitehelper_test_support)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
@@ -641,6 +660,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
     target_link_options(test_slab_tool PRIVATE "LINKER:--wrap=realloc")
 endif()
 add_test(NAME slab_tool_lifecycle_tests COMMAND test_slab_tool)
+
+add_executable(test_slab_feature_delete editor/tests/test_slab_feature_delete.c)
+target_link_libraries(test_slab_feature_delete PRIVATE sitehelper_app_core sitehelper_test_support)
+add_test(NAME slab_feature_delete_routing_tests COMMAND test_slab_feature_delete)
 
 add_executable(test_domain_id
     domain/tests/test_domain_id.c

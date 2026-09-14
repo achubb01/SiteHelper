@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 #include "sitehelper_command.h"
 #include "sitehelper_command_internal.h"
@@ -11,6 +12,27 @@ typedef struct {
     size_t index;
     Slab slab;
 } DeletedSlabSnapshot;
+
+typedef struct {
+    DomainId slab_id;
+    size_t index;
+    size_t original_count;
+    SlabPenetration feature;
+} DeletedSlabPenetrationSnapshot;
+
+typedef struct {
+    DomainId slab_id;
+    size_t index;
+    size_t original_count;
+    SlabRegion feature;
+} DeletedSlabRegionSnapshot;
+
+typedef struct {
+    DomainId slab_id;
+    size_t index;
+    size_t original_count;
+    SlabEdgeRebate feature;
+} DeletedSlabEdgeRebateSnapshot;
 
 struct SiteHelperCommandUndoState
 {
@@ -31,8 +53,98 @@ struct SiteHelperCommandUndoState
             size_t index; /* Delete undo restores stored collection order. */
         } room_separator;
         DeletedSlabSnapshot deleted_slab;
+        DeletedSlabPenetrationSnapshot deleted_slab_penetration;
+        DeletedSlabRegionSnapshot deleted_slab_region;
+        DeletedSlabEdgeRebateSnapshot deleted_slab_edge_rebate;
     };
 };
+
+static int outline_copy(const SlabOutline *source, SlabOutline *output)
+{
+    if (source == NULL || output == NULL || source->vertices == NULL ||
+        source->vertex_count < 3 || source->vertex_count > source->vertex_capacity ||
+        source->vertex_count > SIZE_MAX / sizeof *source->vertices) { return 0; }
+    PlanPosition *vertices=malloc(source->vertex_count * sizeof *vertices);
+    if (vertices == NULL) { return 0; }
+    memcpy(vertices,source->vertices,source->vertex_count * sizeof *vertices);
+    *output=(SlabOutline){vertices,source->vertex_count,source->vertex_count};
+    return 1;
+}
+
+static int outlines_equal(const SlabOutline *a, const SlabOutline *b)
+{
+    return a != NULL && b != NULL && a->vertex_count == b->vertex_count &&
+        a->vertex_count <= SIZE_MAX / sizeof *a->vertices &&
+        a->vertices != NULL && b->vertices != NULL &&
+        memcmp(a->vertices,b->vertices,a->vertex_count * sizeof *a->vertices) == 0;
+}
+
+static int penetration_matches(const SlabPenetration *feature,
+    const PlanPosition *vertices, size_t count)
+{
+    SlabOutline expected={(PlanPosition *)vertices,count,count};
+    return feature != NULL && outlines_equal(&feature->outline,&expected);
+}
+
+static int region_matches(const SlabRegion *feature, const PlanPosition *vertices,
+    size_t count, int top_level_offset_mm, int thickness_mm)
+{
+    SlabOutline expected={(PlanPosition *)vertices,count,count};
+    return feature != NULL && feature->top_level_offset_mm == top_level_offset_mm &&
+        feature->thickness_mm == thickness_mm &&
+        outlines_equal(&feature->outline,&expected);
+}
+
+static int rebate_equal(const SlabEdgeRebate *a, const SlabEdgeRebate *b)
+{
+    return a != NULL && b != NULL && a->edge_index == b->edge_index &&
+        a->start_offset_mm == b->start_offset_mm &&
+        a->end_offset_mm == b->end_offset_mm && a->width_mm == b->width_mm &&
+        a->depth_mm == b->depth_mm;
+}
+
+static int capture_feature_snapshot(const SiteHelperProject *project,
+    const SiteHelperCommand *command, SiteHelperCommandUndoState *state)
+{
+    DomainId slab_id=DOMAIN_ID_INVALID;
+    size_t index=SIZE_MAX;
+    if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION) {
+        slab_id=command->data.delete_slab_penetration.slab_id;
+        index=command->data.delete_slab_penetration.feature_index;
+    } else if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_REGION) {
+        slab_id=command->data.delete_slab_region.slab_id;
+        index=command->data.delete_slab_region.feature_index;
+    } else if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_EDGE_REBATE) {
+        slab_id=command->data.delete_slab_edge_rebate.slab_id;
+        index=command->data.delete_slab_edge_rebate.feature_index;
+    } else { return 0; }
+    const Slab *slab=sitehelper_project_find_slab_by_id_const(project,slab_id);
+    if (slab == NULL || slab_validate(slab) != SLAB_SUCCESS) { return 0; }
+    if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION) {
+        const SlabPenetration *feature=slab_penetration_at(slab,index);
+        if (feature == NULL || !outline_copy(&feature->outline,
+            &state->deleted_slab_penetration.feature.outline)) { return 0; }
+        state->deleted_slab_penetration.slab_id=slab_id;
+        state->deleted_slab_penetration.index=index;
+        state->deleted_slab_penetration.original_count=
+            slab->definition.penetrations.count;
+    } else if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_REGION) {
+        const SlabRegion *feature=slab_region_at(slab,index);
+        if (feature == NULL || !outline_copy(&feature->outline,
+            &state->deleted_slab_region.feature.outline)) { return 0; }
+        state->deleted_slab_region.slab_id=slab_id;
+        state->deleted_slab_region.index=index;
+        state->deleted_slab_region.original_count=slab->definition.regions.count;
+        state->deleted_slab_region.feature.top_level_offset_mm=feature->top_level_offset_mm;
+        state->deleted_slab_region.feature.thickness_mm=feature->thickness_mm;
+    } else {
+        const SlabEdgeRebate *feature=slab_edge_rebate_at(slab,index);
+        if (feature == NULL) { return 0; }
+        state->deleted_slab_edge_rebate=(DeletedSlabEdgeRebateSnapshot){slab_id,index,
+            slab->definition.edge_rebates.count,*feature};
+    }
+    return 1;
+}
 
 int sitehelper_command_capture_undo_state(
     const SiteHelperProject *project, const SiteHelperCommand *command,
@@ -48,7 +160,10 @@ int sitehelper_command_capture_undo_state(
         command->type != SITEHELPER_COMMAND_SET_ROOM_LOCATION &&
         command->type != SITEHELPER_COMMAND_DELETE_ROOM_SEPARATOR &&
         command->type != SITEHELPER_COMMAND_MOVE_ROOM_SEPARATOR_ENDPOINT &&
-        command->type != SITEHELPER_COMMAND_DELETE_SLAB) {
+        command->type != SITEHELPER_COMMAND_DELETE_SLAB &&
+        command->type != SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION &&
+        command->type != SITEHELPER_COMMAND_DELETE_SLAB_REGION &&
+        command->type != SITEHELPER_COMMAND_DELETE_SLAB_EDGE_REBATE) {
         return 1;
     }
     SiteHelperCommandUndoState *candidate = calloc(1, sizeof *candidate);
@@ -56,7 +171,14 @@ int sitehelper_command_capture_undo_state(
         return 0;
     }
     candidate->type = command->type;
-    if (command->type == SITEHELPER_COMMAND_DELETE_SLAB) {
+    if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION ||
+        command->type == SITEHELPER_COMMAND_DELETE_SLAB_REGION ||
+        command->type == SITEHELPER_COMMAND_DELETE_SLAB_EDGE_REBATE) {
+        if (!capture_feature_snapshot(project,command,candidate)) {
+            sitehelper_command_destroy_undo_state(candidate); return 0;
+        }
+    }
+    else if (command->type == SITEHELPER_COMMAND_DELETE_SLAB) {
         const Slab *slab=sitehelper_project_find_slab_by_id_const(project,
             command->data.delete_slab.slab_id);
         const Storey *owner=slab == NULL ? NULL :
@@ -134,6 +256,10 @@ void sitehelper_command_destroy_undo_state(SiteHelperCommandUndoState *state)
         deleted_wall_snapshot_destroy(&state->deleted_wall);
     } else if (state->type == SITEHELPER_COMMAND_DELETE_SLAB) {
         slab_destroy(&state->deleted_slab.slab);
+    } else if (state->type == SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION) {
+        slab_outline_destroy(&state->deleted_slab_penetration.feature.outline);
+    } else if (state->type == SITEHELPER_COMMAND_DELETE_SLAB_REGION) {
+        slab_outline_destroy(&state->deleted_slab_region.feature.outline);
     }
     free(state);
 }
@@ -144,6 +270,50 @@ int sitehelper_command_undo_with_state(
 {
     if (project == NULL || command == NULL || result == NULL || command->type != result->type) {
         return 0;
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION) {
+        const DeletedSlabPenetrationSnapshot *s=state == NULL ? NULL :
+            &state->deleted_slab_penetration;
+        Slab *slab=s == NULL ? NULL : sitehelper_project_find_slab_by_id(project,s->slab_id);
+        return state != NULL && state->type == command->type &&
+            s->slab_id == command->data.delete_slab_penetration.slab_id &&
+            s->index == command->data.delete_slab_penetration.feature_index &&
+            result->data.slab_feature.slab_id == s->slab_id &&
+            result->data.slab_feature.feature_index == s->index && slab != NULL &&
+            s->original_count != 0 &&
+            slab->definition.penetrations.count == s->original_count - 1 &&
+            slab_insert_penetration_at(slab,s->index,s->feature.outline.vertices,
+                s->feature.outline.vertex_count) == SLAB_SUCCESS;
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_REGION) {
+        const DeletedSlabRegionSnapshot *s=state == NULL ? NULL :
+            &state->deleted_slab_region;
+        Slab *slab=s == NULL ? NULL : sitehelper_project_find_slab_by_id(project,s->slab_id);
+        return state != NULL && state->type == command->type &&
+            s->slab_id == command->data.delete_slab_region.slab_id &&
+            s->index == command->data.delete_slab_region.feature_index &&
+            result->data.slab_feature.slab_id == s->slab_id &&
+            result->data.slab_feature.feature_index == s->index && slab != NULL &&
+            s->original_count != 0 &&
+            slab->definition.regions.count == s->original_count - 1 &&
+            slab_insert_region_at(slab,s->index,s->feature.outline.vertices,
+                s->feature.outline.vertex_count,s->feature.top_level_offset_mm,
+                s->feature.thickness_mm) == SLAB_SUCCESS;
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_EDGE_REBATE) {
+        const DeletedSlabEdgeRebateSnapshot *s=state == NULL ? NULL :
+            &state->deleted_slab_edge_rebate;
+        Slab *slab=s == NULL ? NULL : sitehelper_project_find_slab_by_id(project,s->slab_id);
+        return state != NULL && state->type == command->type &&
+            s->slab_id == command->data.delete_slab_edge_rebate.slab_id &&
+            s->index == command->data.delete_slab_edge_rebate.feature_index &&
+            result->data.slab_feature.slab_id == s->slab_id &&
+            result->data.slab_feature.feature_index == s->index && slab != NULL &&
+            s->original_count != 0 &&
+            slab->definition.edge_rebates.count == s->original_count - 1 &&
+            slab_insert_edge_rebate_at(slab,s->index,s->feature.edge_index,
+                s->feature.start_offset_mm,s->feature.end_offset_mm,
+                s->feature.width_mm,s->feature.depth_mm) == SLAB_SUCCESS;
     }
     if (command->type == SITEHELPER_COMMAND_DELETE_SLAB) {
         DomainId id=command->data.delete_slab.slab_id;
@@ -210,6 +380,59 @@ int sitehelper_command_undo_with_state(
     return sitehelper_command_undo(project, command, result);
 }
 
+int sitehelper_command_redo_with_state(
+    SiteHelperProject *project, const SiteHelperCommand *command,
+    const SiteHelperCommandResult *result, const SiteHelperCommandUndoState *state)
+{
+    if (project == NULL || command == NULL || result == NULL ||
+        command->type != result->type) { return 0; }
+    if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION) {
+        const DeletedSlabPenetrationSnapshot *s=state == NULL ? NULL :
+            &state->deleted_slab_penetration;
+        Slab *slab=s == NULL ? NULL : sitehelper_project_find_slab_by_id(project,s->slab_id);
+        const SlabPenetration *feature=slab == NULL ? NULL : slab_penetration_at(slab,s->index);
+        if (state == NULL || state->type != command->type ||
+            command->data.delete_slab_penetration.slab_id != s->slab_id ||
+            command->data.delete_slab_penetration.feature_index != s->index ||
+            result->data.slab_feature.slab_id != s->slab_id ||
+            result->data.slab_feature.feature_index != s->index || feature == NULL ||
+            slab->definition.penetrations.count != s->original_count ||
+            !outlines_equal(&feature->outline,&s->feature.outline)) { return 0; }
+        return slab_remove_penetration(slab,s->index) == SLAB_SUCCESS;
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_REGION) {
+        const DeletedSlabRegionSnapshot *s=state == NULL ? NULL :
+            &state->deleted_slab_region;
+        Slab *slab=s == NULL ? NULL : sitehelper_project_find_slab_by_id(project,s->slab_id);
+        const SlabRegion *feature=slab == NULL ? NULL : slab_region_at(slab,s->index);
+        if (state == NULL || state->type != command->type ||
+            command->data.delete_slab_region.slab_id != s->slab_id ||
+            command->data.delete_slab_region.feature_index != s->index ||
+            result->data.slab_feature.slab_id != s->slab_id ||
+            result->data.slab_feature.feature_index != s->index || feature == NULL ||
+            slab->definition.regions.count != s->original_count ||
+            feature->top_level_offset_mm != s->feature.top_level_offset_mm ||
+            feature->thickness_mm != s->feature.thickness_mm ||
+            !outlines_equal(&feature->outline,&s->feature.outline)) { return 0; }
+        return slab_remove_region(slab,s->index) == SLAB_SUCCESS;
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_EDGE_REBATE) {
+        const DeletedSlabEdgeRebateSnapshot *s=state == NULL ? NULL :
+            &state->deleted_slab_edge_rebate;
+        Slab *slab=s == NULL ? NULL : sitehelper_project_find_slab_by_id(project,s->slab_id);
+        const SlabEdgeRebate *feature=slab == NULL ? NULL : slab_edge_rebate_at(slab,s->index);
+        if (state == NULL || state->type != command->type ||
+            command->data.delete_slab_edge_rebate.slab_id != s->slab_id ||
+            command->data.delete_slab_edge_rebate.feature_index != s->index ||
+            result->data.slab_feature.slab_id != s->slab_id ||
+            result->data.slab_feature.feature_index != s->index ||
+            slab == NULL || slab->definition.edge_rebates.count != s->original_count ||
+            !rebate_equal(feature,&s->feature)) { return 0; }
+        return slab_remove_edge_rebate(slab,s->index) == SLAB_SUCCESS;
+    }
+    return sitehelper_command_redo(project,command,result);
+}
+
 int sitehelper_command_from_edit_opening(const EditOpeningCommand *edit,
     SiteHelperCommand *command)
 {
@@ -237,6 +460,57 @@ int sitehelper_command_from_delete_slab(const DeleteSlabCommand *deletion,
         .data.delete_slab=*deletion}; return 1;
 }
 
+int sitehelper_command_from_add_slab_penetration(
+    const AddSlabPenetrationCommand *add, SiteHelperCommand *command)
+{
+    if (add == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate={.type=SITEHELPER_COMMAND_ADD_SLAB_PENETRATION};
+    if (!add_slab_penetration_command_clone(add,
+        &candidate.data.add_slab_penetration)) { return 0; }
+    *command=candidate; return 1;
+}
+
+int sitehelper_command_from_delete_slab_penetration(
+    const DeleteSlabPenetrationCommand *deletion, SiteHelperCommand *command)
+{
+    if (deletion == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION,
+        .data.delete_slab_penetration=*deletion}; return 1;
+}
+
+int sitehelper_command_from_add_slab_region(
+    const AddSlabRegionCommand *add, SiteHelperCommand *command)
+{
+    if (add == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate={.type=SITEHELPER_COMMAND_ADD_SLAB_REGION};
+    if (!add_slab_region_command_clone(add,&candidate.data.add_slab_region)) { return 0; }
+    *command=candidate; return 1;
+}
+
+int sitehelper_command_from_delete_slab_region(
+    const DeleteSlabRegionCommand *deletion, SiteHelperCommand *command)
+{
+    if (deletion == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_DELETE_SLAB_REGION,
+        .data.delete_slab_region=*deletion}; return 1;
+}
+
+int sitehelper_command_from_add_slab_edge_rebate(
+    const AddSlabEdgeRebateCommand *add, SiteHelperCommand *command)
+{
+    if (add == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_ADD_SLAB_EDGE_REBATE,
+        .data.add_slab_edge_rebate=*add}; return 1;
+}
+
+int sitehelper_command_from_delete_slab_edge_rebate(
+    const DeleteSlabEdgeRebateCommand *deletion, SiteHelperCommand *command)
+{
+    if (deletion == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_DELETE_SLAB_EDGE_REBATE,
+        .data.delete_slab_edge_rebate=*deletion}; return 1;
+}
+
 int sitehelper_command_clone(const SiteHelperCommand *source, SiteHelperCommand *output)
 {
     if (source == NULL || output == NULL || source->type <= SITEHELPER_COMMAND_NONE ||
@@ -246,6 +520,14 @@ int sitehelper_command_clone(const SiteHelperCommand *source, SiteHelperCommand 
         candidate.data.create_slab=(CreateSlabCommand){0};
         if (!create_slab_command_clone(&source->data.create_slab,
             &candidate.data.create_slab)) { return 0; }
+    } else if (source->type == SITEHELPER_COMMAND_ADD_SLAB_PENETRATION) {
+        candidate.data.add_slab_penetration=(AddSlabPenetrationCommand){0};
+        if (!add_slab_penetration_command_clone(&source->data.add_slab_penetration,
+            &candidate.data.add_slab_penetration)) { return 0; }
+    } else if (source->type == SITEHELPER_COMMAND_ADD_SLAB_REGION) {
+        candidate.data.add_slab_region=(AddSlabRegionCommand){0};
+        if (!add_slab_region_command_clone(&source->data.add_slab_region,
+            &candidate.data.add_slab_region)) { return 0; }
     }
     *output=candidate; return 1;
 }
@@ -255,6 +537,10 @@ void sitehelper_command_destroy(SiteHelperCommand *command)
     if (command == NULL) { return; }
     if (command->type == SITEHELPER_COMMAND_CREATE_SLAB) {
         create_slab_command_destroy(&command->data.create_slab);
+    } else if (command->type == SITEHELPER_COMMAND_ADD_SLAB_PENETRATION) {
+        add_slab_penetration_command_destroy(&command->data.add_slab_penetration);
+    } else if (command->type == SITEHELPER_COMMAND_ADD_SLAB_REGION) {
+        add_slab_region_command_destroy(&command->data.add_slab_region);
     }
     *command=(SiteHelperCommand){0};
 }
@@ -384,6 +670,58 @@ int sitehelper_command_execute(
         };
 
     switch (command->type) {
+
+        case SITEHELPER_COMMAND_ADD_SLAB_PENETRATION:
+        case SITEHELPER_COMMAND_ADD_SLAB_REGION:
+        case SITEHELPER_COMMAND_ADD_SLAB_EDGE_REBATE: {
+            size_t index;
+            DomainId slab_id;
+            int ok;
+            if (command->type == SITEHELPER_COMMAND_ADD_SLAB_PENETRATION) {
+                slab_id=command->data.add_slab_penetration.slab_id;
+                ok=add_slab_penetration_command_execute(project,
+                    &command->data.add_slab_penetration,&index);
+            } else if (command->type == SITEHELPER_COMMAND_ADD_SLAB_REGION) {
+                slab_id=command->data.add_slab_region.slab_id;
+                ok=add_slab_region_command_execute(project,
+                    &command->data.add_slab_region,&index);
+            } else {
+                slab_id=command->data.add_slab_edge_rebate.slab_id;
+                ok=add_slab_edge_rebate_command_execute(project,
+                    &command->data.add_slab_edge_rebate,&index);
+            }
+            if (!ok) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.slab_feature={slab_id,index}};
+            return 1;
+        }
+        case SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION:
+        case SITEHELPER_COMMAND_DELETE_SLAB_REGION:
+        case SITEHELPER_COMMAND_DELETE_SLAB_EDGE_REBATE: {
+            DomainId slab_id;
+            size_t index;
+            int ok;
+            if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION) {
+                slab_id=command->data.delete_slab_penetration.slab_id;
+                index=command->data.delete_slab_penetration.feature_index;
+                ok=delete_slab_penetration_command_execute(project,
+                    &command->data.delete_slab_penetration);
+            } else if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_REGION) {
+                slab_id=command->data.delete_slab_region.slab_id;
+                index=command->data.delete_slab_region.feature_index;
+                ok=delete_slab_region_command_execute(project,
+                    &command->data.delete_slab_region);
+            } else {
+                slab_id=command->data.delete_slab_edge_rebate.slab_id;
+                index=command->data.delete_slab_edge_rebate.feature_index;
+                ok=delete_slab_edge_rebate_command_execute(project,
+                    &command->data.delete_slab_edge_rebate);
+            }
+            if (!ok) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.slab_feature={slab_id,index}};
+            return 1;
+        }
 
         case SITEHELPER_COMMAND_CREATE_SLAB: {
             DomainId id;
@@ -536,6 +874,42 @@ int sitehelper_command_undo(
 
     switch (command->type) {
 
+        case SITEHELPER_COMMAND_ADD_SLAB_PENETRATION: {
+            const AddSlabPenetrationCommand *add=&command->data.add_slab_penetration;
+            Slab *slab=sitehelper_project_find_slab_by_id(project,add->slab_id);
+            size_t index=result->data.slab_feature.feature_index;
+            const SlabPenetration *feature=slab == NULL ? NULL : slab_penetration_at(slab,index);
+            return result->data.slab_feature.slab_id == add->slab_id &&
+                slab != NULL && slab->definition.penetrations.count != 0 &&
+                index == slab->definition.penetrations.count - 1 &&
+                penetration_matches(feature,add->vertices,add->vertex_count) &&
+                slab_remove_penetration(slab,index) == SLAB_SUCCESS;
+        }
+        case SITEHELPER_COMMAND_ADD_SLAB_REGION: {
+            const AddSlabRegionCommand *add=&command->data.add_slab_region;
+            Slab *slab=sitehelper_project_find_slab_by_id(project,add->slab_id);
+            size_t index=result->data.slab_feature.feature_index;
+            const SlabRegion *feature=slab == NULL ? NULL : slab_region_at(slab,index);
+            return result->data.slab_feature.slab_id == add->slab_id &&
+                slab != NULL && slab->definition.regions.count != 0 &&
+                index == slab->definition.regions.count - 1 &&
+                region_matches(feature,add->vertices,add->vertex_count,
+                    add->top_level_offset_mm,add->thickness_mm) &&
+                slab_remove_region(slab,index) == SLAB_SUCCESS;
+        }
+        case SITEHELPER_COMMAND_ADD_SLAB_EDGE_REBATE: {
+            const AddSlabEdgeRebateCommand *add=&command->data.add_slab_edge_rebate;
+            SlabEdgeRebate expected={add->edge_index,add->start_offset_mm,
+                add->end_offset_mm,add->width_mm,add->depth_mm};
+            Slab *slab=sitehelper_project_find_slab_by_id(project,add->slab_id);
+            size_t index=result->data.slab_feature.feature_index;
+            return result->data.slab_feature.slab_id == add->slab_id && slab != NULL &&
+                slab->definition.edge_rebates.count != 0 &&
+                index == slab->definition.edge_rebates.count - 1 &&
+                rebate_equal(slab_edge_rebate_at(slab,index),&expected) &&
+                slab_remove_edge_rebate(slab,index) == SLAB_SUCCESS;
+        }
+
         case SITEHELPER_COMMAND_CREATE_SLAB:
             return result->data.slab.slab_id != DOMAIN_ID_INVALID &&
                 create_slab_command_undo(project,&command->data.create_slab,
@@ -563,6 +937,9 @@ int sitehelper_command_undo(
 
         case SITEHELPER_COMMAND_DELETE_WALL:
         case SITEHELPER_COMMAND_DELETE_SLAB:
+        case SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION:
+        case SITEHELPER_COMMAND_DELETE_SLAB_REGION:
+        case SITEHELPER_COMMAND_DELETE_SLAB_EDGE_REBATE:
         case SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT:
         case SITEHELPER_COMMAND_EDIT_OPENING:
         case SITEHELPER_COMMAND_SET_ROOM_LOCATION:
@@ -599,6 +976,37 @@ int sitehelper_command_redo(
     }
 
     switch (command->type) {
+
+        case SITEHELPER_COMMAND_ADD_SLAB_PENETRATION: {
+            const AddSlabPenetrationCommand *add=&command->data.add_slab_penetration;
+            Slab *slab=sitehelper_project_find_slab_by_id(project,add->slab_id);
+            return result->data.slab_feature.slab_id == add->slab_id && slab != NULL &&
+                slab->definition.penetrations.count == result->data.slab_feature.feature_index &&
+                slab_insert_penetration_at(slab,result->data.slab_feature.feature_index,
+                    add->vertices,add->vertex_count) == SLAB_SUCCESS;
+        }
+        case SITEHELPER_COMMAND_ADD_SLAB_REGION: {
+            const AddSlabRegionCommand *add=&command->data.add_slab_region;
+            Slab *slab=sitehelper_project_find_slab_by_id(project,add->slab_id);
+            return result->data.slab_feature.slab_id == add->slab_id && slab != NULL &&
+                slab->definition.regions.count == result->data.slab_feature.feature_index &&
+                slab_insert_region_at(slab,result->data.slab_feature.feature_index,
+                    add->vertices,add->vertex_count,add->top_level_offset_mm,
+                    add->thickness_mm) == SLAB_SUCCESS;
+        }
+        case SITEHELPER_COMMAND_ADD_SLAB_EDGE_REBATE: {
+            const AddSlabEdgeRebateCommand *add=&command->data.add_slab_edge_rebate;
+            Slab *slab=sitehelper_project_find_slab_by_id(project,add->slab_id);
+            return result->data.slab_feature.slab_id == add->slab_id && slab != NULL &&
+                slab->definition.edge_rebates.count == result->data.slab_feature.feature_index &&
+                slab_insert_edge_rebate_at(slab,result->data.slab_feature.feature_index,
+                    add->edge_index,add->start_offset_mm,add->end_offset_mm,
+                    add->width_mm,add->depth_mm) == SLAB_SUCCESS;
+        }
+        case SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION:
+        case SITEHELPER_COMMAND_DELETE_SLAB_REGION:
+        case SITEHELPER_COMMAND_DELETE_SLAB_EDGE_REBATE:
+            return 0; /* History-owned snapshot is required for exact verification. */
 
         case SITEHELPER_COMMAND_CREATE_SLAB:
             return create_slab_command_redo(project,&command->data.create_slab,

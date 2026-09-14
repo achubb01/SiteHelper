@@ -121,8 +121,12 @@ static void test_enter_and_delete_routes(void)
     assert(sitehelper_command_history_undo(&h,&p)&&sitehelper_project_find_slab_by_id(&p,id));
     editor_selection_set_slab_feature(&e.selection,EDITOR_SELECTION_SCOPE_PLAN,id,
         EDITOR_SELECTION_SLAB_REGION,0);
-    assert(app_input_route(&input,&e,&del,&action)==APP_INPUT_UNHANDLED);
-    assert(sitehelper_project_find_slab_by_id(&p,id));
+    assert(app_input_route(&input,&e,&del,&action)==APP_INPUT_COMMAND);
+    assert(action.command.type==SITEHELPER_COMMAND_DELETE_SLAB_REGION);
+    assert(!sitehelper_command_history_execute(&h,&p,&action.command,&result));
+    assert(sitehelper_project_find_slab_by_id(&p,id)&&h.cursor==1&&h.count==2);
+    assert(e.selection.kind==EDITOR_SELECTION_SLAB_REGION);
+    editor_action_destroy(&action);
     sitehelper_editor_destroy(&e);sitehelper_command_history_destroy(&h);sitehelper_project_destroy(&p);
 }
 

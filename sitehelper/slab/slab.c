@@ -681,8 +681,17 @@ SlabCode slab_build(DomainId id, const PlanPosition *vertices, size_t count,
 
 SlabCode slab_add_penetration(Slab *slab, const PlanPosition *vertices, size_t count)
 {
+    return slab_insert_penetration_at(slab,
+        slab == NULL ? 0 : slab->definition.penetrations.count,vertices,count);
+}
+
+SlabCode slab_insert_penetration_at(Slab *slab, size_t index,
+    const PlanPosition *vertices, size_t count)
+{
     SlabCode code = slab_validate(slab);
     if (code != SLAB_SUCCESS) { return code; }
+    SlabPenetrationCollection *p = &slab->definition.penetrations;
+    if (index > p->count) { return SLAB_INVALID_ARGUMENT; }
     uint64_t area;
     code = outline_area(vertices,count,&area);
     if (code != SLAB_SUCCESS) {
@@ -690,7 +699,6 @@ SlabCode slab_add_penetration(Slab *slab, const PlanPosition *vertices, size_t c
     }
     /* Borrow only while validating; the committed outline is an independent copy. */
     SlabOutline outline = {(PlanPosition *)vertices,count,count};
-    SlabPenetrationCollection *p = &slab->definition.penetrations;
     code = penetration_relationships(&slab->definition,&outline,p->count);
     if (code != SLAB_SUCCESS) { return code; }
     for (size_t i = 0; i < slab->definition.regions.count; i++) {
@@ -713,7 +721,12 @@ SlabCode slab_add_penetration(Slab *slab, const PlanPosition *vertices, size_t c
         if (items == NULL) { free(copy); return SLAB_ALLOCATION_FAILED; }
         p->items = items; p->capacity = grown;
     }
-    p->items[p->count++] = (SlabPenetration){.outline={copy,count,count}};
+    if (index < p->count) {
+        memmove(&p->items[index+1],&p->items[index],
+            (p->count-index)*sizeof *p->items);
+    }
+    p->items[index] = (SlabPenetration){.outline={copy,count,count}};
+    p->count++;
     return SLAB_SUCCESS;
 }
 
@@ -739,15 +752,25 @@ const SlabPenetration *slab_penetration_at(const Slab *slab, size_t index)
 SlabCode slab_add_region(Slab *slab, const PlanPosition *vertices, size_t count,
     int top_level_offset_mm, int thickness_mm)
 {
+    return slab_insert_region_at(slab,
+        slab == NULL ? 0 : slab->definition.regions.count,vertices,count,
+        top_level_offset_mm,thickness_mm);
+}
+
+SlabCode slab_insert_region_at(Slab *slab, size_t index,
+    const PlanPosition *vertices, size_t count, int top_level_offset_mm,
+    int thickness_mm)
+{
     SlabCode code = slab_validate(slab);
     if (code != SLAB_SUCCESS) { return code; }
+    SlabRegionCollection *r = &slab->definition.regions;
+    if (index > r->count) { return SLAB_INVALID_ARGUMENT; }
     if (count < 3 || vertices == NULL) { return SLAB_INVALID_REGION_OUTLINE; }
     SlabRegion candidate = {.outline={(PlanPosition *)vertices,count,count},
         .top_level_offset_mm=top_level_offset_mm,.thickness_mm=thickness_mm};
     uint64_t area;
     code = region_area(&candidate,&area);
     if (code != SLAB_SUCCESS) { return code; }
-    SlabRegionCollection *r = &slab->definition.regions;
     code = region_relationships(&slab->definition,&candidate,area,r->count);
     if (code != SLAB_SUCCESS) { return code; }
     size_t maximum = SIZE_MAX / sizeof *r->items;
@@ -762,7 +785,12 @@ SlabCode slab_add_region(Slab *slab, const PlanPosition *vertices, size_t count,
         r->items = items; r->capacity = grown;
     }
     candidate.outline.vertices = copy;
-    r->items[r->count++] = candidate;
+    if (index < r->count) {
+        memmove(&r->items[index+1],&r->items[index],
+            (r->count-index)*sizeof *r->items);
+    }
+    r->items[index] = candidate;
+    r->count++;
     return SLAB_SUCCESS;
 }
 
@@ -799,12 +827,22 @@ SlabCode slab_edge_rebate_validate(const SlabDefinition *definition,
 SlabCode slab_add_edge_rebate(Slab *slab, size_t edge_index,
     int start_offset_mm, int end_offset_mm, int width_mm, int depth_mm)
 {
+    return slab_insert_edge_rebate_at(slab,
+        slab == NULL ? 0 : slab->definition.edge_rebates.count,edge_index,
+        start_offset_mm,end_offset_mm,width_mm,depth_mm);
+}
+
+SlabCode slab_insert_edge_rebate_at(Slab *slab, size_t index,
+    size_t edge_index, int start_offset_mm, int end_offset_mm,
+    int width_mm, int depth_mm)
+{
     SlabCode code = slab_validate(slab);
     if (code != SLAB_SUCCESS) { return code; }
     SlabEdgeRebate candidate = {edge_index,start_offset_mm,end_offset_mm,width_mm,depth_mm};
     code = edge_rebate_basic(&slab->definition,&candidate);
     if (code != SLAB_SUCCESS) { return code; }
     SlabEdgeRebateCollection *r = &slab->definition.edge_rebates;
+    if (index > r->count) { return SLAB_INVALID_ARGUMENT; }
     for (size_t i = 0; i < r->count; i++) {
         if (rebate_intervals_overlap(&candidate,&r->items[i])) { return SLAB_EDGE_REBATE_OVERLAP; }
     }
@@ -816,7 +854,12 @@ SlabCode slab_add_edge_rebate(Slab *slab, size_t edge_index,
         if (items == NULL) { return SLAB_ALLOCATION_FAILED; }
         r->items=items; r->capacity=grown;
     }
-    r->items[r->count++]=candidate;
+    if (index < r->count) {
+        memmove(&r->items[index+1],&r->items[index],
+            (r->count-index)*sizeof *r->items);
+    }
+    r->items[index]=candidate;
+    r->count++;
     return SLAB_SUCCESS;
 }
 

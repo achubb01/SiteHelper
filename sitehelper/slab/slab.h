@@ -131,6 +131,11 @@ SlabCode slab_penetration_validate(const SlabPenetration *penetration);
  * Add copies vertices and appends in source order. Remove preserves remaining
  * order. Index is a transient collection position, not a persistent identity. */
 SlabCode slab_add_penetration(Slab *slab, const PlanPosition *vertices, size_t vertex_count);
+/* Indexed forms preserve authoritative source order for history restoration.
+ * They accept index == current count for append, deep-copy polygon storage and
+ * leave the complete Slab unchanged on every failure. */
+SlabCode slab_insert_penetration_at(Slab *slab, size_t index,
+    const PlanPosition *vertices, size_t vertex_count);
 SlabCode slab_remove_penetration(Slab *slab, size_t index);
 /* Borrowed read-only access; NULL for invalid index/collection metadata. Count is available
  * as definition.penetrations.count. Successful mutations may invalidate borrows. */
@@ -146,6 +151,9 @@ const SlabPenetration *slab_penetration_at(const Slab *slab, size_t index);
 SlabCode slab_region_validate(const SlabRegion *region);
 SlabCode slab_add_region(Slab *slab, const PlanPosition *vertices, size_t count,
     int top_level_offset_mm, int thickness_mm);
+SlabCode slab_insert_region_at(Slab *slab, size_t index,
+    const PlanPosition *vertices, size_t count, int top_level_offset_mm,
+    int thickness_mm);
 SlabCode slab_remove_region(Slab *slab, size_t index);
 const SlabRegion *slab_region_at(const Slab *slab, size_t index);
 
@@ -160,6 +168,9 @@ SlabCode slab_edge_rebate_validate(const SlabDefinition *definition,
     const SlabEdgeRebate *rebate);
 SlabCode slab_add_edge_rebate(Slab *slab, size_t edge_index,
     int start_offset_mm, int end_offset_mm, int width_mm, int depth_mm);
+SlabCode slab_insert_edge_rebate_at(Slab *slab, size_t index,
+    size_t edge_index, int start_offset_mm, int end_offset_mm,
+    int width_mm, int depth_mm);
 SlabCode slab_remove_edge_rebate(Slab *slab, size_t index);
 const SlabEdgeRebate *slab_edge_rebate_at(const Slab *slab, size_t index);
 SlabCode slab_edge_rebate_length_mm(const SlabEdgeRebate *rebate, int *output);
