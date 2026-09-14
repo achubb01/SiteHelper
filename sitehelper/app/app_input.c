@@ -109,7 +109,7 @@ AppInputResult app_input_route(AppInput *input, SiteHelperEditor *editor,
         return APP_INPUT_CONSUMED;
     }
     if (key == PLATFORM_KEY_ENTER && !repeat && modifiers == PLATFORM_MODIFIER_NONE &&
-        sitehelper_editor_create_slab_action(editor,action)) {
+        sitehelper_editor_create_active_polygon_action(editor,action)) {
         return APP_INPUT_COMMAND;
     }
     if (key == PLATFORM_KEY_DELETE && !repeat && modifiers == PLATFORM_MODIFIER_NONE &&

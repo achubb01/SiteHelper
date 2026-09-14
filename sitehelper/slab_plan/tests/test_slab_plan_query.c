@@ -117,11 +117,59 @@ static void test_multiple_slab_order_and_invalid_input(void)
     slab_collection_destroy(&storey.slabs);
 }
 
+static void test_outer_edge_projection(void)
+{
+    const PlanPosition triangle[]={{0,0},{300,400},{600,0}};
+    Slab slab=make_slab(30,triangle,3);
+    Storey storey={.id=1};append_slab(&storey,&slab);
+    SlabPlanEdgeHit hit=slab_plan_find_outer_edge(&storey,(PlanPoint){60,80},1);
+    assert(hit.has_edge&&hit.slab_id==30&&hit.edge_index==0&&hit.u_mm==100);
+    assert(close_to(hit.projected_point.x,60)&&close_to(hit.projected_point.y,80));
+    hit=slab_plan_find_outer_edge(&storey,(PlanPoint){0,0},0);
+    /* At the shared vertex the later closing edge wins the exact tie. */
+    assert(hit.has_edge&&hit.edge_index==2&&hit.u_mm==600);
+    hit=slab_plan_project_outer_edge(&storey.slabs.items[0],0,
+        (PlanPoint){300,400},0);
+    assert(hit.has_edge&&hit.u_mm==500&&close_to(hit.projected_point.x,300));
+    hit=slab_plan_project_outer_edge(&storey.slabs.items[0],0,
+        (PlanPoint){30.36,40.48},1);
+    assert(hit.has_edge&&hit.u_mm==51); /* nearest integer millimetre */
+    hit=slab_plan_project_outer_edge(&storey.slabs.items[0],0,
+        (PlanPoint){-1,0},2);
+    assert(hit.has_edge&&hit.u_mm==0&&close_to(hit.projected_point.x,0));
+    hit=slab_plan_project_outer_edge(&storey.slabs.items[0],0,
+        (PlanPoint){301,401},2);
+    assert(hit.has_edge&&hit.u_mm==500&&close_to(hit.projected_point.y,400));
+    assert(!slab_plan_find_outer_edge(&storey,(PlanPoint){300,200},10).has_edge);
+    slab_collection_destroy(&storey.slabs);
+
+    const PlanPosition reverse[]={{300,400},{0,0},{600,0}};
+    slab=make_slab(31,reverse,3);append_slab(&storey,&slab);
+    hit=slab_plan_project_outer_edge(&storey.slabs.items[0],0,
+        (PlanPoint){240,320},0);
+    assert(hit.has_edge&&hit.u_mm==100);
+    slab_collection_destroy(&storey.slabs);
+
+    const PlanPosition clockwise[]={{0,0},{0,400},{300,400},{300,0}};
+    slab=make_slab(32,clockwise,4);append_slab(&storey,&slab);
+    hit=slab_plan_find_outer_edge(&storey,(PlanPoint){0,200},0);
+    assert(hit.has_edge&&hit.edge_index==0&&hit.u_mm==200);
+    slab_collection_destroy(&storey.slabs);
+
+    const PlanPosition square[]={{0,0},{400,0},{400,400},{0,400}};
+    Slab first=make_slab(40,square,4),second=make_slab(41,square,4);
+    append_slab(&storey,&first);append_slab(&storey,&second);
+    hit=slab_plan_find_outer_edge(&storey,(PlanPoint){400,200},0);
+    assert(hit.has_edge&&hit.slab_id==41&&hit.edge_index==1&&hit.u_mm==200);
+    slab_collection_destroy(&storey.slabs);
+}
+
 int main(void)
 {
     test_rebate_endpoint_conversion();
     test_hit_precedence_and_polygon_semantics();
     test_multiple_slab_order_and_invalid_input();
+    test_outer_edge_projection();
     puts("All slab plan query tests passed.");
     return 0;
 }

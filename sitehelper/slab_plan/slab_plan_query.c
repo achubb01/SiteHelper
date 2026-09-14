@@ -36,6 +36,81 @@ static double segment_distance(PlanPoint point, PlanPosition a, PlanPosition b)
     return hypot(point.x - (ax + t * dx), point.y - (ay + t * dy));
 }
 
+static SlabPlanEdgeHit edge_hit_none(void)
+{
+    return (SlabPlanEdgeHit){.slab_id=DOMAIN_ID_INVALID,.edge_index=SIZE_MAX};
+}
+
+static SlabPlanEdgeHit project_valid_edge(const Slab *slab, size_t edge_index,
+    PlanPoint point, double tolerance)
+{
+    SlabPlanEdgeHit none=edge_hit_none();
+    if (slab == NULL || !isfinite(point.x) || !isfinite(point.y) || !isfinite(tolerance) ||
+        tolerance < 0.0 || edge_index >= slab->definition.outline.vertex_count) {
+        return none;
+    }
+    const SlabOutline *outline=&slab->definition.outline;
+    size_t next=edge_index+1 == outline->vertex_count ? 0 : edge_index+1;
+    PlanPosition a=outline->vertices[edge_index],b=outline->vertices[next];
+    double dx=(double)b.x-a.x,dy=(double)b.y-a.y;
+    double length2=dx*dx+dy*dy;
+    if (!isfinite(length2) || length2 <= 0.0) { return none; }
+    double t=((point.x-a.x)*dx+(point.y-a.y)*dy)/length2;
+    if (t < 0.0) { t=0.0; }
+    else if (t > 1.0) { t=1.0; }
+    PlanPoint projected={(double)a.x+t*dx,(double)a.y+t*dy};
+    double distance=hypot(point.x-projected.x,point.y-projected.y);
+    int length_mm;
+    if (!isfinite(distance) || distance > tolerance ||
+        slab_edge_local_length_mm(&slab->definition,edge_index,&length_mm) != SLAB_SUCCESS) {
+        return none;
+    }
+    int u_mm;
+    if (t <= 0.0) { u_mm=0; projected=(PlanPoint){a.x,a.y}; }
+    else if (t >= 1.0) { u_mm=length_mm; projected=(PlanPoint){b.x,b.y}; }
+    else {
+        double local=t*length_mm;
+        if (!isfinite(local) || local < 0.0 || local > length_mm) { return none; }
+        u_mm=(int)floor(local+0.5);
+        if (u_mm < 0) { u_mm=0; }
+        else if (u_mm > length_mm) { u_mm=length_mm; }
+        /* Preview the same interval that the authoritative integer U denotes,
+         * rather than retaining the sub-millimetre cursor projection. */
+        double authoritative_t=(double)u_mm/length_mm;
+        projected=(PlanPoint){(double)a.x+authoritative_t*dx,
+            (double)a.y+authoritative_t*dy};
+    }
+    return (SlabPlanEdgeHit){1,slab->id,edge_index,u_mm,distance,projected};
+}
+
+SlabPlanEdgeHit slab_plan_project_outer_edge(const Slab *slab,
+    size_t edge_index, PlanPoint point, double tolerance_mm)
+{
+    if (slab == NULL || slab_validate(slab) != SLAB_SUCCESS) {
+        return edge_hit_none();
+    }
+    return project_valid_edge(slab,edge_index,point,tolerance_mm);
+}
+
+SlabPlanEdgeHit slab_plan_find_outer_edge(const Storey *storey,
+    PlanPoint point, double tolerance_mm)
+{
+    SlabPlanEdgeHit best=edge_hit_none();
+    if (storey == NULL || !coherent_slab_collection(&storey->slabs) ||
+        !isfinite(point.x) || !isfinite(point.y) ||
+        !isfinite(tolerance_mm) || tolerance_mm < 0.0) { return best; }
+    for (size_t s=0;s<storey->slabs.count;s++) {
+        const Slab *slab=&storey->slabs.items[s];
+        if (slab_validate(slab) != SLAB_SUCCESS) { continue; }
+        for (size_t edge=0;edge<slab->definition.outline.vertex_count;edge++) {
+            SlabPlanEdgeHit candidate=project_valid_edge(slab,edge,point,tolerance_mm);
+            if (candidate.has_edge && (!best.has_edge ||
+                candidate.distance_mm <= best.distance_mm)) { best=candidate; }
+        }
+    }
+    return best;
+}
+
 /* UI-space predicate only: authoritative validity remains in sitehelper_slab's
  * checked integer predicates. The adapter first requires slab_validate(). */
 static PlanPointLocation outline_point_location(const SlabOutline *outline,

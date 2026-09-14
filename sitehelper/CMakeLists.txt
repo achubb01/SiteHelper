@@ -221,6 +221,7 @@ add_library(sitehelper_editor
     editor/wall_tool.c
     editor/measurement_tool.c
     editor/slab_tool.c
+    editor/slab_feature_tool.c
     editor/plan_position_conversion.c
     editor/editor_action.c
 
@@ -664,6 +665,15 @@ add_test(NAME slab_tool_lifecycle_tests COMMAND test_slab_tool)
 add_executable(test_slab_feature_delete editor/tests/test_slab_feature_delete.c)
 target_link_libraries(test_slab_feature_delete PRIVATE sitehelper_app_core sitehelper_test_support)
 add_test(NAME slab_feature_delete_routing_tests COMMAND test_slab_feature_delete)
+
+add_executable(test_slab_feature_tools editor/tests/test_slab_feature_tools.c)
+target_link_libraries(test_slab_feature_tools PRIVATE sitehelper_app_core sitehelper_test_support)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_slab_feature_tools PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_slab_feature_tools PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME slab_feature_tool_tests COMMAND test_slab_feature_tools)
 
 add_executable(test_domain_id
     domain/tests/test_domain_id.c

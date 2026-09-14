@@ -35,12 +35,15 @@ typedef enum
     SITEHELPER_TOOLBAR_ACTION_OPENING = 20,
     SITEHELPER_TOOLBAR_ACTION_WALL = 30,
     SITEHELPER_TOOLBAR_ACTION_MEASURE = 40,
-    SITEHELPER_TOOLBAR_ACTION_SLAB = 50
+    SITEHELPER_TOOLBAR_ACTION_SLAB = 50,
+    SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION = 60,
+    SITEHELPER_TOOLBAR_ACTION_SLAB_REGION = 70,
+    SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE = 80
 } SiteHelperToolbarAction;
 
 enum
 {
-    SITEHELPER_TOOLBAR_BUTTON_COUNT = 5
+    SITEHELPER_TOOLBAR_BUTTON_COUNT = 8
 };
 
 static const GuiButtonId sitehelper_toolbar_button_ids[
@@ -50,7 +53,10 @@ static const GuiButtonId sitehelper_toolbar_button_ids[
     SITEHELPER_TOOLBAR_ACTION_OPENING,
     SITEHELPER_TOOLBAR_ACTION_WALL,
     SITEHELPER_TOOLBAR_ACTION_MEASURE,
-    SITEHELPER_TOOLBAR_ACTION_SLAB
+    SITEHELPER_TOOLBAR_ACTION_SLAB,
+    SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION,
+    SITEHELPER_TOOLBAR_ACTION_SLAB_REGION,
+    SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE
 };
 
 typedef struct
@@ -403,6 +409,47 @@ static void sitehelper_app_render(
         }
     }
 
+    EditorSlabPolygonPreviewKind feature_kind;
+    DomainId feature_slab_id;
+    if (sitehelper_editor_get_slab_feature_polygon_preview(&app->editor,
+            &feature_kind,&feature_slab_id,&slab_vertices,&slab_vertex_count,
+            &slab_cursor,&slab_has_cursor)) {
+        (void)feature_slab_id;
+        Colour colour=feature_kind == EDITOR_SLAB_POLYGON_PREVIEW_PENETRATION ?
+            (Colour){230,120,120,255} : (Colour){100,190,230,255};
+        for (size_t i=1;i<slab_vertex_count;i++) {
+            renderer2d_draw_line(app->renderer,
+                (Vec2){slab_vertices[i-1].x,slab_vertices[i-1].y},
+                (Vec2){slab_vertices[i].x,slab_vertices[i].y},colour);
+        }
+        if (slab_has_cursor) {
+            PlanPosition last=slab_vertices[slab_vertex_count-1];
+            renderer2d_draw_line(app->renderer,(Vec2){last.x,last.y},
+                (Vec2){slab_cursor.x,slab_cursor.y},colour);
+            if (slab_vertex_count >= 2) {
+                renderer2d_draw_line(app->renderer,(Vec2){slab_cursor.x,slab_cursor.y},
+                    (Vec2){slab_vertices[0].x,slab_vertices[0].y},
+                    (Colour){colour.r/2,colour.g/2,colour.b/2,255});
+            }
+        }
+    }
+
+    DomainId rebate_slab_id;
+    size_t rebate_edge_index;
+    PlanPoint rebate_start,rebate_end;
+    int rebate_has_end;
+    if (sitehelper_editor_get_slab_rebate_preview(&app->editor,&rebate_slab_id,
+            &rebate_edge_index,&rebate_start,&rebate_end,&rebate_has_end)) {
+        (void)rebate_slab_id; (void)rebate_edge_index;
+        Colour colour={235,165,85,255};
+        if (rebate_has_end) {
+            renderer2d_draw_line(app->renderer,(Vec2){rebate_start.x,rebate_start.y},
+                (Vec2){rebate_end.x,rebate_end.y},colour);
+        }
+        renderer2d_draw_rect(app->renderer,(Rect2){
+            .position={rebate_start.x-12.0,rebate_start.y-12.0},.width=24.0,.height=24.0},colour);
+    }
+
     sitehelper_app_render_snap_cursor(
         app
     );
@@ -427,10 +474,17 @@ static void sitehelper_app_render(
     for (size_t i = 0; i < app->toolbar.button_count; i++) {
         const GuiButton *button = &app->toolbar.buttons[i];
         if (button->id == SITEHELPER_TOOLBAR_ACTION_MEASURE ||
-            button->id == SITEHELPER_TOOLBAR_ACTION_SLAB) {
+            button->id == SITEHELPER_TOOLBAR_ACTION_SLAB ||
+            button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION ||
+            button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_REGION ||
+            button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE) {
+            const char *label=button->id == SITEHELPER_TOOLBAR_ACTION_MEASURE ? "Meas." :
+                button->id == SITEHELPER_TOOLBAR_ACTION_SLAB ? "Slab" :
+                button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION ? "Void" :
+                button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_REGION ? "Reg." : "Rebt.";
             renderer2d_draw_screen_text(app->renderer,
                 (Vec2){button->bounds.position.x + 4, button->bounds.position.y + 20},
-                button->id == SITEHELPER_TOOLBAR_ACTION_MEASURE ? "Meas." : "Slab",
+                label,
                 button->enabled ? (Colour){230,230,230,255} : (Colour){100,100,100,255});
         }
     }
@@ -972,6 +1026,18 @@ static int sitehelper_app_toolbar_action_tool(
 
         case SITEHELPER_TOOLBAR_ACTION_SLAB:
             *tool = EDITOR_TOOL_SLAB;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION:
+            *tool = EDITOR_TOOL_SLAB_PENETRATION;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_SLAB_REGION:
+            *tool = EDITOR_TOOL_SLAB_REGION;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE:
+            *tool = EDITOR_TOOL_SLAB_EDGE_REBATE;
             return 1;
 
         default:

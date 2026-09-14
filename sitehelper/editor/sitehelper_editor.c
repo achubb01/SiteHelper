@@ -28,7 +28,8 @@ int sitehelper_editor_tool_available(EditorView view, EditorTool tool)
 {
     return (view == EDITOR_VIEW_PLAN &&
             (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_WALL || tool == EDITOR_TOOL_MEASURE ||
-             tool == EDITOR_TOOL_SLAB)) ||
+             tool == EDITOR_TOOL_SLAB || tool == EDITOR_TOOL_SLAB_PENETRATION ||
+             tool == EDITOR_TOOL_SLAB_REGION || tool == EDITOR_TOOL_SLAB_EDGE_REBATE)) ||
         (view == EDITOR_VIEW_WALL_ELEVATION &&
             (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_OPENING));
 }
@@ -106,6 +107,16 @@ int sitehelper_editor_set_active_tool(
     if (tool == EDITOR_TOOL_SLAB) { slab_tool_activate(&editor->slab_tool); }
     else { slab_tool_cancel(&editor->slab_tool); }
 
+    if (tool == EDITOR_TOOL_SLAB_PENETRATION) {
+        slab_polygon_feature_tool_activate(&editor->slab_penetration_tool);
+    } else { slab_polygon_feature_tool_cancel(&editor->slab_penetration_tool); }
+    if (tool == EDITOR_TOOL_SLAB_REGION) {
+        slab_polygon_feature_tool_activate(&editor->slab_region_tool);
+    } else { slab_polygon_feature_tool_cancel(&editor->slab_region_tool); }
+    if (tool == EDITOR_TOOL_SLAB_EDGE_REBATE) {
+        slab_edge_rebate_tool_activate(&editor->slab_edge_rebate_tool);
+    } else { slab_edge_rebate_tool_cancel(&editor->slab_edge_rebate_tool); }
+
     editor->active_tool = tool;
 
     return 1;
@@ -141,6 +152,9 @@ void sitehelper_editor_init(
     wall_tool_init(&editor->wall_tool);
     measurement_tool_init(&editor->measurement_tool);
     slab_tool_init(&editor->slab_tool);
+    slab_polygon_feature_tool_init(&editor->slab_penetration_tool);
+    slab_polygon_feature_tool_init(&editor->slab_region_tool);
+    slab_edge_rebate_tool_init(&editor->slab_edge_rebate_tool);
 
     editor->opening_placement =
         (OpeningPlacement){0};
@@ -150,6 +164,8 @@ void sitehelper_editor_destroy(SiteHelperEditor *editor)
 {
     if (editor == NULL) { return; }
     slab_tool_destroy(&editor->slab_tool);
+    slab_polygon_feature_tool_destroy(&editor->slab_penetration_tool);
+    slab_polygon_feature_tool_destroy(&editor->slab_region_tool);
     *editor=(SiteHelperEditor){0};
 }
 
@@ -573,12 +589,57 @@ void sitehelper_editor_pointer_move_in_project(SiteHelperEditor *editor,
     /* Measurement needs the view context, not construction settings. */
     if (storey == NULL || (editor->active_tool != EDITOR_TOOL_MEASURE &&
         editor->active_tool != EDITOR_TOOL_SLAB &&
+        editor->active_tool != EDITOR_TOOL_SLAB_PENETRATION &&
+        editor->active_tool != EDITOR_TOOL_SLAB_REGION &&
+        editor->active_tool != EDITOR_TOOL_SLAB_EDGE_REBATE &&
         !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved))) {
         sitehelper_editor_invalidate_transient_state(editor);
         return;
     }
     const Wall *wall = build_find_wall_by_id_const(&storey->structure, editor->current_wall_id);
-    sitehelper_editor_update_snap_in_project(editor, project, view_position);
+    if (editor->active_tool == EDITOR_TOOL_SLAB_EDGE_REBATE) {
+        sitehelper_editor_clear_snap(editor);
+    } else {
+        sitehelper_editor_update_snap_in_project(editor, project, view_position);
+    }
+    if (editor->active_tool == EDITOR_TOOL_SLAB_PENETRATION ||
+        editor->active_tool == EDITOR_TOOL_SLAB_REGION) {
+        SlabPolygonFeatureTool *tool=editor->active_tool == EDITOR_TOOL_SLAB_PENETRATION ?
+            &editor->slab_penetration_tool : &editor->slab_region_tool;
+        if (tool->vertex_count != 0 && (tool->storey_id != storey->id ||
+            slab_collection_find_by_id_const(&storey->slabs,tool->slab_id) == NULL)) {
+            slab_polygon_feature_tool_cancel(tool);
+            tool->active=1;
+            return;
+        }
+        PlanPoint point;
+        if (editor_measurement_point(editor,view_position,&point)) {
+            slab_polygon_feature_tool_update(tool,point);
+        }
+        return;
+    }
+    if (editor->active_tool == EDITOR_TOOL_SLAB_EDGE_REBATE) {
+        SlabEdgeRebateTool *tool=&editor->slab_edge_rebate_tool;
+        tool->has_hover=0;
+        if (tool->has_start) {
+            const Slab *slab=tool->storey_id == storey->id ?
+                slab_collection_find_by_id_const(&storey->slabs,tool->slab_id) : NULL;
+            if (slab == NULL) {
+                slab_edge_rebate_tool_cancel(tool);
+                tool->active=1;
+                return;
+            }
+            SlabPlanEdgeHit hit=slab_plan_project_outer_edge(slab,tool->edge_index,
+                (PlanPoint){view_position.x,view_position.y},
+                editor->snap.settings.object_snap_tolerance);
+            if (hit.has_edge) {
+                tool->hover_u_mm=hit.u_mm;
+                tool->hover_point=hit.projected_point;
+                tool->has_hover=1;
+            }
+        }
+        return;
+    }
     editor_pointer_move_resolved(editor, wall, &resolved, view_position);
 }
 
@@ -716,6 +777,15 @@ void sitehelper_editor_pointer_leave(
     if (editor->active_tool == EDITOR_TOOL_SLAB) {
         editor->slab_tool.has_preview=0;
         sitehelper_editor_clear_snap(editor);
+    } else if (editor->active_tool == EDITOR_TOOL_SLAB_PENETRATION ||
+        editor->active_tool == EDITOR_TOOL_SLAB_REGION) {
+        SlabPolygonFeatureTool *tool=editor->active_tool == EDITOR_TOOL_SLAB_PENETRATION ?
+            &editor->slab_penetration_tool : &editor->slab_region_tool;
+        tool->has_preview=0;
+        sitehelper_editor_clear_snap(editor);
+    } else if (editor->active_tool == EDITOR_TOOL_SLAB_EDGE_REBATE) {
+        editor->slab_edge_rebate_tool.has_hover=0;
+        sitehelper_editor_clear_snap(editor);
     } else {
         sitehelper_editor_invalidate_transient_state(editor);
     }
@@ -768,6 +838,112 @@ static int editor_wall_action(const SiteHelperEditor *editor,
     if (!wall_command_create(editor->current_storey_id, segment, &command) ||
         !sitehelper_command_from_wall(&command, &action->command)) { return 0; }
     action->kind = EDITOR_ACTION_COMMAND;
+    return 1;
+}
+
+static int editor_polygon_feature_action(const SiteHelperEditor *editor,
+    EditorAction *action)
+{
+    if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN) {
+        return 0;
+    }
+    *action=(EditorAction){0};
+    if (editor->active_tool == EDITOR_TOOL_SLAB_PENETRATION) {
+        const SlabPolygonFeatureTool *tool=&editor->slab_penetration_tool;
+        AddSlabPenetrationCommand add={0};
+        if (tool->vertex_count < 3 || !add_slab_penetration_command_create(
+                tool->slab_id,tool->vertices,tool->vertex_count,&add)) { return 0; }
+        int ok=sitehelper_command_from_add_slab_penetration(&add,&action->command);
+        add_slab_penetration_command_destroy(&add);
+        if (!ok) { return 0; }
+    } else if (editor->active_tool == EDITOR_TOOL_SLAB_REGION) {
+        const SlabPolygonFeatureTool *tool=&editor->slab_region_tool;
+        AddSlabRegionCommand add={0};
+        if (tool->vertex_count < 3 || !add_slab_region_command_create(tool->slab_id,
+                tool->vertices,tool->vertex_count,tool->top_level_offset_mm,
+                tool->thickness_mm,&add)) { return 0; }
+        int ok=sitehelper_command_from_add_slab_region(&add,&action->command);
+        add_slab_region_command_destroy(&add);
+        if (!ok) { return 0; }
+    } else { return 0; }
+    action->kind=EDITOR_ACTION_COMMAND;
+    return 1;
+}
+
+static int editor_polygon_feature_click(SiteHelperEditor *editor,
+    const Storey *storey, Vec2 view_position, EditorAction *action)
+{
+    PlanPoint point;
+    PlanPosition vertex;
+    if (!editor_measurement_point(editor,view_position,&point) ||
+        !plan_position_from_point(point,&vertex)) { return 0; }
+    SlabPolygonFeatureTool *tool=editor->active_tool == EDITOR_TOOL_SLAB_PENETRATION ?
+        &editor->slab_penetration_tool : &editor->slab_region_tool;
+    if (tool->vertex_count != 0 && (tool->storey_id != storey->id ||
+        slab_collection_find_by_id_const(&storey->slabs,tool->slab_id) == NULL)) {
+        slab_polygon_feature_tool_cancel(tool);
+        tool->active=1;
+        return 1;
+    }
+    if (tool->vertex_count == 0) {
+        SlabPlanHit hit=slab_plan_hit_test_storey(storey,
+            (PlanPoint){view_position.x,view_position.y},
+            editor->snap.settings.object_snap_tolerance);
+        if (hit.kind == SLAB_PLAN_HIT_NONE) { return 1; }
+        const Slab *slab=slab_collection_find_by_id_const(&storey->slabs,hit.slab_id);
+        if (slab == NULL) { return 1; }
+        return slab_polygon_feature_tool_begin(tool,storey->id,slab->id,vertex,
+            slab->definition.top_level_offset_mm,slab->definition.thickness_mm);
+    }
+    double dx=point.x-tool->vertices[0].x,dy=point.y-tool->vertices[0].y;
+    if (hypot(dx,dy) <= editor->snap.settings.object_snap_tolerance) {
+        if (tool->vertex_count < 3) { return 1; }
+        return editor_polygon_feature_action(editor,action);
+    }
+    return slab_polygon_feature_tool_append(tool,vertex);
+}
+
+static int editor_rebate_click(SiteHelperEditor *editor, const Storey *storey,
+    Vec2 view_position, EditorAction *action)
+{
+    SlabEdgeRebateTool *tool=&editor->slab_edge_rebate_tool;
+    PlanPoint point={view_position.x,view_position.y};
+    if (!tool->has_start) {
+        SlabPlanEdgeHit hit=slab_plan_find_outer_edge(storey,point,
+            editor->snap.settings.object_snap_tolerance);
+        if (!hit.has_edge) { return 1; }
+        tool->storey_id=storey->id;
+        tool->slab_id=hit.slab_id;
+        tool->edge_index=hit.edge_index;
+        tool->start_u_mm=hit.u_mm;
+        tool->start_point=hit.projected_point;
+        tool->hover_u_mm=hit.u_mm;
+        tool->hover_point=hit.projected_point;
+        tool->has_start=tool->has_hover=1;
+        return 1;
+    }
+    const Slab *slab=tool->storey_id == storey->id ?
+        slab_collection_find_by_id_const(&storey->slabs,tool->slab_id) : NULL;
+    if (slab == NULL) {
+        slab_edge_rebate_tool_cancel(tool);
+        tool->active=1;
+        return 1;
+    }
+    SlabPlanEdgeHit hit=slab_plan_project_outer_edge(slab,tool->edge_index,point,
+        editor->snap.settings.object_snap_tolerance);
+    if (!hit.has_edge || hit.u_mm == tool->start_u_mm) { return 1; }
+    tool->hover_u_mm=hit.u_mm;
+    tool->hover_point=hit.projected_point;
+    tool->has_hover=1;
+    int start=tool->start_u_mm < hit.u_mm ? tool->start_u_mm : hit.u_mm;
+    int end=tool->start_u_mm < hit.u_mm ? hit.u_mm : tool->start_u_mm;
+    AddSlabEdgeRebateCommand add;
+    if (!add_slab_edge_rebate_command_create(tool->slab_id,tool->edge_index,
+            start,end,tool->width_mm,tool->depth_mm,&add) ||
+        !sitehelper_command_from_add_slab_edge_rebate(&add,&action->command)) {
+        return 0;
+    }
+    action->kind=EDITOR_ACTION_COMMAND;
     return 1;
 }
 
@@ -918,6 +1094,21 @@ int sitehelper_editor_primary_action_in_project(
     const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
     if (storey == NULL) { return 0; }
     const BuildStructure *structure = &storey->structure;
+
+    if (editor->active_view == EDITOR_VIEW_PLAN &&
+        (editor->active_tool == EDITOR_TOOL_SLAB_PENETRATION ||
+         editor->active_tool == EDITOR_TOOL_SLAB_REGION ||
+         editor->active_tool == EDITOR_TOOL_SLAB_EDGE_REBATE)) {
+        *action=(EditorAction){0};
+        if (editor->active_tool == EDITOR_TOOL_SLAB_EDGE_REBATE) {
+            sitehelper_editor_clear_snap(editor);
+        } else {
+            sitehelper_editor_update_snap_in_project(editor,project,view_position);
+        }
+        return editor->active_tool == EDITOR_TOOL_SLAB_EDGE_REBATE ?
+            editor_rebate_click(editor,storey,view_position,action) :
+            editor_polygon_feature_click(editor,storey,view_position,action);
+    }
 
     if (editor->active_view == EDITOR_VIEW_PLAN &&
         editor->active_tool == EDITOR_TOOL_SELECT) {
@@ -1082,6 +1273,45 @@ void sitehelper_editor_complete_action(
             if (editor->active_tool == EDITOR_TOOL_SLAB) { editor->slab_tool.active=1; }
             break;
 
+        case SITEHELPER_COMMAND_ADD_SLAB_PENETRATION:
+            if (result->data.slab_feature.slab_id ==
+                editor->slab_penetration_tool.slab_id) {
+                editor_selection_set_slab_feature(&editor->selection,
+                    EDITOR_SELECTION_SCOPE_PLAN,result->data.slab_feature.slab_id,
+                    EDITOR_SELECTION_SLAB_PENETRATION,
+                    result->data.slab_feature.feature_index);
+            }
+            slab_polygon_feature_tool_cancel(&editor->slab_penetration_tool);
+            if (editor->active_tool == EDITOR_TOOL_SLAB_PENETRATION) {
+                editor->slab_penetration_tool.active=1;
+            }
+            break;
+
+        case SITEHELPER_COMMAND_ADD_SLAB_REGION:
+            if (result->data.slab_feature.slab_id == editor->slab_region_tool.slab_id) {
+                editor_selection_set_slab_feature(&editor->selection,
+                    EDITOR_SELECTION_SCOPE_PLAN,result->data.slab_feature.slab_id,
+                    EDITOR_SELECTION_SLAB_REGION,result->data.slab_feature.feature_index);
+            }
+            slab_polygon_feature_tool_cancel(&editor->slab_region_tool);
+            if (editor->active_tool == EDITOR_TOOL_SLAB_REGION) {
+                editor->slab_region_tool.active=1;
+            }
+            break;
+
+        case SITEHELPER_COMMAND_ADD_SLAB_EDGE_REBATE:
+            if (result->data.slab_feature.slab_id == editor->slab_edge_rebate_tool.slab_id) {
+                editor_selection_set_slab_feature(&editor->selection,
+                    EDITOR_SELECTION_SCOPE_PLAN,result->data.slab_feature.slab_id,
+                    EDITOR_SELECTION_SLAB_EDGE_REBATE,
+                    result->data.slab_feature.feature_index);
+            }
+            slab_edge_rebate_tool_cancel(&editor->slab_edge_rebate_tool);
+            if (editor->active_tool == EDITOR_TOOL_SLAB_EDGE_REBATE) {
+                editor->slab_edge_rebate_tool.active=1;
+            }
+            break;
+
         case SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION:
             if (editor->selection.kind == EDITOR_SELECTION_SLAB_PENETRATION &&
                 editor->selection.slab_id == result->data.slab_feature.slab_id &&
@@ -1131,6 +1361,18 @@ void sitehelper_editor_invalidate_transient_state(
     measurement_tool_cancel(&editor->measurement_tool);
     slab_tool_cancel(&editor->slab_tool);
     if (editor->active_tool == EDITOR_TOOL_SLAB) { editor->slab_tool.active=1; }
+    slab_polygon_feature_tool_cancel(&editor->slab_penetration_tool);
+    if (editor->active_tool == EDITOR_TOOL_SLAB_PENETRATION) {
+        editor->slab_penetration_tool.active=1;
+    }
+    slab_polygon_feature_tool_cancel(&editor->slab_region_tool);
+    if (editor->active_tool == EDITOR_TOOL_SLAB_REGION) {
+        editor->slab_region_tool.active=1;
+    }
+    slab_edge_rebate_tool_cancel(&editor->slab_edge_rebate_tool);
+    if (editor->active_tool == EDITOR_TOOL_SLAB_EDGE_REBATE) {
+        editor->slab_edge_rebate_tool.active=1;
+    }
 }
 
 int sitehelper_editor_has_wall_preview(const SiteHelperEditor *editor)
@@ -1200,6 +1442,15 @@ int sitehelper_editor_create_slab_action(const SiteHelperEditor *editor, EditorA
     return ok;
 }
 
+int sitehelper_editor_create_active_polygon_action(const SiteHelperEditor *editor,
+    EditorAction *action)
+{
+    if (editor != NULL && editor->active_tool == EDITOR_TOOL_SLAB) {
+        return sitehelper_editor_create_slab_action(editor,action);
+    }
+    return editor_polygon_feature_action(editor,action);
+}
+
 int sitehelper_editor_create_delete_selection_action(const SiteHelperEditor *editor,
     EditorAction *action)
 {
@@ -1254,6 +1505,47 @@ int sitehelper_editor_get_slab_preview(const SiteHelperEditor *editor,
     return 1;
 }
 
+int sitehelper_editor_get_slab_feature_polygon_preview(
+    const SiteHelperEditor *editor, EditorSlabPolygonPreviewKind *kind,
+    DomainId *slab_id, const PlanPosition **vertices, size_t *count,
+    PlanPoint *preview, int *has_preview)
+{
+    if (kind == NULL || slab_id == NULL || vertices == NULL || count == NULL ||
+        preview == NULL || has_preview == NULL) { return 0; }
+    *kind=EDITOR_SLAB_POLYGON_PREVIEW_NONE; *slab_id=DOMAIN_ID_INVALID;
+    *vertices=NULL; *count=0; *preview=(PlanPoint){0}; *has_preview=0;
+    if (editor == NULL || editor->active_view != EDITOR_VIEW_PLAN) { return 0; }
+    const SlabPolygonFeatureTool *tool;
+    if (editor->active_tool == EDITOR_TOOL_SLAB_PENETRATION) {
+        tool=&editor->slab_penetration_tool;
+        *kind=EDITOR_SLAB_POLYGON_PREVIEW_PENETRATION;
+    } else if (editor->active_tool == EDITOR_TOOL_SLAB_REGION) {
+        tool=&editor->slab_region_tool;
+        *kind=EDITOR_SLAB_POLYGON_PREVIEW_REGION;
+    } else { return 0; }
+    if (tool->vertex_count == 0) { *kind=EDITOR_SLAB_POLYGON_PREVIEW_NONE; return 0; }
+    *slab_id=tool->slab_id; *vertices=tool->vertices; *count=tool->vertex_count;
+    *preview=tool->preview; *has_preview=tool->has_preview;
+    return 1;
+}
+
+int sitehelper_editor_get_slab_rebate_preview(const SiteHelperEditor *editor,
+    DomainId *slab_id, size_t *edge_index, PlanPoint *start, PlanPoint *end,
+    int *has_end)
+{
+    if (slab_id == NULL || edge_index == NULL || start == NULL || end == NULL ||
+        has_end == NULL) { return 0; }
+    *slab_id=DOMAIN_ID_INVALID; *edge_index=SIZE_MAX; *start=(PlanPoint){0};
+    *end=(PlanPoint){0}; *has_end=0;
+    if (editor == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->active_tool != EDITOR_TOOL_SLAB_EDGE_REBATE ||
+        !editor->slab_edge_rebate_tool.has_start) { return 0; }
+    const SlabEdgeRebateTool *tool=&editor->slab_edge_rebate_tool;
+    *slab_id=tool->slab_id; *edge_index=tool->edge_index; *start=tool->start_point;
+    *end=tool->hover_point; *has_end=tool->has_hover;
+    return 1;
+}
+
 int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor)
 {
     if (editor == NULL) { return 0; }
@@ -1269,6 +1561,21 @@ int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor)
         case EDITOR_TOOL_SLAB:
             if (editor->slab_tool.vertex_count == 0) { return 0; }
             slab_tool_cancel(&editor->slab_tool); editor->slab_tool.active=1;
+            sitehelper_editor_clear_snap(editor); return 1;
+        case EDITOR_TOOL_SLAB_PENETRATION:
+            if (editor->slab_penetration_tool.vertex_count == 0) { return 0; }
+            slab_polygon_feature_tool_cancel(&editor->slab_penetration_tool);
+            editor->slab_penetration_tool.active=1;
+            sitehelper_editor_clear_snap(editor); return 1;
+        case EDITOR_TOOL_SLAB_REGION:
+            if (editor->slab_region_tool.vertex_count == 0) { return 0; }
+            slab_polygon_feature_tool_cancel(&editor->slab_region_tool);
+            editor->slab_region_tool.active=1;
+            sitehelper_editor_clear_snap(editor); return 1;
+        case EDITOR_TOOL_SLAB_EDGE_REBATE:
+            if (!editor->slab_edge_rebate_tool.has_start) { return 0; }
+            slab_edge_rebate_tool_cancel(&editor->slab_edge_rebate_tool);
+            editor->slab_edge_rebate_tool.active=1;
             sitehelper_editor_clear_snap(editor); return 1;
         default: return 0;
     }

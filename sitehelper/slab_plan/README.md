@@ -6,6 +6,12 @@ Rendering uses closed outlines for the slab exterior, replacement regions, and p
 
 Hit testing uses plan-world millimetres and the editor's established object tolerance. Precedence is edge rebate, penetration, region, then whole slab. At equal precedence, the later item in Storey/render order wins, giving deterministic selection when slabs overlap. Invalid slab inputs are skipped rather than repaired.
 
+The adapter also supplies the Rebate tool's nearest-exterior-edge query. It
+returns the slab, outer-edge index, projected plan point, distance, and rounded
+integer-mm edge-local U. This is interactive query geometry rather than global
+snapping or authoritative slab state. Once a tool locks a host, a specific-edge
+query prevents cursor motion from jumping around a corner.
+
 The application keeps its established foreground-object policy: a Wall within
 the same object tolerance is selected before consulting slab geometry. This
 matches the render stack, where walls and editor overlays are drawn over slabs.

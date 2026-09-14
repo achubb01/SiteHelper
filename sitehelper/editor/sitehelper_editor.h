@@ -10,6 +10,7 @@
 #include "wall_tool.h"
 #include "measurement_tool.h"
 #include "slab_tool.h"
+#include "slab_feature_tool.h"
 #include "opening_command.h"
 #include "editor_action.h"
 #include "sitehelper_project.h"
@@ -22,8 +23,8 @@ typedef enum
     EDITOR_VIEW_COUNT
 } EditorView;
 
-/* Owns SlabTool vertex storage after a slab sketch begins. Initialize/destroy;
- * do not shallow-copy an editor containing an active sketch. */
+/* Owns SlabTool and polygon-feature vertex storage after a sketch begins.
+ * Initialize/destroy; never shallow-copy an editor containing owned storage. */
 typedef struct
 {
     /* Navigation/focus, independent of the single transient selection. */
@@ -44,6 +45,9 @@ typedef struct
     WallTool wall_tool;
     MeasurementTool measurement_tool;
     SlabTool slab_tool;
+    SlabPolygonFeatureTool slab_penetration_tool;
+    SlabPolygonFeatureTool slab_region_tool;
+    SlabEdgeRebateTool slab_edge_rebate_tool;
 } SiteHelperEditor;
 
 void sitehelper_editor_init(
@@ -233,11 +237,26 @@ int sitehelper_editor_get_wall_preview_segment(
  * restriction. Absence clears output. Application must not inspect tool state. */
 int sitehelper_editor_get_measurement(const SiteHelperEditor *editor, PlanMeasurementQuery *query);
 int sitehelper_editor_create_slab_action(const SiteHelperEditor *editor, EditorAction *action);
+/* Enter commits the active slab/polygon-feature sketch. */
+int sitehelper_editor_create_active_polygon_action(const SiteHelperEditor *editor,
+    EditorAction *action);
 int sitehelper_editor_create_delete_selection_action(const SiteHelperEditor *editor,
     EditorAction *action);
 int sitehelper_editor_get_slab_preview(const SiteHelperEditor *editor,
     const PlanPosition **vertices, size_t *count, PlanPoint *preview,
     int *has_preview);
+typedef enum {
+    EDITOR_SLAB_POLYGON_PREVIEW_NONE = 0,
+    EDITOR_SLAB_POLYGON_PREVIEW_PENETRATION,
+    EDITOR_SLAB_POLYGON_PREVIEW_REGION
+} EditorSlabPolygonPreviewKind;
+int sitehelper_editor_get_slab_feature_polygon_preview(
+    const SiteHelperEditor *editor, EditorSlabPolygonPreviewKind *kind,
+    DomainId *slab_id, const PlanPosition **vertices, size_t *count,
+    PlanPoint *preview, int *has_preview);
+int sitehelper_editor_get_slab_rebate_preview(const SiteHelperEditor *editor,
+    DomainId *slab_id, size_t *edge_index, PlanPoint *start, PlanPoint *end,
+    int *has_end);
 /* Cancel an active tool interaction without changing tools or Project state.
  * Returns whether handled. Application gives focused text input first refusal. */
 int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor);
