@@ -61,6 +61,7 @@ typedef struct
     SiteHelperCommandHistory history;
 
     WallRenderStyle wall_style;
+    SlabPlanRenderStyle slab_style;
     GridRenderStyle grid_style;
 
     Colour background;
@@ -300,6 +301,16 @@ static int sitehelper_app_init(
         }
     };
 
+    app->slab_style = (SlabPlanRenderStyle){
+        .outline_colour = {105, 120, 135, 255},
+        .penetration_colour = {210, 105, 105, 255},
+        .region_colour = {100, 175, 210, 255},
+        .rebate_colour = {205, 145, 80, 255},
+        .selected_colour = {255, 220, 40, 255},
+        .selected_parent_colour = {150, 150, 105, 255},
+        .marker_size_pixels = 6.0
+    };
+
     app->running = 1;
 
     return 1;
@@ -329,6 +340,8 @@ static void sitehelper_app_render(
         app->renderer,
         &app->grid_style
     );
+
+    app_render_slabs(app->renderer, &app->project, &app->editor, &app->slab_style);
 
     app_render_walls(app->renderer, &app->project, &app->editor, &app->wall_style);
 

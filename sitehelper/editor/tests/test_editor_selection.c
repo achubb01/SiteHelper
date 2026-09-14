@@ -9,6 +9,7 @@ static void assert_empty(const EditorSelection *selection)
     assert(selection->kind == EDITOR_SELECTION_NONE);
     assert(selection->scope == EDITOR_SELECTION_SCOPE_NONE);
     assert(selection->wall_id == DOMAIN_ID_INVALID && selection->opening_id == DOMAIN_ID_INVALID);
+    assert(selection->slab_id == DOMAIN_ID_INVALID && selection->slab_feature_index == SIZE_MAX);
     assert(wall_selection_is_empty(&selection->wall_member));
     assert(selection->wall_member.timber.length == 0);
     assert(!editor_selection_matches_scope(selection, EDITOR_SELECTION_SCOPE_NONE));
@@ -217,7 +218,36 @@ static void test_kinds_scopes_and_invalid_setters(void)
     editor_selection_set_wall(NULL, EDITOR_SELECTION_SCOPE_PLAN, 42);
     editor_selection_set_opening(NULL, EDITOR_SELECTION_SCOPE_PLAN, 42, 43);
     editor_selection_set_wall_member(NULL, EDITOR_SELECTION_SCOPE_PLAN, 42, WALL_MEMBER_STUD, &stud);
+    editor_selection_set_slab(NULL, EDITOR_SELECTION_SCOPE_PLAN, 42);
+    editor_selection_set_slab_feature(NULL, EDITOR_SELECTION_SCOPE_PLAN, 42,
+        EDITOR_SELECTION_SLAB_REGION, 0);
     assert(!editor_selection_matches_scope(NULL, EDITOR_SELECTION_SCOPE_PLAN));
+}
+
+static void test_slab_selection_is_value_only(void)
+{
+    EditorSelection selection;
+    editor_selection_set_slab(&selection,EDITOR_SELECTION_SCOPE_PLAN,70);
+    assert(selection.kind==EDITOR_SELECTION_SLAB&&selection.slab_id==70);
+    assert(selection.slab_feature_index==SIZE_MAX&&selection.wall_id==DOMAIN_ID_INVALID);
+    editor_selection_set_slab_feature(&selection,EDITOR_SELECTION_SCOPE_PLAN,70,
+        EDITOR_SELECTION_SLAB_PENETRATION,0);
+    assert(selection.kind==EDITOR_SELECTION_SLAB_PENETRATION&&selection.slab_id==70);
+    assert(selection.slab_feature_index==0);
+    editor_selection_set_slab_feature(&selection,EDITOR_SELECTION_SCOPE_PLAN,70,
+        EDITOR_SELECTION_SLAB_REGION,1);
+    assert(selection.kind==EDITOR_SELECTION_SLAB_REGION&&selection.slab_feature_index==1);
+    editor_selection_set_slab_feature(&selection,EDITOR_SELECTION_SCOPE_PLAN,70,
+        EDITOR_SELECTION_SLAB_EDGE_REBATE,2);
+    assert(selection.kind==EDITOR_SELECTION_SLAB_EDGE_REBATE&&selection.slab_feature_index==2);
+    editor_selection_set_slab(&selection,EDITOR_SELECTION_SCOPE_WALL_ELEVATION,70);
+    assert_empty(&selection);
+    editor_selection_set_slab_feature(&selection,EDITOR_SELECTION_SCOPE_PLAN,70,
+        EDITOR_SELECTION_SLAB,0);
+    assert_empty(&selection);
+    editor_selection_set_slab_feature(&selection,EDITOR_SELECTION_SCOPE_PLAN,70,
+        EDITOR_SELECTION_SLAB_REGION,SIZE_MAX);
+    assert_empty(&selection);
 }
 
 int main(void)
@@ -228,6 +258,7 @@ int main(void)
     test_wall_member_selection_is_scoped_to_wall();
     test_selection_can_be_cleared();
     test_invalid_wall_clears_selection();
+    test_slab_selection_is_value_only();
 
     printf(
         "All editor selection tests passed.\n"

@@ -30,6 +30,42 @@ int app_views_set_active(
     return 1;
 }
 
+static SlabPlanHit app_slab_selection(const EditorSelection *selection)
+{
+    SlabPlanHit hit = slab_plan_hit_none();
+    if (selection == NULL || selection->scope != EDITOR_SELECTION_SCOPE_PLAN) {
+        return hit;
+    }
+    hit.slab_id = selection->slab_id;
+    hit.feature_index = selection->slab_feature_index;
+    switch (selection->kind) {
+        case EDITOR_SELECTION_SLAB: hit.kind = SLAB_PLAN_HIT_SLAB; break;
+        case EDITOR_SELECTION_SLAB_PENETRATION:
+            hit.kind = SLAB_PLAN_HIT_PENETRATION; break;
+        case EDITOR_SELECTION_SLAB_REGION: hit.kind = SLAB_PLAN_HIT_REGION; break;
+        case EDITOR_SELECTION_SLAB_EDGE_REBATE:
+            hit.kind = SLAB_PLAN_HIT_EDGE_REBATE; break;
+        default: return slab_plan_hit_none();
+    }
+    return hit;
+}
+
+void app_render_slabs(
+    Renderer2D *renderer, const SiteHelperProject *project,
+    const SiteHelperEditor *editor, const SlabPlanRenderStyle *style
+)
+{
+    if (renderer == NULL || project == NULL || editor == NULL || style == NULL ||
+        editor->active_view != EDITOR_VIEW_PLAN) {
+        return;
+    }
+    const Storey *storey = sitehelper_project_find_storey_by_id_const(
+        project, editor->current_storey_id);
+    if (storey == NULL) { return; }
+    SlabPlanHit selection = app_slab_selection(&editor->selection);
+    slab_plan_render_storey(renderer, storey, &selection, style);
+}
+
 void app_render_walls(
     Renderer2D *renderer, const SiteHelperProject *project,
     const SiteHelperEditor *editor, const WallRenderStyle *style

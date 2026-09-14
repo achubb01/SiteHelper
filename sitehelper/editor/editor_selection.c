@@ -16,12 +16,45 @@ void editor_selection_init(
     *selection = (EditorSelection){
         .kind = EDITOR_SELECTION_NONE,
         .scope = EDITOR_SELECTION_SCOPE_NONE,
-        .wall_id = DOMAIN_ID_INVALID
+        .wall_id = DOMAIN_ID_INVALID,
+        .opening_id = DOMAIN_ID_INVALID,
+        .slab_id = DOMAIN_ID_INVALID,
+        .slab_feature_index = SIZE_MAX
     };
 
     wall_selection_init(
         &selection->wall_member
     );
+}
+
+void editor_selection_set_slab(EditorSelection *selection,
+    EditorSelectionScope scope, DomainId slab_id)
+{
+    if (selection == NULL) { return; }
+    editor_selection_clear(selection);
+    if (scope != EDITOR_SELECTION_SCOPE_PLAN || slab_id == DOMAIN_ID_INVALID) { return; }
+    selection->kind = EDITOR_SELECTION_SLAB;
+    selection->scope = scope;
+    selection->slab_id = slab_id;
+}
+
+void editor_selection_set_slab_feature(EditorSelection *selection,
+    EditorSelectionScope scope, DomainId slab_id, EditorSelectionKind kind,
+    size_t feature_index)
+{
+    if (selection == NULL) { return; }
+    editor_selection_clear(selection);
+    if (scope != EDITOR_SELECTION_SCOPE_PLAN || slab_id == DOMAIN_ID_INVALID ||
+        feature_index == SIZE_MAX ||
+        (kind != EDITOR_SELECTION_SLAB_PENETRATION &&
+         kind != EDITOR_SELECTION_SLAB_REGION &&
+         kind != EDITOR_SELECTION_SLAB_EDGE_REBATE)) {
+        return;
+    }
+    selection->kind = kind;
+    selection->scope = scope;
+    selection->slab_id = slab_id;
+    selection->slab_feature_index = feature_index;
 }
 
 void editor_selection_clear(

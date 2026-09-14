@@ -6,6 +6,7 @@
 #include "wall_plan_transform.h"
 #include "wall_snap.h"
 #include "plan_snap.h"
+#include "slab_plan_query.h"
 
 int sitehelper_editor_set_current_storey(SiteHelperEditor *editor,
     const SiteHelperProject *project, DomainId storey_id)
@@ -291,25 +292,83 @@ void sitehelper_editor_reconcile(
     const EditorSelection *selection = &editor->selection;
 
     if (selection->kind != EDITOR_SELECTION_NONE) {
-        const Wall *selected_wall = build_find_wall_by_id_const(
-            &storey->structure, selection->wall_id);
+        if (selection->kind == EDITOR_SELECTION_SLAB ||
+            selection->kind == EDITOR_SELECTION_SLAB_PENETRATION ||
+            selection->kind == EDITOR_SELECTION_SLAB_REGION ||
+            selection->kind == EDITOR_SELECTION_SLAB_EDGE_REBATE) {
+            const Slab *selected_slab = slab_collection_find_by_id_const(
+                &storey->slabs, selection->slab_id);
+            int valid = selected_slab != NULL &&
+                selection->scope == EDITOR_SELECTION_SCOPE_PLAN &&
+                slab_validate(selected_slab) == SLAB_SUCCESS;
+            if (valid && selection->kind != EDITOR_SELECTION_SLAB) {
+                size_t count = 0;
+                if (selection->kind == EDITOR_SELECTION_SLAB_PENETRATION) {
+                    count = selected_slab->definition.penetrations.count;
+                } else if (selection->kind == EDITOR_SELECTION_SLAB_REGION) {
+                    count = selected_slab->definition.regions.count;
+                } else {
+                    count = selected_slab->definition.edge_rebates.count;
+                }
+                valid = selection->slab_feature_index < count;
+            }
+            if (!valid) { sitehelper_editor_clear_selection(editor); }
+        } else {
+            const Wall *selected_wall = build_find_wall_by_id_const(
+                &storey->structure, selection->wall_id);
 
-        if (selected_wall == NULL) {
-            sitehelper_editor_clear_selection(editor);
-        }
-        else {
-            if (selection->kind == EDITOR_SELECTION_WALL ||
-                selection->kind == EDITOR_SELECTION_OPENING ||
-                selection->kind == EDITOR_SELECTION_WALL_MEMBER) {
-                sitehelper_editor_reconcile_wall_selection(editor, selected_wall);
+            if (selected_wall == NULL) {
+                sitehelper_editor_clear_selection(editor);
             }
             else {
-                sitehelper_editor_clear_selection(editor);
+                if (selection->kind == EDITOR_SELECTION_WALL ||
+                    selection->kind == EDITOR_SELECTION_OPENING ||
+                    selection->kind == EDITOR_SELECTION_WALL_MEMBER) {
+                    sitehelper_editor_reconcile_wall_selection(editor, selected_wall);
+                }
+                else {
+                    sitehelper_editor_clear_selection(editor);
+                }
             }
         }
     }
 
     sitehelper_editor_invalidate_transient_state(editor);
+}
+
+void sitehelper_editor_project_replaced(SiteHelperEditor *editor,
+    const SiteHelperProject *project)
+{
+    if (editor == NULL) { return; }
+    sitehelper_editor_clear_selection(editor);
+    sitehelper_editor_invalidate_transient_state(editor);
+    sitehelper_editor_reconcile(editor, project);
+}
+
+static void editor_select_slab_hit(EditorSelection *selection, SlabPlanHit hit)
+{
+    switch (hit.kind) {
+        case SLAB_PLAN_HIT_SLAB:
+            editor_selection_set_slab(selection, EDITOR_SELECTION_SCOPE_PLAN,
+                hit.slab_id);
+            break;
+        case SLAB_PLAN_HIT_PENETRATION:
+            editor_selection_set_slab_feature(selection, EDITOR_SELECTION_SCOPE_PLAN,
+                hit.slab_id, EDITOR_SELECTION_SLAB_PENETRATION, hit.feature_index);
+            break;
+        case SLAB_PLAN_HIT_REGION:
+            editor_selection_set_slab_feature(selection, EDITOR_SELECTION_SCOPE_PLAN,
+                hit.slab_id, EDITOR_SELECTION_SLAB_REGION, hit.feature_index);
+            break;
+        case SLAB_PLAN_HIT_EDGE_REBATE:
+            editor_selection_set_slab_feature(selection, EDITOR_SELECTION_SCOPE_PLAN,
+                hit.slab_id, EDITOR_SELECTION_SLAB_EDGE_REBATE, hit.feature_index);
+            break;
+        case SLAB_PLAN_HIT_NONE:
+        default:
+            editor_selection_clear(selection);
+            break;
+    }
 }
 
 const EditorSelection *
@@ -837,7 +896,15 @@ int sitehelper_editor_primary_action_in_project(
                 editor->current_wall_id = wall->id;
             }
         }
-        editor_selection_set_wall(&editor->selection, EDITOR_SELECTION_SCOPE_PLAN, editor->current_wall_id);
+        if (editor->current_wall_id != DOMAIN_ID_INVALID) {
+            editor_selection_set_wall(&editor->selection,
+                EDITOR_SELECTION_SCOPE_PLAN, editor->current_wall_id);
+        } else {
+            SlabPlanHit hit = slab_plan_hit_test_storey(storey,
+                (PlanPoint){view_position.x, view_position.y},
+                editor->snap.settings.object_snap_tolerance);
+            editor_select_slab_hit(&editor->selection, hit);
+        }
         sitehelper_editor_update_snap_in_project(editor, project, view_position);
         return 1;
     }

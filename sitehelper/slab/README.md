@@ -281,6 +281,8 @@ candidate, including global identity uniqueness and allocator watermark, before
 replacing the destination. Derived area, edges, perimeter and volume are never
 persisted.
 
-Priority 25E+, explicit step objects/extraction, panel/service recesses, footings,
-reinforcement, wall/room relationships or generation, rendering, selection,
-editing tools, commands/history and take-off integration remain deferred.
+Plan rendering and selection are downstream consumers in `sitehelper/slab_plan`;
+they add no dependencies or state to this domain library. Priority 25E2+,
+explicit step objects/extraction, panel/service recesses, footings, reinforcement,
+wall/room relationships or generation, editing tools, commands/history and
+take-off integration remain deferred.

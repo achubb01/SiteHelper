@@ -94,6 +94,12 @@ void sitehelper_editor_reconcile(
     const SiteHelperProject *project
 );
 
+/* Call after transactionally replacing/loading the Project object. Selection is
+ * transient and is cleared even if the new project reuses the same IDs/indices;
+ * navigation is then reconciled against the replacement. */
+void sitehelper_editor_project_replaced(SiteHelperEditor *editor,
+    const SiteHelperProject *project);
+
 const EditorSelection *
 sitehelper_editor_get_selection(
     const SiteHelperEditor *editor
@@ -177,7 +183,8 @@ int sitehelper_editor_primary_action(
 
 /* Plan clicks resolve current Storey geometry at the actual event position,
  * then tools consume that result without another low-level snap update.
- * Select in Plan sets both wall navigation and authoritative WALL selection.
+ * Select in Plan gives visible Walls precedence, then selects slab features in
+ * rebate/penetration/region/slab order. Wall selection also updates navigation.
  * Elevation preserves member hit precedence, then tests clear Opening geometry
  * with owning-Storey settings. The lower-level primary_action lacks Project
  * settings and therefore retains member-only elevation selection. */

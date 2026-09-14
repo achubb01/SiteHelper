@@ -3,6 +3,7 @@
 
 #include "sitehelper_editor.h"
 #include "wall_render.h"
+#include "slab_plan_render.h"
 
 /* Saved cameras are application state. The renderer holds the live camera. */
 typedef struct
@@ -17,6 +18,10 @@ int app_views_set_active(
 void app_render_walls(
     Renderer2D *renderer, const SiteHelperProject *project,
     const SiteHelperEditor *editor, const WallRenderStyle *style
+);
+void app_render_slabs(
+    Renderer2D *renderer, const SiteHelperProject *project,
+    const SiteHelperEditor *editor, const SlabPlanRenderStyle *style
 );
 
 /* Caller supplies the normal viewport clip; label formatting stays in app. */

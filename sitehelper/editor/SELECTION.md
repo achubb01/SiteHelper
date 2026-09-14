@@ -8,25 +8,35 @@ Wall navigation and selection. Plan rendering continues to highlight the current
 Wall; distinguishing focus from selection visually is deferred.
 
 Selection **kind** identifies what was selected (`WALL`, `OPENING`,
-`WALL_MEMBER`); selection **scope** identifies its context:
+`WALL_MEMBER`, `SLAB`, or a slab subfeature); selection **scope** identifies its context:
 
 | Scope | Coordinate context | Current creation path |
 | --- | --- | --- |
-| `PLAN` | Plan X/Y millimetres | Physical Wall selection |
+| `PLAN` | Plan X/Y millimetres | Physical Wall, Slab, penetration, region or rebate selection |
 | `WALL_ELEVATION` | Wall-local U/Z millimetres | Generated member or Opening selection |
 | `NONE` | No selection | Initialization, clear or failed setter |
 
 `EditorSelectionScope` belongs to the selection layer and does not depend on
-`EditorView`. Kind and scope remain orthogonal: the container permits any valid
-non-NONE scope with any supported kind. Current editor hit-test paths explicitly
-pass Plan scope for Walls and Elevation scope for members/Openings. Wall-local
-member hit testing requires the Elevation view.
+`EditorView`. Existing Wall kinds retain their scope flexibility. Slab and slab
+subfeature setters require Plan scope because no slab elevation workspace exists.
+Current editor hit-test paths explicitly pass Plan scope for Walls/Slabs and
+Elevation scope for members/Openings. Wall-local member hit testing requires the
+Elevation view.
 
 All setters accept a scope. Invalid scopes, IDs or member arguments clear the
 entire selection. `NONE` kind always pairs with `NONE` scope; clear resets both
 IDs and the copied member payload. A Wall selection identifies the physical Wall
 by `wall_id`; an Opening/member selection uses that ID as its explicit owner.
 Scope and ownership are never inferred from `current_wall_id`.
+
+A whole Slab selection stores its stable `slab_id`. Penetrations, replacement
+regions and edge rebates remain subordinate slab-owned geometry without global
+IDs. Their editor selection stores the parent `slab_id`, feature kind and local
+collection index. That index is ephemeral rather than project identity. Storey
+reconciliation clears a missing parent, malformed slab or out-of-range index.
+Storey changes clear selection, and `sitehelper_editor_project_replaced` clears
+selection before reconciling navigation so a reused index cannot be mistaken for
+the old feature after a load/replacement.
 
 `sitehelper_editor_selection_matches_view` maps the active view to its expected
 scope. Both editor reconciliation paths clear mismatches, including manually

@@ -72,6 +72,13 @@ if(NOT MSVC)
     target_link_libraries(sitehelper_slab PRIVATE m)
 endif()
 
+add_library(sitehelper_slab_plan_query slab_plan/slab_plan_query.c)
+target_include_directories(sitehelper_slab_plan_query PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/slab_plan)
+target_link_libraries(sitehelper_slab_plan_query PUBLIC sitehelper_slab)
+if(NOT MSVC)
+    target_link_libraries(sitehelper_slab_plan_query PRIVATE m)
+endif()
+
 add_library(sitehelper_project
     project/project_slabs.c
     project/project_settings.c
@@ -228,6 +235,7 @@ target_link_libraries(sitehelper_editor
         geometry
     PRIVATE
         sitehelper_grid
+        sitehelper_slab_plan_query
 )
 
 if(SITEHELPER_BUILD_TOPOLOGY)
@@ -258,6 +266,10 @@ add_library(sitehelper_render
     grid/grid_render.c
     gui/gui_render.c
 )
+
+add_library(sitehelper_slab_plan_render slab_plan/slab_plan_render.c)
+target_include_directories(sitehelper_slab_plan_render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/slab_plan)
+target_link_libraries(sitehelper_slab_plan_render PUBLIC renderer2d sitehelper_slab_plan_query)
 
 target_include_directories(sitehelper_render
     PUBLIC
@@ -300,6 +312,7 @@ target_link_libraries(sitehelper_app_core
         sitehelper_project
         sitehelper_editor
         sitehelper_command
+        sitehelper_slab_plan_render
     PRIVATE
         sitehelper_wall
 )
@@ -920,6 +933,18 @@ endif()
 add_executable(test_slab slab/tests/test_slab.c)
 target_link_libraries(test_slab PRIVATE sitehelper_slab)
 add_test(NAME slab_tests COMMAND test_slab)
+
+add_executable(test_slab_plan_query slab_plan/tests/test_slab_plan_query.c)
+target_link_libraries(test_slab_plan_query PRIVATE sitehelper_slab_plan_query)
+add_test(NAME slab_plan_query_tests COMMAND test_slab_plan_query)
+
+add_executable(test_slab_plan_render slab_plan/tests/test_slab_plan_render.c)
+target_link_libraries(test_slab_plan_render PRIVATE sitehelper_app_core)
+add_test(NAME slab_plan_render_tests COMMAND test_slab_plan_render)
+
+add_executable(test_slab_plan_selection editor/tests/test_slab_plan_selection.c)
+target_link_libraries(test_slab_plan_selection PRIVATE sitehelper_editor)
+add_test(NAME slab_plan_selection_tests COMMAND test_slab_plan_selection)
 
 add_executable(test_project_slabs project/tests/test_project_slabs.c)
 target_link_libraries(test_project_slabs PRIVATE sitehelper_persistence sitehelper_test_support)
