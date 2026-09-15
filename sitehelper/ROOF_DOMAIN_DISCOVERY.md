@@ -819,15 +819,16 @@ enough to identify domain ownership, terminology, support relationships,
 analysis boundaries and method applicability. The results are captured above.
 No engineering tables/formulas are implemented by this step.
 
-### 26B — freeze roof geometry acceptance fixtures
+### 26B — freeze roof geometry acceptance fixtures — COMPLETE
 
-Turn the six discovery roofs into test-level fixture specifications with exact
-plan coordinates, slope/form intent, vertical references, composition semantics
-and expected plane/edge topology. Include ambiguity tests (for example square
-gable orientation) and compound-roof clipping expectations.
-
-The fixture format should describe intent and expected geometry without assuming
+The six fixture families are frozen in `ROOF_GEOMETRY_FIXTURES.md`. They define
+exact integer-mm source coordinates, explicit slope/orientation and vertical
+reference intent, compound composition semantics, expected visible plane/edge
+topology, ambiguity checks and non-integer intersection cases without assuming
 the final persisted C struct.
+
+The fixtures are now the acceptance gate for the numeric and source-model
+prototypes that follow.
 
 ### 26C — choose and prove the roof slope/plane numeric contract
 
@@ -871,8 +872,8 @@ model rather than define it.
 
 ## Exit criteria for Priority 26 discovery
 
-Priority 26 discovery/design is considered ready to proceed into 26B when the
-project agrees on these constraints:
+Priority 26A and 26B are complete. The project may proceed into 26C while
+preserving these constraints:
 
 1. named roof styles are presets/classifications, not the sole core model;
 2. roof envelope geometry, roof covering and structural roof system are separate
@@ -899,8 +900,10 @@ project agrees on these constraints:
 15. full framing/engineering implementation starts only after roof geometry and
     structural-layout boundaries represent the compound fixtures cleanly.
 
-The next coding/design task is therefore **26B — roof geometry acceptance
-fixtures**, not a framing generator or standards calculator.
+The next coding/design task is therefore **26C — choose and prove the roof
+slope/plane numeric contract**, not a framing generator, persistence integration
+or standards calculator. `ROOF_GEOMETRY_FIXTURES.md` is the acceptance contract
+for that prototype.
 
 ## Standards and construction references consulted
 
