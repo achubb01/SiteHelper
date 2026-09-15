@@ -1,7 +1,9 @@
 # Priority 26 — Roof Domain Discovery
 
-Status: discovery only. This document intentionally introduces no `Roof` C type,
-no persistence grammar, no editor tool and no framing generator.
+Status: discovery/design only. Priority 26A (standards and regulatory discovery)
+is complete. This document intentionally introduces no `Roof` C type, no
+persistence grammar, no editor tool, no standards calculator and no framing
+generator.
 
 The purpose of Priority 26 is to identify the information that must remain
 **authoritative** before SiteHelper commits to a roof object model. The existing
@@ -47,24 +49,244 @@ Wall definition -> deterministic generator -> derived framing
 should be refined for roofs to the conceptual pipeline
 
 ```text
-Authoritative roof intent
-          |
-          v
+                    project / site context
+                 orientation, wind, ground ...
+                           |
+                           v
+Authoritative roof envelope intent
+           |
+           v
 Derived roof geometry / plane network
-          |
-          +----------------------+
-          |                      |
-          v                      v
-roofing/surface consumers   framing-system input
-                                 |
-                                 v
-                         derived roof framing
+           |
+           +-------------------------+
+           |                         |
+           v                         v
+Roof covering specification   Roof structural specification
+                                     |
+                                     v
+                            Roof structural layout
+                                     |
+                                     v
+                            Derived roof framing
+                                     |
+                                     v
+                         Structural/load queries
 ```
+
+Analysis layers such as wind, standards applicability, structural design and
+load-path analysis consume this model; they do not become fields hidden inside
+`RoofDefinition`.
 
 The exact structs and module boundaries are deliberately deferred. The important
 contract is that ridges, hips, valleys and plane intersections generated from
 higher-level intent should not be copied back into a second competing source of
 truth.
+
+## Priority 26A — standards and regulatory discovery
+
+The roof architecture was checked against the principal Australian residential
+sources needed to expose domain concepts before struct design:
+
+- NCC 2022 Volume Two / Housing Provisions structural pathways;
+- AS 1684.2:2021 (including Amendment 1), non-cyclonic residential timber
+  framing;
+- AS 1684.3:2021 (including Amendment 1), cyclonic residential timber framing;
+- AS 1720.3:2016, reconfirmed 2026, design criteria for timber-framed
+  residential buildings;
+- AS 1720.5:2015 (including Amendment 1), reconfirmed 2026, nailplated timber
+  roof trusses;
+- AS 4440:2004, installation of nailplated timber roof trusses;
+- AS 4055:2021 (including Amendment 1), wind loads for housing; and
+- AS/NZS 1170.2:2021 (including Amendments 1 and 2), wind actions.
+
+This is an architectural review, not an implementation of the Standards. The
+Standards remain external normative sources. SiteHelper must not copy their
+protected tables or text into source code or this design note; future compliance
+modules should encode only the rules/data that the project is licensed and
+legally able to implement, with source/edition metadata and tests.
+
+### Standards-derived architectural rules
+
+#### Roof form is not structural-system identity
+
+AS 1684 distinguishes raftered coupled and non-coupled systems from engineered
+trussed roofs. The same exterior envelope can therefore have materially
+different structural systems. A roof-style enum must not mix geometric forms
+(`gable`, `hip`, `skillion`) with structural systems (`coupled`, `non-coupled`,
+`trussed`).
+
+The authoritative model must preserve two independent questions:
+
+```text
+what exterior roof shape is intended?
+
+what structural system is intended to carry it?
+```
+
+#### Structural support/layout is a distinct layer
+
+AS 1684 roof load width and supported-area rules vary with support arrangement,
+including trussed, cathedral, skillion, coupled roofs, ridge support and
+underpurlins. AS 1684 also defines rafter span from actual points of support along
+the rafter rather than from horizontal plan projection.
+
+Therefore plan geometry alone cannot determine all structural consequences. A
+future `RoofStructuralLayout`-like layer must be able to represent structural
+intent such as bearing/support lines, ridge/intermediate support, framing
+orientation and relationships between primary and supported members.
+
+Quantities such as rafter span, roof load width (RLW), uplift load width (ULW),
+supported area and reactions are consequences of geometry + structural layout +
+analysis rules. They should normally be derived rather than persisted as
+editable source values.
+
+#### Trussed roofs require a layout domain, not merely generated timber
+
+AS 1720.5 requires the truss system to be documented as a roof framing plan with
+truss types/locations and associated bracing, tie-down and restraint information.
+AS 4440 uses system concepts such as standard, jack/creeper, hip, truncated,
+girder, Dutch-hip and valley/saddle trusses, plus pitching points and stations.
+
+A truss strategy therefore needs a **layout result** before individual chord/web
+member design. It must not be implemented as "fill every roof plane with the
+same truss".
+
+A geometric valley is also not the same thing as a conventional valley rafter or
+an AS 4440 valley/saddle truss system. These are different layers that happen to
+use the same everyday word.
+
+#### Roof covering is independent authoritative specification
+
+Roof covering affects mass, batten/support requirements, pitch applicability and
+other validation, but it is not roof geometry and not the framing system itself.
+The domain direction is therefore:
+
+```text
+DerivedRoofGeometry
+        |
+        +---- RoofCoveringSpecification
+        |
+        +---- RoofStructuralSpecification
+```
+
+The two specifications may constrain and inform each other through validation;
+neither should own the other.
+
+#### Geometry validity is separate from standards applicability
+
+The reviewed standards have different scope limits. For example, conventional
+AS 1684 and simplified AS 4055 pathways have roof-pitch limits that are not the
+same as the design scope of AS 1720.5, while AS/NZS 1170.2 includes wind methods
+for roof slopes outside the simplified-housing range.
+
+SiteHelper therefore must distinguish:
+
+```text
+GEOMETRY_VALID
+
+STANDARD_METHOD_APPLICABLE
+STANDARD_METHOD_OUTSIDE_SCOPE
+STANDARD_METHOD_REQUIRES_ENGINEERED_DESIGN
+```
+
+A roof that falls outside a particular Deemed-to-Satisfy or simplified method
+must remain representable in the building model. Regulatory scope must not be
+encoded as CAD geometry validity.
+
+#### Wind/site data belongs above the roof domain
+
+AS 4055 determines housing wind classification from site conditions. AS/NZS
+1170.2 further shows that wind actions are directional: site wind speeds are
+considered by cardinal direction and transformed relative to building axes.
+Consequently SiteHelper will eventually need a project/site relationship to true
+north (or another explicit orientation datum).
+
+Do not make plan +X or +Y silently mean north, and do not place site wind
+classification, terrain, topography or shielding directly on `RoofDefinition`.
+These belong to a project/site structural-design context consumed by roof, wall,
+cladding, bracing and tie-down analyses.
+
+#### Wind-facing roles are analysis-time classifications
+
+A physical roof plane is not permanently "upwind", "downwind" or "crosswind".
+Those roles change with the wind case. Likewise local pressure regions near roof
+edges, corners, hips and ridges depend on the building/roof geometry and the
+analysis direction.
+
+The model should support:
+
+```text
+DerivedRoofGeometry + WindCase
+                |
+                v
+Directional plane roles / pressure regions
+```
+
+rather than persisting aerodynamic classifications into roof authority.
+
+#### Wind analysis consumes the building envelope, not only the roof
+
+AS/NZS 1170.2 internal-pressure treatment depends on openings, leakage,
+building-envelope surfaces and in some cases enclosed volume. A future wind
+module therefore needs a building-envelope view spanning walls, roof surfaces
+and openings. Roof engineering must not become a self-contained wind solver.
+
+#### Reference height and ground are cross-domain inputs
+
+Wind standards use roof height relative to ground and distinguish upper/lower
+roof conditions. This reinforces that a roof's vertical placement cannot be
+silently reconstructed from `Storey.elevation_mm`, the next Storey or current
+wall `stud_height`.
+
+Future site/ground modelling and roof spatial placement must meet through an
+explicit query boundary rather than hidden arithmetic inside the roof generator.
+
+#### Load path is a project-wide structural concern
+
+The framing standards explicitly carry roof loads through supporting walls,
+beams, posts and other members, and truss rules distinguish concentrated loads
+from girder/support relationships. The eventual load graph must cross domain
+boundaries:
+
+```text
+roof member / truss
+        |
+        v
+wall / beam / post
+        |
+        v
+lower framing / slab / footing
+```
+
+Priority 26 should expose the necessary support relationships but should not
+invent a roof-specific load-path engine that later has to be replaced.
+
+### Standards requirements matrix for domain ownership
+
+| Concept | Likely owner / status |
+| --- | --- |
+| roof envelope source geometry | authoritative roof intent |
+| pitch / fall direction / vertical reference | authoritative roof intent |
+| eave/barge projection intent | authoritative roof intent |
+| roof covering choice/specification | authoritative covering specification |
+| structural-system choice | authoritative structural specification |
+| support/bearing arrangement where not safely inferable | authoritative structural intent |
+| true-north/building orientation | project/site context |
+| wind region/terrain/topography/shielding | project/site structural context |
+| generated planes/ridges/hips/valleys | derived roof geometry |
+| upwind/downwind/crosswind plane role | derived per wind case |
+| local roof pressure regions | derived wind analysis |
+| rafter/truss span | derived from member/support geometry |
+| RLW / ULW / supported/tributary area | derived structural query |
+| truss type/location layout | derived or staged structural-layout result |
+| individual rafters/trusses/chords/webs | derived framing/design result |
+| reactions/load paths | derived structural analysis |
+| standards-method applicability | derived validation result |
+
+The single important qualification is support intent: two roofs with identical
+exterior geometry can have different valid structural support schemes. Where
+support cannot be inferred unambiguously, the user/design process must be able
+to author it explicitly.
 
 ## Why a single `RoofType` is not authoritative
 
@@ -340,8 +562,9 @@ must remain representable.
 
 The future framing stage must be able to distinguish at least:
 
-- prefabricated trussed framing;
-- conventional/cut rafter framing;
+- conventional/cut rafter framing, including coupled and non-coupled structural
+  arrangements where applicable;
+- prefabricated nailplated trussed framing;
 - mixed/special conditions where one strategy does not describe the whole roof.
 
 Member sizes, spacing, truss families, girder/truncated truss choices, strutting
@@ -350,6 +573,47 @@ specification/strategy layer consumed after roof geometry exists.
 
 The initial roof geometry work must therefore avoid types such as `Rafter` or
 `Truss` in `RoofDefinition`.
+
+### 9. Structural support intent
+
+The standards review shows that roof load distribution and member spans depend
+on how the roof is supported, not merely on its exterior shape. A future roof
+structural specification/layout must therefore be able to express support intent
+when it cannot be derived safely from other authoritative construction.
+
+Examples include:
+
+- a ridge acting as a non-structural ridgeboard versus a supported ridge beam;
+- intermediate rafter support;
+- an underpurlin/strut support arrangement;
+- truss bearing lines and changes in truss run;
+- girder relationships where one framing family supports another.
+
+Do not solve this with persistent raw pointers to Walls or generated members.
+Where cross-domain authority is required, use stable DomainIds plus an explicit
+relationship semantic. Derived reactions and load widths should reference the
+resolved support graph, not duplicate it as scalar properties.
+
+### 10. Roof covering specification
+
+The roof covering is authoritative product/construction intent but is neither
+roof geometry nor structural framing identity. At minimum the future architecture
+must allow covering properties relevant to geometry/structure validation to be
+queried without `RoofDefinition` becoming a product database.
+
+Covering mass, support/batten requirements and permitted pitch may influence
+validation and structural actions. The exact product/material model remains a
+later domain decision.
+
+### 11. Project/site structural context
+
+Roof analysis will eventually consume project-level information that is not
+owned by a roof: jurisdiction/standards pathway, building orientation, site/ground
+reference, wind context and later other environmental/design actions.
+
+Priority 26 does not define that context, but the roof API must be designed so
+those inputs can be supplied explicitly. No roof field should silently assume
+true north, site wind classification or ground elevation.
 
 ## Information that should be derived, not authoritative
 
@@ -366,7 +630,12 @@ For roofs generated from higher-level intent, these should normally be outputs:
 - ridge/hip/valley/eave lengths;
 - conventional rafters/jacks/hips/valleys;
 - truss layout and individual truss members;
-- roofing/cladding layouts and quantities.
+- roofing/cladding layouts and quantities;
+- structural support graph consequences (spans, tributary/supported areas,
+  RLW/ULW and reactions);
+- wind-facing plane roles for a particular wind direction;
+- local wind pressure regions derived from roof/building geometry;
+- standards-method applicability results.
 
 As with `PlanTopology`, a derived roof-geometry snapshot should have an explicit
 lifetime and become stale after authoritative roof edits. It should not allocate
@@ -384,7 +653,10 @@ Priority 26 does **not** decide or implement:
 - the final pitch numeric representation;
 - automatic roof generation from rooms/walls;
 - roof support/load-path engineering;
+- project/site wind and true-north modelling;
+- building-envelope wind analysis;
 - AS 1684 member sizing or compliance calculations;
+- AS 4055 / AS/NZS 1170.2 wind calculations;
 - nail-plated truss engineering/design;
 - fascia, gutter, soffit or barge construction;
 - roof cladding/material systems;
@@ -473,17 +745,24 @@ derived representation with a similarly strict authority/lifetime contract.
 
 ## Relationship to walls and supports
 
-A future framing generator will eventually need support information: walls,
-beams, hangers/bearers, girder trusses, load-bearing lines and possibly explicit
-engineering decisions. That is a later structural-support problem.
+A future framing generator will need support information: walls, beams, posts,
+ridge/intermediate beams, underpurlin/strut systems, truss bearing lines, girder
+trusses and possibly explicit engineering decisions. The standards review shows
+that this is not optional metadata: support arrangement changes member spans,
+load distribution and downstream load paths.
 
-The roof envelope generator should first be able to answer "what is the intended
-roof shape?" without requiring every support/member decision. Conversely, a
-framing generator must not assume that every boundary of a roof plane is a
-load-bearing wall.
+The roof envelope generator should still first be able to answer "what is the
+intended roof shape?" without requiring every support/member decision.
+`DerivedRoofGeometry` therefore remains independent of structural layout.
 
-This separation is particularly important for prefabricated trusses, which can
-span across non-load-bearing internal walls.
+After geometry exists, a structural-layout stage can resolve authored support
+intent against the current project model using stable IDs and geometry queries.
+That stage may derive support topology but must never assume every roof-plane
+boundary is load-bearing or every internal wall supports the roof.
+
+This separation is particularly important for prefabricated trusses, which may
+span across non-load-bearing internal walls and introduce concentrated reactions
+at girder/support locations.
 
 ## Validation direction
 
@@ -495,7 +774,14 @@ Future validation should be layered rather than one giant `roof_valid()` rule:
 4. derive a complete roof-plane network transactionally;
 5. validate the derived network is finite, closed/coherent where required and
    free of unsupported degeneracies;
-6. only then run framing-system-specific validation/generation.
+6. validate structural-system/support intent against the current project;
+7. derive structural layout and structural query data;
+8. evaluate the selected standards/design method for **applicability**;
+9. only when applicable, run method-specific structural/compliance checks.
+
+Geometry validity and standards applicability are deliberately different result
+types. A valid 3D roof must not become an invalid project merely because a
+particular simplified standard is out of scope.
 
 Project validation should inspect authoritative state. It should not reject a
 project merely because a derived snapshot has not been built, just as current
@@ -507,8 +793,14 @@ Do not bump persistence during discovery. Format 14 remains correct while no new
 authoritative roof data exists.
 
 When roof authority is eventually introduced, persist only the source intent
-needed to regenerate roof geometry and framing. Never persist both source intent
-and a generated plane/ridge/valley/member network as co-equal truth.
+needed to regenerate roof geometry and structural layout/framing. Never persist
+both source intent and a generated plane/ridge/valley/member network as co-equal
+truth. RLW/ULW, wind pressure regions, reactions and standards-applicability
+results are analysis outputs, not roof authority.
+
+If project/site context later becomes authoritative (for example true-north
+orientation or a selected standards/design context), persist it at that owning
+layer rather than duplicating it into each roof.
 
 Legacy projects should load with zero roofs unless a later migration has a
 well-defined non-heuristic source for creating one. Do not infer roofs from wall
@@ -516,79 +808,128 @@ loops during persistence migration.
 
 ## Recommended Priority 26 implementation sequence
 
-Discovery should turn into code in narrow steps rather than jumping directly to
-rafters:
+Priority 26A is complete as a design/research gate. Code should now advance in
+narrow geometry-first steps rather than jumping to rafters or standards
+calculators.
 
-### 26A — freeze discovery fixtures as geometry acceptance cases
+### 26A — standards and regulatory discovery — COMPLETE
 
-Write test-level fixture descriptions for the six roofs above, including plan
-coordinates, pitch/orientation intent, reference levels and expected topological
-features. No domain structs yet if the representation remains unsettled.
+Review the relevant residential framing, truss and wind standards only far
+enough to identify domain ownership, terminology, support relationships,
+analysis boundaries and method applicability. The results are captured above.
+No engineering tables/formulas are implemented by this step.
 
-### 26B — choose and prove the roof slope/plane numeric contract
+### 26B — freeze roof geometry acceptance fixtures
+
+Turn the six discovery roofs into test-level fixture specifications with exact
+plan coordinates, slope/form intent, vertical references, composition semantics
+and expected plane/edge topology. Include ambiguity tests (for example square
+gable orientation) and compound-roof clipping expectations.
+
+The fixture format should describe intent and expected geometry without assuming
+the final persisted C struct.
+
+### 26C — choose and prove the roof slope/plane numeric contract
 
 Prototype only the mathematics needed to represent one sloping plane and
-intersect two planes deterministically. Decide pitch authority (rational versus
-fixed-point angle) based on common input round trips and cross-platform tests.
+intersect/clip planes deterministically. Decide pitch authority (for example
+normalized rise/run versus fixed-point angle) based on common-input round trips,
+integer-mm boundaries and cross-platform tests.
 
-### 26C — minimal roof-intent prototype
+### 26D — minimal roof-intent / geometry prototype
 
 Implement the smallest source representation capable of gable, hip and skillion
 without storing derived ridges/hips. Generate an owned transient roof-geometry
 snapshot.
 
-### 26D — compound/intersection prototype
+### 26E — compound/intersection prototype
 
-Add the intersecting-gable valley case and then Dutch-gable termination. If the
-26C representation needs special-case fields for each named roof style, stop and
-revise the abstraction before persistence or editor integration.
+Add the intersecting-gable valley case and then Dutch-gable/termination and
+multi-level cases. If the 26D representation needs special-case fields for each
+named roof style, stop and revise the abstraction before persistence/editor
+integration.
 
-### 26E — ownership, IDs, commands and persistence
+### 26F — structural-layout boundary prototype
 
-Only after the six fixtures fit naturally should roof authority enter
-`SiteHelperProject`/Storey, global identity, command history and a new persistence
-version.
+Define the contract between derived roof geometry and structural strategies.
+Prove at the API/model level that both a conventional rafter system and a truss
+system can consume the same geometry while supplying different support/layout
+intent. Do not implement full engineering yet.
 
-### 26F — framing strategy boundary
+### 26G — ownership, IDs, commands and persistence
 
-Define the input/output contract between derived roof geometry and framing
-strategies. Prove that both a conventional-rafter strategy and a truss-layout
-strategy can consume the same roof geometry before implementing either deeply.
+Only after all six geometry fixtures and the structural-layout boundary fit
+naturally should roof authority enter `SiteHelperProject`/Storey, global
+identity, command history and a new persistence version.
+
+### Later engineering priorities — not Priority 26
+
+Standards applicability, wind analysis, member sizing, tie-down/bracing and load
+path should become dedicated engineering/analysis priorities after the physical
+roof domain and structural-layout contracts exist. They should consume the roof
+model rather than define it.
 
 ## Exit criteria for Priority 26 discovery
 
-Priority 26 discovery is complete when the project agrees on these constraints:
+Priority 26 discovery/design is considered ready to proceed into 26B when the
+project agrees on these constraints:
 
 1. named roof styles are presets/classifications, not the sole core model;
-2. roof envelope geometry is separate from roof framing system;
-3. ridge/hip/valley networks are derived from source roof intent where possible;
-4. slope magnitude, slope orientation, vertical reference, plan extent,
+2. roof envelope geometry, roof covering and structural roof system are separate
+   concepts;
+3. structural support/layout is distinct from both envelope geometry and
+   individual generated members;
+4. ridge/hip/valley networks are derived from source roof intent where possible;
+5. slope magnitude, slope orientation, vertical reference, plan extent,
    boundary behaviour, projections and source-composition intent are all
    representable authoritative inputs;
-5. no roof datum is silently inferred from Storey elevation, next Storey, or
+6. support/bearing intent can be authored explicitly where it cannot be safely
+   inferred;
+7. no roof datum is silently inferred from Storey elevation, next Storey, or
    current wall stud height;
-6. no raw Wall pointers or persistent derived topology are required;
-7. pitch numeric representation remains deliberately unresolved until a small
-   deterministic geometry prototype tests it;
-8. the six fixtures above gate any proposed struct design;
-9. persistence remains v14 until an authoritative representation is proven;
-10. framing implementation starts only after roof geometry can represent the
-    compound fixtures cleanly.
+8. no raw Wall pointers or persistent derived topology are required;
+9. true north, wind/site context and ground reference are project/site concerns,
+   not hidden roof properties;
+10. directional wind roles and pressure regions are derived analysis state;
+11. geometry validity and standards-method applicability are separate results;
+12. pitch numeric representation remains deliberately unresolved until a small
+    deterministic geometry prototype tests it;
+13. the six fixtures above gate any proposed struct design;
+14. persistence remains v14 until an authoritative representation is proven;
+15. full framing/engineering implementation starts only after roof geometry and
+    structural-layout boundaries represent the compound fixtures cleanly.
 
-The next coding task should therefore be **26A/26B, not a roof framing
-generator**.
+The next coding/design task is therefore **26B — roof geometry acceptance
+fixtures**, not a framing generator or standards calculator.
 
-## External construction references consulted
+## Standards and construction references consulted
 
-- National Construction Code, Volume Two / Housing Provisions framing material:
-  roof framing terminology and separate pathways for timber framing and
-  nail-plated timber roof trusses.
-- WoodSolutions, *Lightweight Timber Framing Guide*: Australian residential
-  context for prefabricated roof trusses and conventional roof framing.
-- National Dictionary of Building & Plumbing Terms: Australian definitions for
-  skillion and Dutch-gable roof forms.
+The Priority 26A conclusions above were derived from the following source set:
 
-These references inform terminology and construction context only. SiteHelper's
-future engineering/compliance rules must be implemented against the applicable
-current standards and project jurisdiction rather than copied from this discovery
-note.
+- NCC 2022 Volume Two / Housing Provisions — structural/framing compliance
+  pathways and roof-cladding separation;
+- AS 1684.2:2021 including Amendment 1 — non-cyclonic residential timber
+  framing, especially Clauses 1.3.6, 1.4, 2.6.4-2.6.5 and Section 7;
+- AS 1684.3:2021 including Amendment 1 — cyclonic counterpart used to verify
+  that the same core roof/support distinctions survive a different wind region;
+- AS 1720.3:2016, reconfirmed 2026 — design criteria and structural models for
+  conventional residential roof members;
+- AS 1720.5:2015 including Amendment 1, reconfirmed 2026 — nailplated truss
+  design, documentation, structural models and affected-area concepts;
+- AS 4440:2004 — truss-system installation/layout terminology, support and
+  girder/hip/valley relationships;
+- AS 4055:2021 including Amendment 1 — housing wind classification and roof/wall
+  pressure-zone context; and
+- AS/NZS 1170.2:2021 including Amendments 1 and 2 — directional wind action,
+  building orientation/reference height, tributary area, roof shape factors and
+  local pressure regions.
+
+WoodSolutions and the National Dictionary of Building & Plumbing Terms were
+used earlier for general construction terminology only; the Australian Standards
+and NCC sources above supersede them where normative concepts are involved.
+
+This document deliberately records architectural consequences rather than
+reproducing protected Standard text, tables or design equations. Any future
+engineering/compliance implementation must identify the exact applicable
+jurisdiction, NCC edition, Standard edition/amendments and licensed source data
+at the time that feature is built.
