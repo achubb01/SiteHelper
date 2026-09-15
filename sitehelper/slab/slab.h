@@ -175,6 +175,16 @@ SlabCode slab_remove_edge_rebate(Slab *slab, size_t index);
 const SlabEdgeRebate *slab_edge_rebate_at(const Slab *slab, size_t index);
 SlabCode slab_edge_rebate_length_mm(const SlabEdgeRebate *rebate, int *output);
 
+/* Property-only mutation. Geometry/identity/collection order are preserved.
+ * Each operation validates the complete resulting Slab and restores the old
+ * values on failure, so callers never observe a partially applied property edit. */
+SlabCode slab_set_base_properties(Slab *slab, int thickness_mm,
+    int top_level_offset_mm);
+SlabCode slab_set_region_properties(Slab *slab, size_t index,
+    int top_level_offset_mm, int thickness_mm);
+SlabCode slab_set_edge_rebate_properties(Slab *slab, size_t index,
+    int start_offset_mm, int end_offset_mm, int width_mm, int depth_mm);
+
 /* Lookup/removal reject incoherent collection metadata. Append transfers ownership and
  * zeros candidate only on success; failure changes neither owner. IDs must be
  * unique locally; the project layer enforces the global identity namespace.

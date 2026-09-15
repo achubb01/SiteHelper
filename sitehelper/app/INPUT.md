@@ -127,3 +127,36 @@ Priority 11 adds transient text/numeric entry and exact Wall length placement. I
 | `sitehelper/editor/sitehelper_editor.c` | Raw direction updates and shared normal Wall action creation. |
 | `sitehelper/editor/tests/test_wall_tool.c` | Exact-length and numeric edge tests alongside existing mouse tests. |
 | `sitehelper/topology/tests/test_plan_topology.c` | Correct pre-existing minimum-integer oracle without signed overflow; assertions unchanged. |
+
+## Priority 25E4 extension — numeric slab properties
+
+`AppInput` now has a second explicit keyboard owner,
+`APP_KEYBOARD_FOCUS_PROPERTY_MM`, alongside Wall-tool length entry. The property
+session stores only a typed `EditorProperty` and value identity
+(selection kind, parent slab `DomainId`, subordinate index when applicable); it
+never keeps a Project/entity pointer. `app_input_refresh_in_project()` cancels
+that session if the selected value no longer resolves in the current Storey.
+The older project-free refresh/route wrappers remain for the original Wall
+workflow.
+
+A property field is seeded with its current authoritative integer-mm value so the
+user can inspect/edit it. The first committed text-input event replaces that
+seed, matching CAD-style direct entry; pressing cursor/backspace/delete first
+instead opts into editing the seed in place. The existing exact `length_parse_mm`
+grammar is reused, including signed values and `mm`/`m` suffixes. Parsing does
+not enforce construction validity: for example `0` is a valid parsed integer,
+but a zero slab thickness is rejected later by the slab domain.
+
+Enter creates an ordinary `EditorAction`/`SiteHelperCommand`, which the existing
+application history path executes. Success reconciles editor state and releases
+property focus. A failed domain/history execution leaves the text and focus
+intact with `Property rejected; edit or retry`. Enter on an unchanged current
+value closes the session without adding a no-op history entry. Escape cancels.
+While the property field owns keyboard focus, global shortcuts and viewport
+primary-click selection remain suppressed just like the original numeric Wall
+entry; toolbar changes explicitly cancel property focus.
+
+The slab properties panel and numeric HUD are presentation only. The panel reads
+fresh `EditorProperties`, hit-tests screen-space rows and starts the typed input
+session; it never mutates Slab data. Unfinished text, active property, cursor and
+focus are transient and are not persisted. Persistence remains v14.

@@ -51,5 +51,6 @@ nor compliance rules.
 All three feature tools emit the owning ADD commands through history. They never
 allocate subordinate DomainIds. Escape, tool/view/Storey changes, project
 replacement, and loss of the locked parent cancel transient state. Unfinished
-polygons, rebate endpoints, and UI defaults are never persisted. Movement,
-reshape, and property/numeric editing remain later work.
+polygons, rebate endpoints, and UI defaults are never persisted. Movement and
+reshape remain later work. Priority 25E4 now edits the existing scalar slab,
+region and rebate properties through the separate properties/history path.

@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include "app_input_hud.h"
 #include "app_input.h"
+#include "app_properties_panel.h"
 
 #include "sitehelper_project.h"
 #include "sitehelper_editor.h"
@@ -470,6 +471,12 @@ static void sitehelper_app_render(
         &app->gui_style
     );
 
+    AppPropertiesPanel properties_panel;
+    if (app_properties_panel_build(&app->editor,&app->project,&properties_panel)) {
+        app_properties_panel_draw(app->renderer,&properties_panel,app->gui_layout.properties,
+            app->input.focus == APP_KEYBOARD_FOCUS_PROPERTY_MM,app->input.property);
+    }
+
     /* Identify the new query tool by action ID, independent of toolbar order. */
     for (size_t i = 0; i < app->toolbar.button_count; i++) {
         const GuiButton *button = &app->toolbar.buttons[i];
@@ -506,10 +513,12 @@ static int sitehelper_app_execute_action(SiteHelperApp *app, EditorAction *actio
         editor_action_destroy(action);
         return 0;
     }
+    int property_commit=app->input.focus == APP_KEYBOARD_FOCUS_PROPERTY_MM;
     sitehelper_editor_complete_action(&app->editor, action, &result);
     editor_action_destroy(action);
     sitehelper_editor_reconcile(&app->editor, &app->project);
-    app_input_refresh(&app->input, &app->editor);
+    if (property_commit) { app_input_cancel(&app->input,&app->editor); }
+    else { app_input_refresh_in_project(&app->input,&app->editor,&app->project); }
     return 1;
 }
 
@@ -529,7 +538,7 @@ static void sitehelper_app_process_events(
     const double pan_amount = 100.0;
 
     for (;;) {
-        app_input_refresh(&app->input, &app->editor);
+        app_input_refresh_in_project(&app->input, &app->editor, &app->project);
         app->text_input_failed = !renderer2d_sdl_set_text_input(&app->backend,
             app_input_wants_text(&app->input, &app->editor));
         if (!platform_event_sdl_poll_event(&event)) { break; }
@@ -542,7 +551,7 @@ static void sitehelper_app_process_events(
             case PLATFORM_EVENT_KEY_DOWN:
             {
                 EditorAction action;
-                AppInputResult result = app_input_route(&app->input, &app->editor, &event, &action);
+                AppInputResult result = app_input_route_in_project(&app->input, &app->editor, &app->project, &event, &action);
                 switch (result) {
                     case APP_INPUT_COMMAND:
                         if (!sitehelper_app_execute_action(app, &action)) { app->input.command_failed = 1; }
@@ -694,7 +703,20 @@ static void sitehelper_app_process_events(
                         if (sitehelper_app_toolbar_action_tool(
                                 toolbar_result.action_id,
                                 &tool)) {
+                            if (app->input.focus == APP_KEYBOARD_FOCUS_PROPERTY_MM) {
+                                app_input_cancel(&app->input,&app->editor);
+                            }
                             sitehelper_app_set_active_tool(app, tool);
+                        }
+                    }
+                    else if (rect2_contains_point(app->gui_layout.properties,screen_position)) {
+                        AppPropertiesPanel panel;
+                        EditorProperty property;
+                        if (app_properties_panel_build(&app->editor,&app->project,&panel) &&
+                            app_properties_panel_hit(&panel,app->gui_layout.properties,screen_position,&property)) {
+                            (void)app_input_begin_property(&app->input,&app->editor,&app->project,property);
+                        } else if (app->input.focus == APP_KEYBOARD_FOCUS_PROPERTY_MM) {
+                            app_input_cancel(&app->input,&app->editor);
                         }
                     }
                     else if (

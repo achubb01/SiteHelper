@@ -23,11 +23,47 @@ typedef struct
 
 typedef struct
 {
+    DomainId slab_id;
+    int thickness_mm;
+    int top_level_offset_mm;
+    size_t vertex_count;              /* Read-only geometry summary. */
+} EditorSlabProperties;
+
+typedef struct
+{
+    DomainId slab_id;
+    size_t feature_index;
+    size_t vertex_count;              /* Geometry editing is deferred. */
+} EditorSlabPenetrationProperties;
+
+typedef struct
+{
+    DomainId slab_id;
+    size_t feature_index;
+    int top_level_offset_mm;
+    int thickness_mm;
+    size_t vertex_count;              /* Geometry editing is deferred. */
+} EditorSlabRegionProperties;
+
+typedef struct
+{
+    DomainId slab_id;
+    size_t feature_index;
+    SlabEdgeRebate definition;        /* edge_index is read-only in 25E4. */
+    int length_mm;                    /* Read-only, derived from U interval. */
+} EditorSlabEdgeRebateProperties;
+
+typedef struct
+{
     EditorSelectionKind kind;
     union
     {
         EditorWallProperties wall;
         EditorOpeningProperties opening;
+        EditorSlabProperties slab;
+        EditorSlabPenetrationProperties slab_penetration;
+        EditorSlabRegionProperties slab_region;
+        EditorSlabEdgeRebateProperties slab_edge_rebate;
     } data;
 } EditorProperties;
 
@@ -53,7 +89,15 @@ typedef enum
     EDITOR_PROPERTY_OPENING_HEIGHT,
     EDITOR_PROPERTY_OPENING_CUSTOM_ALLOWANCE,
     EDITOR_PROPERTY_OPENING_WIDTH_ALLOWANCE,
-    EDITOR_PROPERTY_OPENING_HEIGHT_ALLOWANCE
+    EDITOR_PROPERTY_OPENING_HEIGHT_ALLOWANCE,
+    EDITOR_PROPERTY_SLAB_THICKNESS,
+    EDITOR_PROPERTY_SLAB_TOP_LEVEL,
+    EDITOR_PROPERTY_SLAB_REGION_TOP_LEVEL,
+    EDITOR_PROPERTY_SLAB_REGION_THICKNESS,
+    EDITOR_PROPERTY_SLAB_REBATE_START,
+    EDITOR_PROPERTY_SLAB_REBATE_END,
+    EDITOR_PROPERTY_SLAB_REBATE_WIDTH,
+    EDITOR_PROPERTY_SLAB_REBATE_DEPTH
 } EditorProperty;
 
 typedef struct
@@ -66,6 +110,11 @@ typedef struct
         bool custom_allowance;        /* OPENING_CUSTOM_ALLOWANCE only. */
     } value;
 } EditorPropertyEdit;
+
+/* Return the current integer-mm value for a property that belongs to the active
+ * selected object. Useful to seed numeric editing without caching model state. */
+int sitehelper_editor_property_millimetres(const SiteHelperEditor *editor,
+    const SiteHelperProject *project, EditorProperty property, int *millimetres);
 
 /* Copy the current definition and replace one typed component. Does not mutate
  * or validate geometry: execute through command history, then reconcile editor

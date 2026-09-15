@@ -292,3 +292,19 @@ they add no dependencies or state to this domain library. Priority 25E2+,
 explicit step objects/extraction, panel/service recesses, footings, reinforcement,
 wall/room relationships or generation, editing tools, commands/history and
 take-off integration remain deferred.
+
+### Property-only mutation
+
+Priority 25E4 adds narrow failure-atomic setters for scalar slab properties:
+`slab_set_base_properties()`, `slab_set_region_properties()` and
+`slab_set_edge_rebate_properties()`. They preserve Slab identity, all polygon
+geometry, collection order and rebate host `edge_index`. Each validates the
+existing Slab first, applies only the requested scalar candidate values, then
+runs full `slab_validate()`. A failed resulting validation restores the old
+values before returning its `SlabCode`.
+
+These setters intentionally contain no GUI/unit parsing/history behavior. Base
+and region top-level offsets remain signed Storey-relative millimetres;
+base/region thickness and rebate width/depth retain their existing positive
+requirements; rebate U intervals and same-edge overlap retain the existing 25D
+rules. No new persisted representation is introduced.

@@ -172,6 +172,7 @@ add_library(sitehelper_command
     command/create_slab_command.c
     command/delete_slab_command.c
     command/slab_feature_command.c
+    command/edit_slab_command.c
     command/sitehelper_command.c
     command/command_history.c
 )
@@ -302,6 +303,7 @@ endif()
 add_library(sitehelper_app_core
     app/app_input.c
     app/app_input_hud.c
+    app/app_properties_panel.c
     app/appstate.c
     app/app_view.c
 )
@@ -564,6 +566,10 @@ add_executable(test_editor_properties editor/tests/test_editor_properties.c)
 target_link_libraries(test_editor_properties PRIVATE sitehelper_editor sitehelper_test_support)
 add_test(NAME editor_properties_tests COMMAND test_editor_properties)
 
+add_executable(test_slab_editor_properties editor/tests/test_slab_editor_properties.c)
+target_link_libraries(test_slab_editor_properties PRIVATE sitehelper_editor sitehelper_test_support)
+add_test(NAME slab_editor_properties_tests COMMAND test_slab_editor_properties)
+
 add_executable(test_opening_geometry wall/tests/test_opening_geometry.c)
 target_link_libraries(test_opening_geometry PRIVATE sitehelper_test_support)
 add_test(NAME opening_geometry_tests COMMAND test_opening_geometry)
@@ -644,6 +650,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
         "LINKER:--wrap=malloc" "LINKER:--wrap=realloc")
 endif()
 add_test(NAME slab_feature_insert_tests COMMAND test_slab_feature_insert)
+
+add_executable(test_slab_property_command command/tests/test_slab_property_command.c)
+target_link_libraries(test_slab_property_command PRIVATE sitehelper_command sitehelper_test_support)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_slab_property_command PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_slab_property_command PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME slab_property_command_tests COMMAND test_slab_property_command)
 
 add_executable(test_slab_feature_command command/tests/test_slab_feature_command.c)
 target_link_libraries(test_slab_feature_command PRIVATE sitehelper_command sitehelper_test_support)
@@ -949,6 +964,10 @@ add_executable(test_app_input app/tests/test_app_input.c)
 target_link_libraries(test_app_input PRIVATE sitehelper_app_core)
 add_test(NAME app_input_tests COMMAND test_app_input)
 
+add_executable(test_slab_property_input app/tests/test_slab_property_input.c)
+target_link_libraries(test_slab_property_input PRIVATE sitehelper_app_core)
+add_test(NAME slab_property_input_tests COMMAND test_slab_property_input)
+
 add_executable(test_sdl_input app/tests/test_sdl_input.c app/viewport_input.c)
 target_link_libraries(test_sdl_input PRIVATE sitehelper_app_core sitehelper_persistence renderer2d_sdl platform_event_sdl SDL3::SDL3)
 add_test(NAME sdl_input_tests COMMAND test_sdl_input)
@@ -987,6 +1006,10 @@ endif()
 add_executable(test_slab slab/tests/test_slab.c)
 target_link_libraries(test_slab PRIVATE sitehelper_slab)
 add_test(NAME slab_tests COMMAND test_slab)
+
+add_executable(test_slab_property_edit slab/tests/test_slab_property_edit.c)
+target_link_libraries(test_slab_property_edit PRIVATE sitehelper_slab)
+add_test(NAME slab_property_edit_tests COMMAND test_slab_property_edit)
 
 add_executable(test_slab_plan_query slab_plan/tests/test_slab_plan_query.c)
 target_link_libraries(test_slab_plan_query PRIVATE sitehelper_slab_plan_query)

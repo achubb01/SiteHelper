@@ -1,9 +1,11 @@
 #include "app_input_hud.h"
+#include "app_properties_panel.h"
+#include <stdio.h>
 #include <string.h>
 
 void app_input_draw_hud(Renderer2D *renderer, const AppInput *input, Rect2 viewport)
 {
-    if (renderer != NULL && input != NULL && input->focus == APP_KEYBOARD_FOCUS_TOOL_LENGTH && viewport.width > 24) {
+    if (renderer != NULL && input != NULL && input->focus != APP_KEYBOARD_FOCUS_NONE && viewport.width > 24) {
         const TextEdit *edit = &input->text;
         char display[TEXT_EDIT_CAPACITY];
         size_t count = 0, cursor = 0;
@@ -32,7 +34,13 @@ void app_input_draw_hud(Renderer2D *renderer, const AppInput *input, Rect2 viewp
         renderer2d_begin_viewport_clip(renderer);
         renderer2d_fill_screen_rect(renderer,
             (Rect2){origin, available, 68.0}, (Colour){25, 25, 25, 245});
-        renderer2d_draw_screen_text(renderer, origin, "Wall length (mm / m)", colour);
+        char title[96];
+        if (input->focus == APP_KEYBOARD_FOCUS_PROPERTY_MM) {
+            snprintf(title,sizeof title,"%s (mm / m)",app_property_label(input->property));
+        } else {
+            snprintf(title,sizeof title,"Wall length (mm / m)");
+        }
+        renderer2d_draw_screen_text(renderer, origin, title, colour);
         renderer2d_draw_screen_text(renderer, (Vec2){origin.x, origin.y + 16}, visible, colour);
         renderer2d_draw_screen_text(renderer, (Vec2){origin.x, origin.y + 26}, caret, colour);
         renderer2d_draw_screen_text(renderer, (Vec2){origin.x, origin.y + 44},

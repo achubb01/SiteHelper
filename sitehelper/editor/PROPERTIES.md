@@ -134,3 +134,55 @@ The strict audit script reads `/tmp/p10-normal/compile_commands.json`, skips ext
 14. **Later priorities and existing limitations.** Build actual property controls, parsing, validation feedback and opening-selection highlighting on these APIs. The current rectangle-only properties panel remains visually unchanged; elevation opening selection is functional but has no dedicated highlight yet. Decide an explicit anchoring policy before making length editable. Settings commands/history belong to a future configuration-editing priority; existing live settings setters still operate outside history.
 
    Existing door framing uses a floor-based trimmer height even though `frame_bottom` is stored and used by opening validation. The hit query consistently uses the authoritative U/Z rectangle; it does not infer geometry from Timber. A future door-domain policy should align bottom semantics and door generation without silently rewriting definitions here. Existing window generation can reject proposals that pass `wall_validate_opening` (for example a zero-bottom window cannot generate lower cripples). This operation correctly rolls back those generation failures, but future work should improve preview/error diagnostics and align validation with generator capabilities in the Wall subsystem. Existing add-opening command code also stages candidate definitions locally; a later internal consolidation could share Wall transaction mechanics, while retaining atomic Project ID allocation. None of these issues requires another validation implementation in the GUI, editor or command layer.
+
+## Priority 25E4 — slab property editing
+
+Priority 25E4 extends the same transient snapshot → typed intent → command/history
+boundary to slab-family values. It adds no persisted fields and keeps persistence
+at version 14.
+
+`sitehelper_editor_inspect_properties()` now projects the selected slab, void,
+replacement region or edge rebate from the current Storey. Slab and region
+properties expose their Storey-relative top level and thickness. Rebate
+properties expose a by-value `SlabEdgeRebate` plus derived interval length. A
+penetration exposes only its parent/index and vertex count because polygon
+reshape remains deferred. Subordinate indices are still ephemeral positions,
+not identities.
+
+The editable scalar intents are:
+
+- slab base thickness and Storey-relative top-level offset;
+- replacement-region thickness and Storey-relative top-level offset;
+- edge-rebate start U, end U, inward width and downward depth.
+
+Rebate `edge_index`, every polygon outline, slab identity and subordinate
+collection position remain read-only in this priority. `sitehelper_editor_property_millimetres()`
+reads the selected authoritative value on demand so application numeric entry
+does not cache model properties.
+
+`sitehelper_editor_create_property_command()` copies the other current scalar
+values and produces `EDIT_SLAB`, `EDIT_SLAB_REGION` or
+`EDIT_SLAB_EDGE_REBATE`. The editor does not decide whether a thickness,
+interval or rebate relationship is valid. The command resolves the slab and the
+slab domain applies a failure-atomic property setter, which validates the
+complete resulting slab and restores the old values on failure.
+
+History snapshots the previous values before execution. Region edit undo state
+also owns a deep copy of the region outline; rebate state stores the complete
+rebate value. Undo/redo verify the same parent/index, collection count and
+feature value/geometry before mutation, so an ephemeral index shifted or
+replaced by external mutation is not silently treated as the old feature.
+Selection is not rewritten by property commands; normal reconciliation keeps a
+still-valid slab/feature selected.
+
+The application properties panel introduced here deliberately surfaces only the
+slab family. Clicking an editable row starts the existing exact millimetre/metre
+text parser with the authoritative value displayed. Normal typing replaces that
+seed, while cursor/delete keys switch to in-place editing. Enter builds the typed
+property command; entering the unchanged value simply closes the edit without a
+history entry. Domain rejection leaves the draft and focus available for
+correction. Escape cancels. Focus is bound to the current slab/feature selection
+and is cancelled when that target becomes stale or changes.
+
+No outline vertex editing, move/reshape command, rebate-edge reassignment,
+subordinate DomainId, compliance rule or persistence change is part of 25E4.

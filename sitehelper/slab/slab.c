@@ -891,6 +891,59 @@ SlabCode slab_edge_rebate_length_mm(const SlabEdgeRebate *rebate, int *output)
     return SLAB_SUCCESS;
 }
 
+SlabCode slab_set_base_properties(Slab *slab, int thickness_mm,
+    int top_level_offset_mm)
+{
+    SlabCode code=slab_validate(slab);
+    if (code != SLAB_SUCCESS) { return code; }
+    int old_thickness=slab->definition.thickness_mm;
+    int old_top=slab->definition.top_level_offset_mm;
+    slab->definition.thickness_mm=thickness_mm;
+    slab->definition.top_level_offset_mm=top_level_offset_mm;
+    code=slab_validate(slab);
+    if (code != SLAB_SUCCESS) {
+        slab->definition.thickness_mm=old_thickness;
+        slab->definition.top_level_offset_mm=old_top;
+    }
+    return code;
+}
+
+SlabCode slab_set_region_properties(Slab *slab, size_t index,
+    int top_level_offset_mm, int thickness_mm)
+{
+    SlabCode code=slab_validate(slab);
+    if (code != SLAB_SUCCESS) { return code; }
+    if (index >= slab->definition.regions.count) { return SLAB_INVALID_ARGUMENT; }
+    SlabRegion *region=&slab->definition.regions.items[index];
+    int old_top=region->top_level_offset_mm;
+    int old_thickness=region->thickness_mm;
+    region->top_level_offset_mm=top_level_offset_mm;
+    region->thickness_mm=thickness_mm;
+    code=slab_validate(slab);
+    if (code != SLAB_SUCCESS) {
+        region->top_level_offset_mm=old_top;
+        region->thickness_mm=old_thickness;
+    }
+    return code;
+}
+
+SlabCode slab_set_edge_rebate_properties(Slab *slab, size_t index,
+    int start_offset_mm, int end_offset_mm, int width_mm, int depth_mm)
+{
+    SlabCode code=slab_validate(slab);
+    if (code != SLAB_SUCCESS) { return code; }
+    if (index >= slab->definition.edge_rebates.count) { return SLAB_INVALID_ARGUMENT; }
+    SlabEdgeRebate *rebate=&slab->definition.edge_rebates.items[index];
+    SlabEdgeRebate old=*rebate;
+    rebate->start_offset_mm=start_offset_mm;
+    rebate->end_offset_mm=end_offset_mm;
+    rebate->width_mm=width_mm;
+    rebate->depth_mm=depth_mm;
+    code=slab_validate(slab);
+    if (code != SLAB_SUCCESS) { *rebate=old; }
+    return code;
+}
+
 SlabCode slab_clone(const Slab *source, Slab *output)
 {
     if (output == NULL) { return SLAB_INVALID_ARGUMENT; }
