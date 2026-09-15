@@ -12,6 +12,7 @@
 #include "delete_slab_command.h"
 #include "slab_feature_command.h"
 #include "edit_slab_command.h"
+#include "move_slab_vertex_command.h"
 #include "sitehelper_project.h"
 
 typedef enum
@@ -38,6 +39,7 @@ typedef enum
     SITEHELPER_COMMAND_EDIT_SLAB,
     SITEHELPER_COMMAND_EDIT_SLAB_REGION,
     SITEHELPER_COMMAND_EDIT_SLAB_EDGE_REBATE,
+    SITEHELPER_COMMAND_MOVE_SLAB_VERTEX,
 
     SITEHELPER_COMMAND_COUNT
 } SiteHelperCommandType;
@@ -68,6 +70,7 @@ typedef struct
         EditSlabCommand edit_slab;
         EditSlabRegionCommand edit_slab_region;
         EditSlabEdgeRebateCommand edit_slab_edge_rebate;
+        MoveSlabVertexCommand move_slab_vertex;
     } data;
 } SiteHelperCommand;
 
@@ -109,6 +112,11 @@ typedef struct
         struct { DomainId wall_id, opening_id; } edit_opening;
         struct { DomainId slab_id; } slab;
         struct { DomainId slab_id; size_t feature_index; } slab_feature;
+        struct {
+            DomainId slab_id;
+            size_t feature_index;
+            size_t vertex_index;
+        } slab_vertex;
 
     } data;
 
@@ -163,6 +171,8 @@ int sitehelper_command_from_delete_slab_edge_rebate(
 int sitehelper_command_from_edit_slab(const EditSlabCommand *edit, SiteHelperCommand *command);
 int sitehelper_command_from_edit_slab_region(const EditSlabRegionCommand *edit, SiteHelperCommand *command);
 int sitehelper_command_from_edit_slab_edge_rebate(const EditSlabEdgeRebateCommand *edit, SiteHelperCommand *command);
+int sitehelper_command_from_move_slab_vertex(const MoveSlabVertexCommand *move,
+    SiteHelperCommand *command);
 
 /* Commands are owned values. CREATE_SLAB and polygon feature ADD commands own
  * outlines. Do not shallow-copy them; clone explicitly and destroy each owner

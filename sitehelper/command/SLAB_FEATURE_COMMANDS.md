@@ -22,4 +22,16 @@ matching DELETE command. Successful completion clears the ephemeral selection so
 an item shifted into the same index is never mistaken for the deleted feature.
 Commands contain no editor state, and undo does not restore selection.
 
-Feature drawing, reshape/move operations and property editing are deferred.
+Priority 25E4 adds scalar property commands, and Priority 25E5 adds
+`MOVE_SLAB_VERTEX` for whole-slab, penetration and region polygon vertices. The
+move command is a plain value (`slab_id`, target kind, optional subordinate index,
+vertex index and candidate position). History captures an independent copy of the
+pre-move target outline before execution. Undo verifies that the current target is
+exactly that outline with only the commanded vertex changed; redo verifies the
+exact pre-move outline. Region snapshots also guard the ephemeral collection count
+and scalar properties so an index shift cannot silently retarget a different
+region. The slab domain performs the actual one-vertex mutation and complete-slab
+validation.
+
+No subordinate IDs are introduced. Vertex insertion/removal, whole-polygon
+translation and automatic rebate-edge remapping remain deferred.

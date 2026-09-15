@@ -51,6 +51,32 @@ nor compliance rules.
 All three feature tools emit the owning ADD commands through history. They never
 allocate subordinate DomainIds. Escape, tool/view/Storey changes, project
 replacement, and loss of the locked parent cancel transient state. Unfinished
-polygons, rebate endpoints, and UI defaults are never persisted. Movement and
-reshape remain later work. Priority 25E4 now edits the existing scalar slab,
-region and rebate properties through the separate properties/history path.
+polygons, rebate endpoints, and UI defaults are never persisted. Priority 25E4
+edits the existing scalar slab, region and rebate properties through the separate
+properties/history path.
+
+## Geometry editing
+
+Priority 25E5 adds the plan-only `Geom` tool for vertex movement. The user first
+selects a whole slab, penetration or replacement region, then activates `Geom`.
+Visible handles correspond directly to the authoritative ordered polygon
+vertices. Clicking a handle arms that vertex; pointer movement previews the same
+polygon with only that point replaced, using the existing plan snap pipeline. A
+second click emits one `MOVE_SLAB_VERTEX` command. No project geometry changes
+until history successfully executes that command.
+
+The tool never stores model pointers. Its transient reference is the current
+Storey, parent slab `DomainId`, target kind, subordinate collection index where
+applicable, vertex index and original `PlanPosition`. If that target disappears
+or the original vertex changes before commit, the interaction is cancelled rather
+than retargeted. Failed domain/command validation retains the armed vertex so the
+user can choose another position; Escape cancels without history. Successful
+movement retains the existing selection and leaves the `Geom` tool active for the
+next edit.
+
+Only vertex movement is in scope: vertex insertion/removal, whole-polygon
+translation and coordinate property fields remain deferred. Rebate geometry is
+not edited with handles; its scalar U interval/width/depth remains the 25E4
+property path. Moving a slab outer vertex also never remaps a rebate to another
+edge: its existing `edge_index` and U values must remain valid under full slab
+validation or the move is rejected. Transient handles/previews are not persisted.

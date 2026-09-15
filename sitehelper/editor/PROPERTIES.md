@@ -184,5 +184,8 @@ history entry. Domain rejection leaves the draft and focus available for
 correction. Escape cancels. Focus is bound to the current slab/feature selection
 and is cancelled when that target becomes stale or changes.
 
-No outline vertex editing, move/reshape command, rebate-edge reassignment,
-subordinate DomainId, compliance rule or persistence change is part of 25E4.
+No outline coordinate field, rebate-edge reassignment, subordinate DomainId,
+compliance rule or persistence change is part of the property system. Priority
+25E5 adds vertex movement separately through the plan `Geom` tool and
+`MOVE_SLAB_VERTEX` history command; it deliberately does not turn polygon
+coordinates into scalar property rows.

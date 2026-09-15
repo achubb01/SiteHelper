@@ -287,11 +287,12 @@ candidate, including global identity uniqueness and allocator watermark, before
 replacing the destination. Derived area, edges, perimeter and volume are never
 persisted.
 
-Plan rendering and selection are downstream consumers in `sitehelper/slab_plan`;
-they add no dependencies or state to this domain library. Priority 25E2+,
-explicit step objects/extraction, panel/service recesses, footings, reinforcement,
-wall/room relationships or generation, editing tools, commands/history and
-take-off integration remain deferred.
+Plan rendering, selection and editing are downstream consumers in
+`sitehelper/slab_plan`, `sitehelper/editor` and `sitehelper/command`; they add no
+dependencies or application state to this domain library. Explicit step objects,
+panel/service recesses, footings, reinforcement, wall/room relationships,
+rebate-aware volume and take-off integration remain outside this slab-foundation
+scope.
 
 ### Property-only mutation
 
@@ -308,3 +309,25 @@ and region top-level offsets remain signed Storey-relative millimetres;
 base/region thickness and rebate width/depth retain their existing positive
 requirements; rebate U intervals and same-edge overlap retain the existing 25D
 rules. No new persisted representation is introduced.
+### Geometry vertex mutation
+
+Priority 25E5 adds narrow failure-atomic vertex setters for the slab outer
+outline, penetration outlines and replacement-region outlines. They preserve the
+existing vertex count and source order; insertion/removal, whole-polygon moves
+and generic polygon reshaping are not hidden inside these APIs. Each setter
+validates the current slab, changes exactly one `PlanPosition`, runs full
+`slab_validate()`, and restores the old position if the resulting slab is not
+valid.
+
+Outer-outline edits deliberately preserve every existing edge rebate as the same
+`edge_index` plus local-U interval. There is no nearest-edge or geometric
+reattachment. If moving a vertex makes a referenced host edge too short, makes
+subordinate polygons invalid, or otherwise breaks slab invariants, the edit is
+rejected atomically and all authoritative geometry remains unchanged. This keeps
+rebate attachment semantics deterministic while vertex identity is still defined
+by ordered polygon position.
+
+These setters contain no editor snapping, preview, selection or history logic.
+The command/editor layers provide those interactions while this library remains
+the final authority on whether a candidate geometry edit is legal. Persistence
+remains v14 because no new authoritative representation is introduced.

@@ -185,6 +185,18 @@ SlabCode slab_set_region_properties(Slab *slab, size_t index,
 SlabCode slab_set_edge_rebate_properties(Slab *slab, size_t index,
     int start_offset_mm, int end_offset_mm, int width_mm, int depth_mm);
 
+/* Geometry-only vertex mutation. Vertex counts/order are preserved. Each
+ * operation validates the complete resulting Slab, including subordinate
+ * relationships and edge-rebate host intervals, and restores the old vertex
+ * on failure. This means outer-outline edits never silently remap rebates:
+ * existing edge_index/U references must remain valid or the edit is rejected. */
+SlabCode slab_set_outline_vertex(Slab *slab, size_t vertex_index,
+    PlanPosition position);
+SlabCode slab_set_penetration_vertex(Slab *slab, size_t feature_index,
+    size_t vertex_index, PlanPosition position);
+SlabCode slab_set_region_vertex(Slab *slab, size_t feature_index,
+    size_t vertex_index, PlanPosition position);
+
 /* Lookup/removal reject incoherent collection metadata. Append transfers ownership and
  * zeros candidate only on success; failure changes neither owner. IDs must be
  * unique locally; the project layer enforces the global identity namespace.

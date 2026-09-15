@@ -29,7 +29,8 @@ int sitehelper_editor_tool_available(EditorView view, EditorTool tool)
     return (view == EDITOR_VIEW_PLAN &&
             (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_WALL || tool == EDITOR_TOOL_MEASURE ||
              tool == EDITOR_TOOL_SLAB || tool == EDITOR_TOOL_SLAB_PENETRATION ||
-             tool == EDITOR_TOOL_SLAB_REGION || tool == EDITOR_TOOL_SLAB_EDGE_REBATE)) ||
+             tool == EDITOR_TOOL_SLAB_REGION || tool == EDITOR_TOOL_SLAB_EDGE_REBATE ||
+             tool == EDITOR_TOOL_SLAB_GEOMETRY)) ||
         (view == EDITOR_VIEW_WALL_ELEVATION &&
             (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_OPENING));
 }
@@ -116,6 +117,9 @@ int sitehelper_editor_set_active_tool(
     if (tool == EDITOR_TOOL_SLAB_EDGE_REBATE) {
         slab_edge_rebate_tool_activate(&editor->slab_edge_rebate_tool);
     } else { slab_edge_rebate_tool_cancel(&editor->slab_edge_rebate_tool); }
+    if (tool == EDITOR_TOOL_SLAB_GEOMETRY) {
+        slab_geometry_tool_activate(&editor->slab_geometry_tool);
+    } else { slab_geometry_tool_cancel(&editor->slab_geometry_tool); }
 
     editor->active_tool = tool;
 
@@ -155,6 +159,7 @@ void sitehelper_editor_init(
     slab_polygon_feature_tool_init(&editor->slab_penetration_tool);
     slab_polygon_feature_tool_init(&editor->slab_region_tool);
     slab_edge_rebate_tool_init(&editor->slab_edge_rebate_tool);
+    slab_geometry_tool_init(&editor->slab_geometry_tool);
 
     editor->opening_placement =
         (OpeningPlacement){0};
@@ -400,6 +405,78 @@ static void editor_select_slab_hit(EditorSelection *selection, SlabPlanHit hit)
     }
 }
 
+static int editor_slab_geometry_target_from_selection(const EditorSelection *selection,
+    EditorSlabGeometryKind *kind, DomainId *slab_id, size_t *feature_index)
+{
+    if (selection == NULL || kind == NULL || slab_id == NULL || feature_index == NULL ||
+        selection->scope != EDITOR_SELECTION_SCOPE_PLAN ||
+        selection->slab_id == DOMAIN_ID_INVALID) { return 0; }
+    switch (selection->kind) {
+        case EDITOR_SELECTION_SLAB:
+            *kind=EDITOR_SLAB_GEOMETRY_OUTLINE;
+            *feature_index=SIZE_MAX;
+            break;
+        case EDITOR_SELECTION_SLAB_PENETRATION:
+            *kind=EDITOR_SLAB_GEOMETRY_PENETRATION;
+            *feature_index=selection->slab_feature_index;
+            break;
+        case EDITOR_SELECTION_SLAB_REGION:
+            *kind=EDITOR_SLAB_GEOMETRY_REGION;
+            *feature_index=selection->slab_feature_index;
+            break;
+        default:
+            return 0;
+    }
+    *slab_id=selection->slab_id;
+    return 1;
+}
+
+static const SlabOutline *editor_slab_geometry_outline(const Storey *storey,
+    DomainId slab_id, EditorSlabGeometryKind kind, size_t feature_index)
+{
+    const Slab *slab=storey == NULL ? NULL :
+        slab_collection_find_by_id_const(&storey->slabs,slab_id);
+    if (slab == NULL || slab_validate(slab) != SLAB_SUCCESS) { return NULL; }
+    switch (kind) {
+        case EDITOR_SLAB_GEOMETRY_OUTLINE:
+            return feature_index == SIZE_MAX ? &slab->definition.outline : NULL;
+        case EDITOR_SLAB_GEOMETRY_PENETRATION: {
+            const SlabPenetration *feature=slab_penetration_at(slab,feature_index);
+            return feature == NULL ? NULL : &feature->outline;
+        }
+        case EDITOR_SLAB_GEOMETRY_REGION: {
+            const SlabRegion *feature=slab_region_at(slab,feature_index);
+            return feature == NULL ? NULL : &feature->outline;
+        }
+        case EDITOR_SLAB_GEOMETRY_NONE:
+        default:
+            return NULL;
+    }
+}
+
+static int nearest_outline_vertex(const SlabOutline *outline, PlanPoint point,
+    double tolerance, size_t *vertex_index)
+{
+    if (outline == NULL || vertex_index == NULL || outline->vertices == NULL ||
+        outline->vertex_count < 3 || !isfinite(point.x) || !isfinite(point.y) ||
+        !isfinite(tolerance) || tolerance < 0.0) { return 0; }
+    double best=tolerance;
+    size_t found=SIZE_MAX;
+    for (size_t i=0;i<outline->vertex_count;i++) {
+        double dx=point.x-outline->vertices[i].x;
+        double dy=point.y-outline->vertices[i].y;
+        double distance=hypot(dx,dy);
+        if (isfinite(distance) && distance <= best &&
+            (found == SIZE_MAX || distance < best)) {
+            best=distance;
+            found=i;
+        }
+    }
+    if (found == SIZE_MAX) { return 0; }
+    *vertex_index=found;
+    return 1;
+}
+
 const EditorSelection *
 sitehelper_editor_get_selection(
     const SiteHelperEditor *editor
@@ -592,12 +669,15 @@ void sitehelper_editor_pointer_move_in_project(SiteHelperEditor *editor,
         editor->active_tool != EDITOR_TOOL_SLAB_PENETRATION &&
         editor->active_tool != EDITOR_TOOL_SLAB_REGION &&
         editor->active_tool != EDITOR_TOOL_SLAB_EDGE_REBATE &&
+        editor->active_tool != EDITOR_TOOL_SLAB_GEOMETRY &&
         !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved))) {
         sitehelper_editor_invalidate_transient_state(editor);
         return;
     }
     const Wall *wall = build_find_wall_by_id_const(&storey->structure, editor->current_wall_id);
-    if (editor->active_tool == EDITOR_TOOL_SLAB_EDGE_REBATE) {
+    if (editor->active_tool == EDITOR_TOOL_SLAB_EDGE_REBATE ||
+        (editor->active_tool == EDITOR_TOOL_SLAB_GEOMETRY &&
+            !editor->slab_geometry_tool.has_vertex)) {
         sitehelper_editor_clear_snap(editor);
     } else {
         sitehelper_editor_update_snap_in_project(editor, project, view_position);
@@ -637,6 +717,32 @@ void sitehelper_editor_pointer_move_in_project(SiteHelperEditor *editor,
                 tool->hover_point=hit.projected_point;
                 tool->has_hover=1;
             }
+        }
+        return;
+    }
+    if (editor->active_tool == EDITOR_TOOL_SLAB_GEOMETRY) {
+        SlabGeometryTool *tool=&editor->slab_geometry_tool;
+        if (!tool->has_vertex) { return; }
+        const SlabOutline *outline=tool->storey_id == storey->id ?
+            editor_slab_geometry_outline(storey,tool->slab_id,tool->kind,
+                tool->feature_index) : NULL;
+        if (outline == NULL || tool->vertex_index >= outline->vertex_count ||
+            outline->vertices[tool->vertex_index].x != tool->original_position.x ||
+            outline->vertices[tool->vertex_index].y != tool->original_position.y) {
+            slab_geometry_tool_cancel(tool);
+            tool->active=1;
+            sitehelper_editor_clear_snap(editor);
+            return;
+        }
+        PlanPoint point;
+        PlanPosition position;
+        if (editor_measurement_point(editor,view_position,&point) &&
+            plan_position_from_point(point,&position)) {
+            /* Preview the same authoritative integer-mm candidate that a
+             * second click would place, rather than a sub-millimetre cursor. */
+            slab_geometry_tool_update(tool,(PlanPoint){position.x,position.y});
+        } else {
+            tool->has_preview=0;
         }
         return;
     }
@@ -785,6 +891,9 @@ void sitehelper_editor_pointer_leave(
         sitehelper_editor_clear_snap(editor);
     } else if (editor->active_tool == EDITOR_TOOL_SLAB_EDGE_REBATE) {
         editor->slab_edge_rebate_tool.has_hover=0;
+        sitehelper_editor_clear_snap(editor);
+    } else if (editor->active_tool == EDITOR_TOOL_SLAB_GEOMETRY) {
+        editor->slab_geometry_tool.has_preview=0;
         sitehelper_editor_clear_snap(editor);
     } else {
         sitehelper_editor_invalidate_transient_state(editor);
@@ -947,6 +1056,67 @@ static int editor_rebate_click(SiteHelperEditor *editor, const Storey *storey,
     return 1;
 }
 
+static MoveSlabVertexTarget editor_move_target(EditorSlabGeometryKind kind)
+{
+    switch (kind) {
+        case EDITOR_SLAB_GEOMETRY_OUTLINE: return MOVE_SLAB_VERTEX_OUTLINE;
+        case EDITOR_SLAB_GEOMETRY_PENETRATION: return MOVE_SLAB_VERTEX_PENETRATION;
+        case EDITOR_SLAB_GEOMETRY_REGION: return MOVE_SLAB_VERTEX_REGION;
+        case EDITOR_SLAB_GEOMETRY_NONE:
+        default: return MOVE_SLAB_VERTEX_TARGET_COUNT;
+    }
+}
+
+static int editor_slab_geometry_click(SiteHelperEditor *editor,
+    const Storey *storey, Vec2 view_position, EditorAction *action)
+{
+    SlabGeometryTool *tool=&editor->slab_geometry_tool;
+    if (!tool->has_vertex) {
+        EditorSlabGeometryKind kind;
+        DomainId slab_id;
+        size_t feature_index,vertex_index;
+        if (!editor_slab_geometry_target_from_selection(&editor->selection,&kind,
+                &slab_id,&feature_index)) { return 1; }
+        const SlabOutline *outline=editor_slab_geometry_outline(storey,slab_id,kind,
+            feature_index);
+        if (outline == NULL || !nearest_outline_vertex(outline,
+                (PlanPoint){view_position.x,view_position.y},
+                editor->snap.settings.object_snap_tolerance,&vertex_index)) { return 1; }
+        return slab_geometry_tool_begin(tool,storey->id,slab_id,kind,feature_index,
+            vertex_index,outline->vertices[vertex_index]);
+    }
+
+    const SlabOutline *outline=tool->storey_id == storey->id ?
+        editor_slab_geometry_outline(storey,tool->slab_id,tool->kind,
+            tool->feature_index) : NULL;
+    if (outline == NULL || tool->vertex_index >= outline->vertex_count ||
+        outline->vertices[tool->vertex_index].x != tool->original_position.x ||
+        outline->vertices[tool->vertex_index].y != tool->original_position.y) {
+        slab_geometry_tool_cancel(tool);
+        tool->active=1;
+        sitehelper_editor_clear_snap(editor);
+        return 1;
+    }
+    PlanPoint point;
+    PlanPosition position;
+    if (!editor_measurement_point(editor,view_position,&point) ||
+        !plan_position_from_point(point,&position)) { return 0; }
+    if (position.x == tool->original_position.x && position.y == tool->original_position.y) {
+        slab_geometry_tool_cancel(tool);
+        tool->active=1;
+        sitehelper_editor_clear_snap(editor);
+        return 1;
+    }
+    MoveSlabVertexTarget target=editor_move_target(tool->kind);
+    MoveSlabVertexCommand move;
+    if (target == MOVE_SLAB_VERTEX_TARGET_COUNT ||
+        !move_slab_vertex_command_create(tool->slab_id,target,tool->feature_index,
+            tool->vertex_index,position,&move) ||
+        !sitehelper_command_from_move_slab_vertex(&move,&action->command)) { return 0; }
+    action->kind=EDITOR_ACTION_COMMAND;
+    return 1;
+}
+
 static int editor_primary_action_resolved(
     SiteHelperEditor *editor,
     const Wall *wall,
@@ -1094,6 +1264,17 @@ int sitehelper_editor_primary_action_in_project(
     const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
     if (storey == NULL) { return 0; }
     const BuildStructure *structure = &storey->structure;
+
+    if (editor->active_view == EDITOR_VIEW_PLAN &&
+        editor->active_tool == EDITOR_TOOL_SLAB_GEOMETRY) {
+        *action=(EditorAction){0};
+        if (editor->slab_geometry_tool.has_vertex) {
+            sitehelper_editor_update_snap_in_project(editor,project,view_position);
+        } else {
+            sitehelper_editor_clear_snap(editor);
+        }
+        return editor_slab_geometry_click(editor,storey,view_position,action);
+    }
 
     if (editor->active_view == EDITOR_VIEW_PLAN &&
         (editor->active_tool == EDITOR_TOOL_SLAB_PENETRATION ||
@@ -1334,6 +1515,17 @@ void sitehelper_editor_complete_action(
             }
             break;
 
+        case SITEHELPER_COMMAND_MOVE_SLAB_VERTEX:
+            if (editor->active_tool == EDITOR_TOOL_SLAB_GEOMETRY &&
+                editor->slab_geometry_tool.has_vertex &&
+                result->data.slab_vertex.slab_id == editor->slab_geometry_tool.slab_id &&
+                result->data.slab_vertex.feature_index == editor->slab_geometry_tool.feature_index &&
+                result->data.slab_vertex.vertex_index == editor->slab_geometry_tool.vertex_index) {
+                slab_geometry_tool_cancel(&editor->slab_geometry_tool);
+                editor->slab_geometry_tool.active=1;
+            }
+            break;
+
         case SITEHELPER_COMMAND_NONE:
         case SITEHELPER_COMMAND_COUNT:
         default:
@@ -1372,6 +1564,10 @@ void sitehelper_editor_invalidate_transient_state(
     slab_edge_rebate_tool_cancel(&editor->slab_edge_rebate_tool);
     if (editor->active_tool == EDITOR_TOOL_SLAB_EDGE_REBATE) {
         editor->slab_edge_rebate_tool.active=1;
+    }
+    slab_geometry_tool_cancel(&editor->slab_geometry_tool);
+    if (editor->active_tool == EDITOR_TOOL_SLAB_GEOMETRY) {
+        editor->slab_geometry_tool.active=1;
     }
 }
 
@@ -1546,6 +1742,47 @@ int sitehelper_editor_get_slab_rebate_preview(const SiteHelperEditor *editor,
     return 1;
 }
 
+int sitehelper_editor_get_slab_geometry_overlay(const SiteHelperEditor *editor,
+    const SiteHelperProject *project, EditorSlabGeometryOverlay *output)
+{
+    if (output == NULL) { return 0; }
+    *output=(EditorSlabGeometryOverlay){.feature_index=SIZE_MAX,
+        .active_vertex_index=SIZE_MAX};
+    if (editor == NULL || project == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->active_tool != EDITOR_TOOL_SLAB_GEOMETRY) { return 0; }
+    const Storey *storey=sitehelper_project_find_storey_by_id_const(project,
+        editor->current_storey_id);
+    if (storey == NULL) { return 0; }
+
+    EditorSlabGeometryKind kind;
+    DomainId slab_id;
+    size_t feature_index;
+    const SlabGeometryTool *tool=&editor->slab_geometry_tool;
+    if (tool->has_vertex) {
+        if (tool->storey_id != storey->id) { return 0; }
+        kind=tool->kind;
+        slab_id=tool->slab_id;
+        feature_index=tool->feature_index;
+    } else if (!editor_slab_geometry_target_from_selection(&editor->selection,&kind,
+            &slab_id,&feature_index)) {
+        return 0;
+    }
+    const SlabOutline *outline=editor_slab_geometry_outline(storey,slab_id,kind,
+        feature_index);
+    if (outline == NULL) { return 0; }
+    output->kind=kind;
+    output->slab_id=slab_id;
+    output->feature_index=feature_index;
+    output->vertices=outline->vertices;
+    output->vertex_count=outline->vertex_count;
+    if (tool->has_vertex && tool->vertex_index < outline->vertex_count) {
+        output->active_vertex_index=tool->vertex_index;
+        output->preview=tool->preview;
+        output->has_preview=tool->has_preview;
+    }
+    return 1;
+}
+
 int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor)
 {
     if (editor == NULL) { return 0; }
@@ -1576,6 +1813,11 @@ int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor)
             if (!editor->slab_edge_rebate_tool.has_start) { return 0; }
             slab_edge_rebate_tool_cancel(&editor->slab_edge_rebate_tool);
             editor->slab_edge_rebate_tool.active=1;
+            sitehelper_editor_clear_snap(editor); return 1;
+        case EDITOR_TOOL_SLAB_GEOMETRY:
+            if (!editor->slab_geometry_tool.has_vertex) { return 0; }
+            slab_geometry_tool_cancel(&editor->slab_geometry_tool);
+            editor->slab_geometry_tool.active=1;
             sitehelper_editor_clear_snap(editor); return 1;
         default: return 0;
     }

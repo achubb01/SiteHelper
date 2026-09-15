@@ -54,6 +54,17 @@ typedef struct {
     SlabEdgeRebate feature;
 } EditedSlabEdgeRebateSnapshot;
 
+typedef struct {
+    DomainId slab_id;
+    MoveSlabVertexTarget target;
+    size_t feature_index;
+    size_t original_feature_count;
+    size_t vertex_index;
+    SlabOutline outline;
+    int region_top_level_offset_mm;
+    int region_thickness_mm;
+} MovedSlabVertexSnapshot;
+
 struct SiteHelperCommandUndoState
 {
     SiteHelperCommandType type;
@@ -79,6 +90,7 @@ struct SiteHelperCommandUndoState
         EditedSlabSnapshot edited_slab;
         EditedSlabRegionSnapshot edited_slab_region;
         EditedSlabEdgeRebateSnapshot edited_slab_edge_rebate;
+        MovedSlabVertexSnapshot moved_slab_vertex;
     };
 };
 
@@ -124,6 +136,95 @@ static int rebate_equal(const SlabEdgeRebate *a, const SlabEdgeRebate *b)
         a->start_offset_mm == b->start_offset_mm &&
         a->end_offset_mm == b->end_offset_mm && a->width_mm == b->width_mm &&
         a->depth_mm == b->depth_mm;
+}
+
+static const SlabOutline *move_vertex_outline_const(const Slab *slab,
+    MoveSlabVertexTarget target, size_t feature_index,
+    size_t *feature_count, int *region_top, int *region_thickness)
+{
+    if (feature_count != NULL) { *feature_count=SIZE_MAX; }
+    if (region_top != NULL) { *region_top=0; }
+    if (region_thickness != NULL) { *region_thickness=0; }
+    if (slab == NULL) { return NULL; }
+    switch (target) {
+        case MOVE_SLAB_VERTEX_OUTLINE:
+            if (feature_index != SIZE_MAX) { return NULL; }
+            return &slab->definition.outline;
+        case MOVE_SLAB_VERTEX_PENETRATION:
+            if (feature_index >= slab->definition.penetrations.count) { return NULL; }
+            if (feature_count != NULL) { *feature_count=slab->definition.penetrations.count; }
+            return &slab->definition.penetrations.items[feature_index].outline;
+        case MOVE_SLAB_VERTEX_REGION:
+            if (feature_index >= slab->definition.regions.count) { return NULL; }
+            if (feature_count != NULL) { *feature_count=slab->definition.regions.count; }
+            if (region_top != NULL) {
+                *region_top=slab->definition.regions.items[feature_index].top_level_offset_mm;
+            }
+            if (region_thickness != NULL) {
+                *region_thickness=slab->definition.regions.items[feature_index].thickness_mm;
+            }
+            return &slab->definition.regions.items[feature_index].outline;
+        case MOVE_SLAB_VERTEX_TARGET_COUNT:
+        default:
+            return NULL;
+    }
+}
+
+static int outline_matches_vertex_move(const SlabOutline *before,
+    const SlabOutline *current, size_t vertex_index, PlanPosition moved)
+{
+    if (before == NULL || current == NULL || before->vertices == NULL ||
+        current->vertices == NULL || before->vertex_count != current->vertex_count ||
+        vertex_index >= before->vertex_count) { return 0; }
+    for (size_t i=0;i<before->vertex_count;i++) {
+        PlanPosition expected=i == vertex_index ? moved : before->vertices[i];
+        if (current->vertices[i].x != expected.x || current->vertices[i].y != expected.y) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int moved_vertex_snapshot_matches(const Slab *slab,
+    const MovedSlabVertexSnapshot *snapshot, int after_move,
+    PlanPosition new_position)
+{
+    if (slab == NULL || snapshot == NULL || slab->id != snapshot->slab_id) { return 0; }
+    size_t feature_count=SIZE_MAX;
+    int region_top=0,region_thickness=0;
+    const SlabOutline *outline=move_vertex_outline_const(slab,snapshot->target,
+        snapshot->feature_index,&feature_count,&region_top,&region_thickness);
+    if (outline == NULL || snapshot->vertex_index >= outline->vertex_count) { return 0; }
+    if (snapshot->target != MOVE_SLAB_VERTEX_OUTLINE &&
+        feature_count != snapshot->original_feature_count) { return 0; }
+    if (snapshot->target == MOVE_SLAB_VERTEX_REGION &&
+        (region_top != snapshot->region_top_level_offset_mm ||
+         region_thickness != snapshot->region_thickness_mm)) { return 0; }
+    return after_move ? outline_matches_vertex_move(&snapshot->outline,outline,
+        snapshot->vertex_index,new_position) : outlines_equal(&snapshot->outline,outline);
+}
+
+static int restore_moved_vertex(Slab *slab, const MovedSlabVertexSnapshot *snapshot)
+{
+    PlanPosition old=snapshot->outline.vertices[snapshot->vertex_index];
+    SlabCode code;
+    switch (snapshot->target) {
+        case MOVE_SLAB_VERTEX_OUTLINE:
+            code=slab_set_outline_vertex(slab,snapshot->vertex_index,old);
+            break;
+        case MOVE_SLAB_VERTEX_PENETRATION:
+            code=slab_set_penetration_vertex(slab,snapshot->feature_index,
+                snapshot->vertex_index,old);
+            break;
+        case MOVE_SLAB_VERTEX_REGION:
+            code=slab_set_region_vertex(slab,snapshot->feature_index,
+                snapshot->vertex_index,old);
+            break;
+        case MOVE_SLAB_VERTEX_TARGET_COUNT:
+        default:
+            return 0;
+    }
+    return code == SLAB_SUCCESS;
 }
 
 static int capture_feature_snapshot(const SiteHelperProject *project,
@@ -189,7 +290,8 @@ int sitehelper_command_capture_undo_state(
         command->type != SITEHELPER_COMMAND_DELETE_SLAB_EDGE_REBATE &&
         command->type != SITEHELPER_COMMAND_EDIT_SLAB &&
         command->type != SITEHELPER_COMMAND_EDIT_SLAB_REGION &&
-        command->type != SITEHELPER_COMMAND_EDIT_SLAB_EDGE_REBATE) {
+        command->type != SITEHELPER_COMMAND_EDIT_SLAB_EDGE_REBATE &&
+        command->type != SITEHELPER_COMMAND_MOVE_SLAB_VERTEX) {
         return 1;
     }
     SiteHelperCommandUndoState *candidate = calloc(1, sizeof *candidate);
@@ -237,6 +339,26 @@ int sitehelper_command_capture_undo_state(
         }
         candidate->edited_slab_edge_rebate=(EditedSlabEdgeRebateSnapshot){
             edit->slab_id,edit->feature_index,slab->definition.edge_rebates.count,*rebate};
+    }
+    else if (command->type == SITEHELPER_COMMAND_MOVE_SLAB_VERTEX) {
+        const MoveSlabVertexCommand *move=&command->data.move_slab_vertex;
+        const Slab *slab=sitehelper_project_find_slab_by_id_const(project,move->slab_id);
+        size_t feature_count=SIZE_MAX;
+        int region_top=0,region_thickness=0;
+        const SlabOutline *outline=slab == NULL ? NULL : move_vertex_outline_const(slab,
+            move->target,move->feature_index,&feature_count,&region_top,&region_thickness);
+        if (slab == NULL || slab_validate(slab) != SLAB_SUCCESS || outline == NULL ||
+            move->vertex_index >= outline->vertex_count ||
+            !outline_copy(outline,&candidate->moved_slab_vertex.outline)) {
+            sitehelper_command_destroy_undo_state(candidate); return 0;
+        }
+        candidate->moved_slab_vertex.slab_id=move->slab_id;
+        candidate->moved_slab_vertex.target=move->target;
+        candidate->moved_slab_vertex.feature_index=move->feature_index;
+        candidate->moved_slab_vertex.original_feature_count=feature_count;
+        candidate->moved_slab_vertex.vertex_index=move->vertex_index;
+        candidate->moved_slab_vertex.region_top_level_offset_mm=region_top;
+        candidate->moved_slab_vertex.region_thickness_mm=region_thickness;
     }
     else if (command->type == SITEHELPER_COMMAND_DELETE_SLAB) {
         const Slab *slab=sitehelper_project_find_slab_by_id_const(project,
@@ -322,6 +444,8 @@ void sitehelper_command_destroy_undo_state(SiteHelperCommandUndoState *state)
         slab_outline_destroy(&state->deleted_slab_region.feature.outline);
     } else if (state->type == SITEHELPER_COMMAND_EDIT_SLAB_REGION) {
         slab_outline_destroy(&state->edited_slab_region.feature.outline);
+    } else if (state->type == SITEHELPER_COMMAND_MOVE_SLAB_VERTEX) {
+        slab_outline_destroy(&state->moved_slab_vertex.outline);
     }
     free(state);
 }
@@ -418,6 +542,19 @@ int sitehelper_command_undo_with_state(
             rebate_equal(rebate,&expected) &&
             slab_set_edge_rebate_properties(slab,s->index,s->feature.start_offset_mm,
                 s->feature.end_offset_mm,s->feature.width_mm,s->feature.depth_mm) == SLAB_SUCCESS;
+    }
+    if (command->type == SITEHELPER_COMMAND_MOVE_SLAB_VERTEX) {
+        const MovedSlabVertexSnapshot *s=state == NULL ? NULL : &state->moved_slab_vertex;
+        const MoveSlabVertexCommand *move=&command->data.move_slab_vertex;
+        Slab *slab=s == NULL ? NULL : sitehelper_project_find_slab_by_id(project,s->slab_id);
+        return state != NULL && state->type == command->type && s != NULL &&
+            move->slab_id == s->slab_id && move->target == s->target &&
+            move->feature_index == s->feature_index && move->vertex_index == s->vertex_index &&
+            result->data.slab_vertex.slab_id == s->slab_id &&
+            result->data.slab_vertex.feature_index == s->feature_index &&
+            result->data.slab_vertex.vertex_index == s->vertex_index &&
+            moved_vertex_snapshot_matches(slab,s,1,move->new_position) &&
+            restore_moved_vertex(slab,s);
     }
     if (command->type == SITEHELPER_COMMAND_DELETE_SLAB) {
         DomainId id=command->data.delete_slab.slab_id;
@@ -572,6 +709,19 @@ int sitehelper_command_redo_with_state(
             rebate_equal(rebate,&s->feature) &&
             edit_slab_edge_rebate_command_execute(project,&command->data.edit_slab_edge_rebate);
     }
+    if (command->type == SITEHELPER_COMMAND_MOVE_SLAB_VERTEX) {
+        const MovedSlabVertexSnapshot *s=state == NULL ? NULL : &state->moved_slab_vertex;
+        const MoveSlabVertexCommand *move=&command->data.move_slab_vertex;
+        Slab *slab=s == NULL ? NULL : sitehelper_project_find_slab_by_id(project,s->slab_id);
+        return state != NULL && state->type == command->type && s != NULL &&
+            move->slab_id == s->slab_id && move->target == s->target &&
+            move->feature_index == s->feature_index && move->vertex_index == s->vertex_index &&
+            result->data.slab_vertex.slab_id == s->slab_id &&
+            result->data.slab_vertex.feature_index == s->feature_index &&
+            result->data.slab_vertex.vertex_index == s->vertex_index &&
+            moved_vertex_snapshot_matches(slab,s,0,move->new_position) &&
+            move_slab_vertex_command_execute(project,move);
+    }
     return sitehelper_command_redo(project,command,result);
 }
 
@@ -674,6 +824,15 @@ int sitehelper_command_from_edit_slab_edge_rebate(const EditSlabEdgeRebateComman
     if (edit == NULL || command == NULL) { return 0; }
     *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_EDIT_SLAB_EDGE_REBATE,
         .data.edit_slab_edge_rebate=*edit};
+    return 1;
+}
+
+int sitehelper_command_from_move_slab_vertex(const MoveSlabVertexCommand *move,
+    SiteHelperCommand *command)
+{
+    if (move == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_MOVE_SLAB_VERTEX,
+        .data.move_slab_vertex=*move};
     return 1;
 }
 
@@ -906,6 +1065,13 @@ int sitehelper_command_execute(
                 .data.slab_feature={command->data.edit_slab_edge_rebate.slab_id,
                     command->data.edit_slab_edge_rebate.feature_index}};
             return 1;
+        case SITEHELPER_COMMAND_MOVE_SLAB_VERTEX:
+            if (!move_slab_vertex_command_execute(project,&command->data.move_slab_vertex)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.slab_vertex={command->data.move_slab_vertex.slab_id,
+                    command->data.move_slab_vertex.feature_index,
+                    command->data.move_slab_vertex.vertex_index}};
+            return 1;
 
         case SITEHELPER_COMMAND_CREATE_SLAB: {
             DomainId id;
@@ -1127,6 +1293,7 @@ int sitehelper_command_undo(
         case SITEHELPER_COMMAND_EDIT_SLAB:
         case SITEHELPER_COMMAND_EDIT_SLAB_REGION:
         case SITEHELPER_COMMAND_EDIT_SLAB_EDGE_REBATE:
+        case SITEHELPER_COMMAND_MOVE_SLAB_VERTEX:
         case SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT:
         case SITEHELPER_COMMAND_EDIT_OPENING:
         case SITEHELPER_COMMAND_SET_ROOM_LOCATION:
@@ -1196,6 +1363,7 @@ int sitehelper_command_redo(
         case SITEHELPER_COMMAND_EDIT_SLAB:
         case SITEHELPER_COMMAND_EDIT_SLAB_REGION:
         case SITEHELPER_COMMAND_EDIT_SLAB_EDGE_REBATE:
+        case SITEHELPER_COMMAND_MOVE_SLAB_VERTEX:
             return 0; /* History-owned snapshot is required for exact verification. */
 
         case SITEHELPER_COMMAND_CREATE_SLAB:

@@ -173,6 +173,7 @@ add_library(sitehelper_command
     command/delete_slab_command.c
     command/slab_feature_command.c
     command/edit_slab_command.c
+    command/move_slab_vertex_command.c
     command/sitehelper_command.c
     command/command_history.c
 )
@@ -223,6 +224,7 @@ add_library(sitehelper_editor
     editor/measurement_tool.c
     editor/slab_tool.c
     editor/slab_feature_tool.c
+    editor/slab_geometry_tool.c
     editor/plan_position_conversion.c
     editor/editor_action.c
 
@@ -660,6 +662,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
 endif()
 add_test(NAME slab_property_command_tests COMMAND test_slab_property_command)
 
+add_executable(test_move_slab_vertex_command command/tests/test_move_slab_vertex_command.c)
+target_link_libraries(test_move_slab_vertex_command PRIVATE sitehelper_command sitehelper_test_support)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_move_slab_vertex_command PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_move_slab_vertex_command PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME move_slab_vertex_command_tests COMMAND test_move_slab_vertex_command)
+
 add_executable(test_slab_feature_command command/tests/test_slab_feature_command.c)
 target_link_libraries(test_slab_feature_command PRIVATE sitehelper_command sitehelper_test_support)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
@@ -689,6 +700,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
         "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
 endif()
 add_test(NAME slab_feature_tool_tests COMMAND test_slab_feature_tools)
+
+add_executable(test_slab_geometry_tool editor/tests/test_slab_geometry_tool.c)
+target_link_libraries(test_slab_geometry_tool PRIVATE sitehelper_app_core sitehelper_test_support)
+add_test(NAME slab_geometry_tool_tests COMMAND test_slab_geometry_tool)
 
 add_executable(test_domain_id
     domain/tests/test_domain_id.c
@@ -1010,6 +1025,10 @@ add_test(NAME slab_tests COMMAND test_slab)
 add_executable(test_slab_property_edit slab/tests/test_slab_property_edit.c)
 target_link_libraries(test_slab_property_edit PRIVATE sitehelper_slab)
 add_test(NAME slab_property_edit_tests COMMAND test_slab_property_edit)
+
+add_executable(test_slab_geometry_edit slab/tests/test_slab_geometry_edit.c)
+target_link_libraries(test_slab_geometry_edit PRIVATE sitehelper_slab)
+add_test(NAME slab_geometry_edit_tests COMMAND test_slab_geometry_edit)
 
 add_executable(test_slab_plan_query slab_plan/tests/test_slab_plan_query.c)
 target_link_libraries(test_slab_plan_query PRIVATE sitehelper_slab_plan_query)

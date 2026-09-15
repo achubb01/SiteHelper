@@ -944,6 +944,54 @@ SlabCode slab_set_edge_rebate_properties(Slab *slab, size_t index,
     return code;
 }
 
+static SlabCode set_outline_vertex_and_validate(Slab *slab, SlabOutline *outline,
+    size_t vertex_index, PlanPosition position)
+{
+    if (slab == NULL || outline == NULL || vertex_index >= outline->vertex_count) {
+        return SLAB_INVALID_ARGUMENT;
+    }
+    PlanPosition old=outline->vertices[vertex_index];
+    outline->vertices[vertex_index]=position;
+    SlabCode code=slab_validate(slab);
+    if (code != SLAB_SUCCESS) { outline->vertices[vertex_index]=old; }
+    return code;
+}
+
+SlabCode slab_set_outline_vertex(Slab *slab, size_t vertex_index,
+    PlanPosition position)
+{
+    SlabCode code=slab_validate(slab);
+    if (code != SLAB_SUCCESS) { return code; }
+    return set_outline_vertex_and_validate(slab,&slab->definition.outline,
+        vertex_index,position);
+}
+
+SlabCode slab_set_penetration_vertex(Slab *slab, size_t feature_index,
+    size_t vertex_index, PlanPosition position)
+{
+    SlabCode code=slab_validate(slab);
+    if (code != SLAB_SUCCESS) { return code; }
+    if (feature_index >= slab->definition.penetrations.count) {
+        return SLAB_INVALID_ARGUMENT;
+    }
+    return set_outline_vertex_and_validate(slab,
+        &slab->definition.penetrations.items[feature_index].outline,
+        vertex_index,position);
+}
+
+SlabCode slab_set_region_vertex(Slab *slab, size_t feature_index,
+    size_t vertex_index, PlanPosition position)
+{
+    SlabCode code=slab_validate(slab);
+    if (code != SLAB_SUCCESS) { return code; }
+    if (feature_index >= slab->definition.regions.count) {
+        return SLAB_INVALID_ARGUMENT;
+    }
+    return set_outline_vertex_and_validate(slab,
+        &slab->definition.regions.items[feature_index].outline,
+        vertex_index,position);
+}
+
 SlabCode slab_clone(const Slab *source, Slab *output)
 {
     if (output == NULL) { return SLAB_INVALID_ARGUMENT; }

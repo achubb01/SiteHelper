@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <math.h>
 #include "app_input_hud.h"
 #include "app_input.h"
 #include "app_properties_panel.h"
@@ -39,12 +40,13 @@ typedef enum
     SITEHELPER_TOOLBAR_ACTION_SLAB = 50,
     SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION = 60,
     SITEHELPER_TOOLBAR_ACTION_SLAB_REGION = 70,
-    SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE = 80
+    SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE = 80,
+    SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY = 90
 } SiteHelperToolbarAction;
 
 enum
 {
-    SITEHELPER_TOOLBAR_BUTTON_COUNT = 8
+    SITEHELPER_TOOLBAR_BUTTON_COUNT = 9
 };
 
 static const GuiButtonId sitehelper_toolbar_button_ids[
@@ -57,7 +59,8 @@ static const GuiButtonId sitehelper_toolbar_button_ids[
     SITEHELPER_TOOLBAR_ACTION_SLAB,
     SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION,
     SITEHELPER_TOOLBAR_ACTION_SLAB_REGION,
-    SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE
+    SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE,
+    SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY
 };
 
 typedef struct
@@ -130,6 +133,20 @@ static int sitehelper_app_toolbar_action_tool(
     GuiButtonId action,
     EditorTool *tool
 );
+
+static void sitehelper_app_draw_plan_marker(Renderer2D *renderer,
+    PlanPoint point, double size_pixels, Colour colour)
+{
+    if (renderer == NULL || size_pixels <= 0.0) { return; }
+    Camera2D camera=renderer2d_get_camera(renderer);
+    Viewport2D viewport=renderer2d_get_viewport(renderer);
+    Vec2 screen=camera_world_to_screen(&camera,viewport,(Vec2){point.x,point.y});
+    if (!isfinite(screen.x) || !isfinite(screen.y)) { return; }
+    renderer2d_fill_screen_rect(renderer,(Rect2){
+        .position={screen.x-size_pixels*0.5,screen.y-size_pixels*0.5},
+        .width=size_pixels,.height=size_pixels
+    },colour);
+}
 
 static int sitehelper_app_init(
     SiteHelperApp *app
@@ -451,6 +468,31 @@ static void sitehelper_app_render(
             .position={rebate_start.x-12.0,rebate_start.y-12.0},.width=24.0,.height=24.0},colour);
     }
 
+    EditorSlabGeometryOverlay geometry;
+    if (sitehelper_editor_get_slab_geometry_overlay(&app->editor,&app->project,&geometry)) {
+        Colour handle_colour={255,205,80,255};
+        Colour active_colour={255,245,150,255};
+        if (geometry.active_vertex_index != SIZE_MAX && geometry.has_preview) {
+            for (size_t i=0;i<geometry.vertex_count;i++) {
+                size_t next=i+1 == geometry.vertex_count ? 0 : i+1;
+                PlanPoint a=i == geometry.active_vertex_index ? geometry.preview :
+                    (PlanPoint){geometry.vertices[i].x,geometry.vertices[i].y};
+                PlanPoint b=next == geometry.active_vertex_index ? geometry.preview :
+                    (PlanPoint){geometry.vertices[next].x,geometry.vertices[next].y};
+                renderer2d_draw_line(app->renderer,(Vec2){a.x,a.y},(Vec2){b.x,b.y},
+                    active_colour);
+            }
+        }
+        for (size_t i=0;i<geometry.vertex_count;i++) {
+            PlanPoint point={geometry.vertices[i].x,geometry.vertices[i].y};
+            Colour colour=geometry.active_vertex_index == i ? active_colour : handle_colour;
+            sitehelper_app_draw_plan_marker(app->renderer,point,8.0,colour);
+        }
+        if (geometry.active_vertex_index != SIZE_MAX && geometry.has_preview) {
+            sitehelper_app_draw_plan_marker(app->renderer,geometry.preview,10.0,active_colour);
+        }
+    }
+
     sitehelper_app_render_snap_cursor(
         app
     );
@@ -484,11 +526,13 @@ static void sitehelper_app_render(
             button->id == SITEHELPER_TOOLBAR_ACTION_SLAB ||
             button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION ||
             button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_REGION ||
-            button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE) {
+            button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE ||
+            button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY) {
             const char *label=button->id == SITEHELPER_TOOLBAR_ACTION_MEASURE ? "Meas." :
                 button->id == SITEHELPER_TOOLBAR_ACTION_SLAB ? "Slab" :
                 button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION ? "Void" :
-                button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_REGION ? "Reg." : "Rebt.";
+                button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_REGION ? "Reg." :
+                button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE ? "Rebt." : "Geom";
             renderer2d_draw_screen_text(app->renderer,
                 (Vec2){button->bounds.position.x + 4, button->bounds.position.y + 20},
                 label,
@@ -1060,6 +1104,10 @@ static int sitehelper_app_toolbar_action_tool(
 
         case SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE:
             *tool = EDITOR_TOOL_SLAB_EDGE_REBATE;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY:
+            *tool = EDITOR_TOOL_SLAB_GEOMETRY;
             return 1;
 
         default:

@@ -11,6 +11,7 @@
 #include "measurement_tool.h"
 #include "slab_tool.h"
 #include "slab_feature_tool.h"
+#include "slab_geometry_tool.h"
 #include "opening_command.h"
 #include "editor_action.h"
 #include "sitehelper_project.h"
@@ -48,6 +49,7 @@ typedef struct
     SlabPolygonFeatureTool slab_penetration_tool;
     SlabPolygonFeatureTool slab_region_tool;
     SlabEdgeRebateTool slab_edge_rebate_tool;
+    SlabGeometryTool slab_geometry_tool;
 } SiteHelperEditor;
 
 void sitehelper_editor_init(
@@ -257,6 +259,22 @@ int sitehelper_editor_get_slab_feature_polygon_preview(
 int sitehelper_editor_get_slab_rebate_preview(const SiteHelperEditor *editor,
     DomainId *slab_id, size_t *edge_index, PlanPoint *start, PlanPoint *end,
     int *has_end);
+
+typedef struct {
+    EditorSlabGeometryKind kind;
+    DomainId slab_id;
+    size_t feature_index;
+    const PlanPosition *vertices;
+    size_t vertex_count;
+    size_t active_vertex_index;
+    PlanPoint preview;
+    int has_preview;
+} EditorSlabGeometryOverlay;
+
+/* Read-only overlay description for the current geometry-edit target. Borrowed
+ * vertices remain owned by the Project and are valid only until mutation. */
+int sitehelper_editor_get_slab_geometry_overlay(const SiteHelperEditor *editor,
+    const SiteHelperProject *project, EditorSlabGeometryOverlay *output);
 /* Cancel an active tool interaction without changing tools or Project state.
  * Returns whether handled. Application gives focused text input first refusal. */
 int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor);
