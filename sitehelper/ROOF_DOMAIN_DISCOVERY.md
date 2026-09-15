@@ -1,9 +1,10 @@
 # Priority 26 — Roof Domain Discovery
 
-Status: discovery/design only. Priority 26A (standards and regulatory discovery)
-is complete. This document intentionally introduces no `Roof` C type, no
-persistence grammar, no editor tool, no standards calculator and no framing
-generator.
+Status: discovery/design plus isolated numeric prototype. Priorities 26A
+(standards/regulatory discovery), 26B (geometry acceptance fixtures) and 26C
+(slope/plane numeric contract) are complete. This document intentionally
+introduces no persisted `Roof` C type, no persistence grammar, no editor tool,
+no standards calculator and no framing generator.
 
 The purpose of Priority 26 is to identify the information that must remain
 **authoritative** before SiteHelper commits to a roof object model. The existing
@@ -513,18 +514,17 @@ A roof plane needs both **magnitude** and **direction/orientation** of slope.
 Simple forms can derive some directions from a ridge axis or boundary roles;
 skillion and compound roofs make the need explicit.
 
-Do not persist a naked `double pitch_degrees` as the first implementation just
-because UI plans use degrees. SiteHelper currently gives authoritative values
-stable, explicit representations. Before implementation, evaluate:
+Do not persist a naked `double pitch_degrees` as the geometry authority merely
+because UI plans use degrees. Priority 26C tested normalized rational rise/run,
+fixed-point angle and fixed-point tangent/gradient approaches and selected a
+**1,000,000-scale fixed rise/run gradient** as the canonical arithmetic contract.
+The detailed decision and fixture evidence are in `ROOF_NUMERIC_CONTRACT.md`.
 
-- a normalized rational rise/run representation;
-- a fixed-point angle representation with a defined conversion contract;
-- import/display round-trip requirements for common degree pitches such as
-  22.5 degrees.
-
-The chosen representation must support deterministic generation and checked
-numeric behaviour on all supported compilers. This is an unresolved Priority 26
-result, not permission to guess in the first roof struct.
+The derived plane form is an integer affine equation (`S*Z = Gx*X + Gy*Y + K`)
+and plane intersections remain exact rational millimetres. Degrees/ratios are
+input/display representations that canonicalize at the boundary; topology does
+not repeatedly call trigonometric functions or use epsilon equality. Final
+source structs and arbitrary-direction authoring conversion remain for 26D.
 
 ### 5. Roof-form / plane-generation intent
 
@@ -808,9 +808,9 @@ loops during persistence migration.
 
 ## Recommended Priority 26 implementation sequence
 
-Priority 26A is complete as a design/research gate. Code should now advance in
-narrow geometry-first steps rather than jumping to rafters or standards
-calculators.
+Priorities 26A-26C are complete. Code should now advance into the smallest
+roof-intent/geometry prototype rather than jumping to rafters, persistence or
+standards calculators.
 
 ### 26A — standards and regulatory discovery — COMPLETE
 
@@ -830,12 +830,13 @@ the final persisted C struct.
 The fixtures are now the acceptance gate for the numeric and source-model
 prototypes that follow.
 
-### 26C — choose and prove the roof slope/plane numeric contract
+### 26C — choose and prove the roof slope/plane numeric contract — COMPLETE
 
-Prototype only the mathematics needed to represent one sloping plane and
-intersect/clip planes deterministically. Decide pitch authority (for example
-normalized rise/run versus fixed-point angle) based on common-input round trips,
-integer-mm boundaries and cross-platform tests.
+`ROOF_NUMERIC_CONTRACT.md` and `roof/tests/test_roof_numeric_contract.c` freeze
+the numeric decision: canonical slope/plane gradients use a fixed rise/run scale
+of 1,000,000; derived planes use integer affine coefficients; and fractional
+intersection coordinates remain exact rationals. The prototype exercises A0, C1
+and F1 without introducing a production roof API.
 
 ### 26D — minimal roof-intent / geometry prototype
 
@@ -872,8 +873,8 @@ model rather than define it.
 
 ## Exit criteria for Priority 26 discovery
 
-Priority 26A and 26B are complete. The project may proceed into 26C while
-preserving these constraints:
+Priorities 26A, 26B and 26C are complete. The project may proceed into 26D
+while preserving these constraints:
 
 1. named roof styles are presets/classifications, not the sole core model;
 2. roof envelope geometry, roof covering and structural roof system are separate
@@ -893,17 +894,17 @@ preserving these constraints:
    not hidden roof properties;
 10. directional wind roles and pressure regions are derived analysis state;
 11. geometry validity and standards-method applicability are separate results;
-12. pitch numeric representation remains deliberately unresolved until a small
-    deterministic geometry prototype tests it;
+12. roof slope/plane arithmetic uses the 26C fixed 1,000,000 rise/run scale,
+    integer affine planes and exact rational derived intersections;
 13. the six fixtures above gate any proposed struct design;
 14. persistence remains v14 until an authoritative representation is proven;
 15. full framing/engineering implementation starts only after roof geometry and
     structural-layout boundaries represent the compound fixtures cleanly.
 
-The next coding/design task is therefore **26C — choose and prove the roof
-slope/plane numeric contract**, not a framing generator, persistence integration
-or standards calculator. `ROOF_GEOMETRY_FIXTURES.md` is the acceptance contract
-for that prototype.
+The next coding/design task is therefore **26D — minimal roof-intent / geometry
+prototype**, not a framing generator, persistence integration or standards
+calculator. `ROOF_GEOMETRY_FIXTURES.md` remains the geometry acceptance contract
+and `ROOF_NUMERIC_CONTRACT.md` is the arithmetic contract for that prototype.
 
 ## Standards and construction references consulted
 

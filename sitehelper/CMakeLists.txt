@@ -10,6 +10,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
 endif()
 add_test(NAME linear_cut_optimizer_tests COMMAND test_linear_cut_optimizer)
 
+# Priority 26C numeric-contract prototype. This executable deliberately does
+# not expose a production roof library/API; it freezes the arithmetic decision
+# before the authoritative roof model is introduced in later priorities.
+add_executable(test_roof_numeric_contract roof/tests/test_roof_numeric_contract.c)
+if(NOT MSVC)
+    target_link_libraries(test_roof_numeric_contract PRIVATE m)
+endif()
+add_test(NAME roof_numeric_contract_tests COMMAND test_roof_numeric_contract)
+
 add_library(sitehelper_model
     model/build_structure.c
     domain/domain_id.c
