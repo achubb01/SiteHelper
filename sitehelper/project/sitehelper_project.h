@@ -161,7 +161,10 @@ const Storey *sitehelper_project_find_storey_by_id_const(const SiteHelperProject
  * allocate an ID or advance the watermark; caller must establish it. */
 int sitehelper_project_insert_storey(SiteHelperProject *project, DomainId id, int elevation_mm);
 
-/* Queries assume coherent authoritative collection metadata. The owner query
+/* Project-scope queries are deliberately limited to global identity/ownership.
+ * Feature/spatial/report queries remain in their owning subsystems; see
+ * QUERY_LAYER.md. Do not turn these typed lookups into a generic repository.
+ * Queries assume coherent authoritative collection metadata. The owner query
  * accepts any nested entity ID, including openings, or the Storey's own ID. */
 int sitehelper_project_contains_domain_id(const SiteHelperProject *project, DomainId id);
 Storey *sitehelper_project_find_owning_storey(SiteHelperProject *project, DomainId id);

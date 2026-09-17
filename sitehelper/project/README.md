@@ -2,7 +2,8 @@
 
 This is the preserved Priority 9A implementation report. The subsequent
 [Priority 9B settings ownership and resolution report](SETTINGS.md) describes
-the current Storey override APIs and persistence v9.
+the current Storey override APIs and persistence v9. The current query ownership
+policy is documented separately in [Priority 27 project query boundary](QUERY_LAYER.md).
 
 `SiteHelperProject` owns project-wide `BuildSettings`, a global DomainIdGenerator,
 and an ordered `Storey *storeys` array with count/capacity. It owns zero or more
