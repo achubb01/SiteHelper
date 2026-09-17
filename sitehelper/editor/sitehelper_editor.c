@@ -7,6 +7,8 @@
 #include "wall_snap.h"
 #include "plan_snap.h"
 #include "slab_plan_query.h"
+#include "roof_plan_query.h"
+#include "roof.h"
 #include "plan_position_conversion.h"
 
 int sitehelper_editor_set_current_storey(SiteHelperEditor *editor,
@@ -326,7 +328,19 @@ void sitehelper_editor_reconcile(
     const EditorSelection *selection = &editor->selection;
 
     if (selection->kind != EDITOR_SELECTION_NONE) {
-        if (selection->kind == EDITOR_SELECTION_SLAB ||
+        if (selection->kind == EDITOR_SELECTION_ROOF ||
+            selection->kind == EDITOR_SELECTION_ROOF_PORTION) {
+            const Roof *selected_roof = roof_collection_find_by_id_const(
+                &storey->roofs, selection->roof_id);
+            int valid = selected_roof != NULL &&
+                selection->scope == EDITOR_SELECTION_SCOPE_PLAN &&
+                roof_validate(selected_roof) == ROOF_SUCCESS;
+            if (valid && selection->kind == EDITOR_SELECTION_ROOF_PORTION) {
+                valid = roof_find_portion_by_id_const(selected_roof,
+                    selection->roof_portion_id) != NULL;
+            }
+            if (!valid) { sitehelper_editor_clear_selection(editor); }
+        } else if (selection->kind == EDITOR_SELECTION_SLAB ||
             selection->kind == EDITOR_SELECTION_SLAB_PENETRATION ||
             selection->kind == EDITOR_SELECTION_SLAB_REGION ||
             selection->kind == EDITOR_SELECTION_SLAB_EDGE_REBATE) {
@@ -368,6 +382,28 @@ void sitehelper_editor_reconcile(
     }
 
     sitehelper_editor_invalidate_transient_state(editor);
+}
+
+int sitehelper_editor_select_roof_at_position(SiteHelperEditor *editor,
+    const Storey *storey, PlanPoint point, double tolerance_mm)
+{
+    if (editor == NULL || storey == NULL || editor->active_view != EDITOR_VIEW_PLAN) {
+        if (editor != NULL) { sitehelper_editor_clear_selection(editor); }
+        return 0;
+    }
+    RoofPlanHit hit=roof_plan_hit_test_storey(storey,point,tolerance_mm);
+    if (hit.kind == ROOF_PLAN_HIT_PORTION) {
+        editor_selection_set_roof_portion(&editor->selection,
+            EDITOR_SELECTION_SCOPE_PLAN,hit.roof_id,hit.portion_id);
+        return 1;
+    }
+    if (hit.kind == ROOF_PLAN_HIT_ROOF) {
+        editor_selection_set_roof(&editor->selection,
+            EDITOR_SELECTION_SCOPE_PLAN,hit.roof_id);
+        return 1;
+    }
+    sitehelper_editor_clear_selection(editor);
+    return 1;
 }
 
 void sitehelper_editor_project_replaced(SiteHelperEditor *editor,

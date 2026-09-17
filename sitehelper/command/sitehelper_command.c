@@ -4,8 +4,10 @@
 #include "sitehelper_command.h"
 #include "sitehelper_command_internal.h"
 #include "delete_wall_command_internal.h"
+#include "delete_roof_command_internal.h"
 #include "wall.h"
 #include "slab.h"
+#include "roof.h"
 
 typedef struct {
     DomainId storey_id;
@@ -65,6 +67,10 @@ typedef struct {
     int region_thickness_mm;
 } MovedSlabVertexSnapshot;
 
+typedef struct {
+    Roof roof;
+} EditedRoofSnapshot;
+
 struct SiteHelperCommandUndoState
 {
     SiteHelperCommandType type;
@@ -91,6 +97,8 @@ struct SiteHelperCommandUndoState
         EditedSlabRegionSnapshot edited_slab_region;
         EditedSlabEdgeRebateSnapshot edited_slab_edge_rebate;
         MovedSlabVertexSnapshot moved_slab_vertex;
+        DeletedRoofSnapshot deleted_roof;
+        EditedRoofSnapshot edited_roof;
     };
 };
 
@@ -291,7 +299,9 @@ int sitehelper_command_capture_undo_state(
         command->type != SITEHELPER_COMMAND_EDIT_SLAB &&
         command->type != SITEHELPER_COMMAND_EDIT_SLAB_REGION &&
         command->type != SITEHELPER_COMMAND_EDIT_SLAB_EDGE_REBATE &&
-        command->type != SITEHELPER_COMMAND_MOVE_SLAB_VERTEX) {
+        command->type != SITEHELPER_COMMAND_MOVE_SLAB_VERTEX &&
+        command->type != SITEHELPER_COMMAND_DELETE_ROOF &&
+        command->type != SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
         return 1;
     }
     SiteHelperCommandUndoState *candidate = calloc(1, sizeof *candidate);
@@ -359,6 +369,19 @@ int sitehelper_command_capture_undo_state(
         candidate->moved_slab_vertex.vertex_index=move->vertex_index;
         candidate->moved_slab_vertex.region_top_level_offset_mm=region_top;
         candidate->moved_slab_vertex.region_thickness_mm=region_thickness;
+    }
+    else if (command->type == SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
+        const Roof *roof = sitehelper_project_find_roof_by_id_const(project,
+            command->data.edit_roof_source.roof_id);
+        if (roof == NULL || roof_clone(roof, &candidate->edited_roof.roof) != ROOF_SUCCESS) {
+            sitehelper_command_destroy_undo_state(candidate); return 0;
+        }
+    }
+    else if (command->type == SITEHELPER_COMMAND_DELETE_ROOF) {
+        if (!deleted_roof_snapshot_capture(project, &command->data.delete_roof,
+                &candidate->deleted_roof)) {
+            sitehelper_command_destroy_undo_state(candidate); return 0;
+        }
     }
     else if (command->type == SITEHELPER_COMMAND_DELETE_SLAB) {
         const Slab *slab=sitehelper_project_find_slab_by_id_const(project,
@@ -446,6 +469,10 @@ void sitehelper_command_destroy_undo_state(SiteHelperCommandUndoState *state)
         slab_outline_destroy(&state->edited_slab_region.feature.outline);
     } else if (state->type == SITEHELPER_COMMAND_MOVE_SLAB_VERTEX) {
         slab_outline_destroy(&state->moved_slab_vertex.outline);
+    } else if (state->type == SITEHELPER_COMMAND_DELETE_ROOF) {
+        deleted_roof_snapshot_destroy(&state->deleted_roof);
+    } else if (state->type == SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
+        roof_destroy(&state->edited_roof.roof);
     }
     free(state);
 }
@@ -456,6 +483,26 @@ int sitehelper_command_undo_with_state(
 {
     if (project == NULL || command == NULL || result == NULL || command->type != result->type) {
         return 0;
+    }
+    if (command->type == SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
+        if (state == NULL || state->type != command->type ||
+            state->edited_roof.roof.id != command->data.edit_roof_source.roof_id ||
+            result->data.roof.roof_id != command->data.edit_roof_source.roof_id) { return 0; }
+        Roof expected = {0};
+        if (!roof_source_edit_command_build_expected(&state->edited_roof.roof,
+                &command->data.edit_roof_source, result->data.roof.portion_id, &expected)) {
+            roof_destroy(&expected); return 0;
+        }
+        const Roof *current = sitehelper_project_find_roof_by_id_const(project, expected.id);
+        int matches = current != NULL && roof_authority_equal(current, &expected);
+        roof_destroy(&expected);
+        return matches && sitehelper_project_replace_roof(project, &state->edited_roof.roof);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_ROOF) {
+        DomainId id = command->data.delete_roof.roof_id;
+        return state != NULL && state->type == command->type &&
+            result->data.roof.roof_id == id && state->deleted_roof.roof.id == id &&
+            deleted_roof_snapshot_restore(project, &state->deleted_roof);
     }
     if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION) {
         const DeletedSlabPenetrationSnapshot *s=state == NULL ? NULL :
@@ -627,6 +674,23 @@ int sitehelper_command_redo_with_state(
 {
     if (project == NULL || command == NULL || result == NULL ||
         command->type != result->type) { return 0; }
+    if (command->type == SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
+        if (state == NULL || state->type != command->type ||
+            state->edited_roof.roof.id != command->data.edit_roof_source.roof_id ||
+            result->data.roof.roof_id != command->data.edit_roof_source.roof_id) { return 0; }
+        const Roof *current = sitehelper_project_find_roof_by_id_const(project,
+            state->edited_roof.roof.id);
+        return current != NULL && roof_authority_equal(current, &state->edited_roof.roof) &&
+            roof_source_edit_command_redo(project, &command->data.edit_roof_source,
+                result->data.roof.portion_id);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_ROOF) {
+        DomainId id = command->data.delete_roof.roof_id;
+        const Roof *roof = sitehelper_project_find_roof_by_id_const(project, id);
+        return state != NULL && state->type == command->type &&
+            result->data.roof.roof_id == id && state->deleted_roof.roof.id == id &&
+            roof != NULL && delete_roof_command_execute(project, &command->data.delete_roof);
+    }
     if (command->type == SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION) {
         const DeletedSlabPenetrationSnapshot *s=state == NULL ? NULL :
             &state->deleted_slab_penetration;
@@ -836,12 +900,49 @@ int sitehelper_command_from_move_slab_vertex(const MoveSlabVertexCommand *move,
     return 1;
 }
 
+int sitehelper_command_from_create_roof(const CreateRoofCommand *create,
+    SiteHelperCommand *command)
+{
+    if (create == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate = {.type = SITEHELPER_COMMAND_CREATE_ROOF};
+    if (!create_roof_command_clone(create, &candidate.data.create_roof)) { return 0; }
+    *command = candidate;
+    return 1;
+}
+
+int sitehelper_command_from_delete_roof(const DeleteRoofCommand *deletion,
+    SiteHelperCommand *command)
+{
+    if (deletion == NULL || command == NULL) { return 0; }
+    *command = (SiteHelperCommand){.type = SITEHELPER_COMMAND_DELETE_ROOF,
+        .data.delete_roof = *deletion};
+    return 1;
+}
+
+int sitehelper_command_from_roof_source_edit(const RoofSourceEditCommand *edit,
+    SiteHelperCommand *command)
+{
+    if (edit == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate = {.type = SITEHELPER_COMMAND_EDIT_ROOF_SOURCE};
+    if (!roof_source_edit_command_clone(edit, &candidate.data.edit_roof_source)) { return 0; }
+    *command = candidate;
+    return 1;
+}
+
 int sitehelper_command_clone(const SiteHelperCommand *source, SiteHelperCommand *output)
 {
     if (source == NULL || output == NULL || source->type <= SITEHELPER_COMMAND_NONE ||
         source->type >= SITEHELPER_COMMAND_COUNT) { return 0; }
     SiteHelperCommand candidate=*source;
-    if (source->type == SITEHELPER_COMMAND_CREATE_SLAB) {
+    if (source->type == SITEHELPER_COMMAND_CREATE_ROOF) {
+        candidate.data.create_roof = (CreateRoofCommand){0};
+        if (!create_roof_command_clone(&source->data.create_roof,
+            &candidate.data.create_roof)) { return 0; }
+    } else if (source->type == SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
+        candidate.data.edit_roof_source = (RoofSourceEditCommand){0};
+        if (!roof_source_edit_command_clone(&source->data.edit_roof_source,
+            &candidate.data.edit_roof_source)) { return 0; }
+    } else if (source->type == SITEHELPER_COMMAND_CREATE_SLAB) {
         candidate.data.create_slab=(CreateSlabCommand){0};
         if (!create_slab_command_clone(&source->data.create_slab,
             &candidate.data.create_slab)) { return 0; }
@@ -860,7 +961,11 @@ int sitehelper_command_clone(const SiteHelperCommand *source, SiteHelperCommand 
 void sitehelper_command_destroy(SiteHelperCommand *command)
 {
     if (command == NULL) { return; }
-    if (command->type == SITEHELPER_COMMAND_CREATE_SLAB) {
+    if (command->type == SITEHELPER_COMMAND_CREATE_ROOF) {
+        create_roof_command_destroy(&command->data.create_roof);
+    } else if (command->type == SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
+        roof_source_edit_command_destroy(&command->data.edit_roof_source);
+    } else if (command->type == SITEHELPER_COMMAND_CREATE_SLAB) {
         create_slab_command_destroy(&command->data.create_slab);
     } else if (command->type == SITEHELPER_COMMAND_ADD_SLAB_PENETRATION) {
         add_slab_penetration_command_destroy(&command->data.add_slab_penetration);
@@ -1073,6 +1178,28 @@ int sitehelper_command_execute(
                     command->data.move_slab_vertex.vertex_index}};
             return 1;
 
+        case SITEHELPER_COMMAND_CREATE_ROOF: {
+            DomainId roof_id, portion_id;
+            if (!create_roof_command_execute(project, &command->data.create_roof,
+                    &roof_id, &portion_id)) { return 0; }
+            *result = (SiteHelperCommandResult){.type = command->type,
+                .data.roof = {roof_id, portion_id}};
+            return 1;
+        }
+        case SITEHELPER_COMMAND_DELETE_ROOF:
+            if (!delete_roof_command_execute(project, &command->data.delete_roof)) { return 0; }
+            *result = (SiteHelperCommandResult){.type = command->type,
+                .data.roof = {command->data.delete_roof.roof_id, DOMAIN_ID_INVALID}};
+            return 1;
+        case SITEHELPER_COMMAND_EDIT_ROOF_SOURCE: {
+            DomainId portion_id = DOMAIN_ID_INVALID;
+            if (!roof_source_edit_command_execute(project, &command->data.edit_roof_source,
+                    &portion_id)) { return 0; }
+            *result = (SiteHelperCommandResult){.type = command->type,
+                .data.roof = {command->data.edit_roof_source.roof_id, portion_id}};
+            return 1;
+        }
+
         case SITEHELPER_COMMAND_CREATE_SLAB: {
             DomainId id;
             if (!create_slab_command_execute(project,&command->data.create_slab,&id)) { return 0; }
@@ -1260,6 +1387,12 @@ int sitehelper_command_undo(
                 slab_remove_edge_rebate(slab,index) == SLAB_SUCCESS;
         }
 
+        case SITEHELPER_COMMAND_CREATE_ROOF:
+            return result->data.roof.roof_id != DOMAIN_ID_INVALID &&
+                result->data.roof.portion_id != DOMAIN_ID_INVALID &&
+                create_roof_command_undo(project, &command->data.create_roof,
+                    result->data.roof.roof_id, result->data.roof.portion_id);
+
         case SITEHELPER_COMMAND_CREATE_SLAB:
             return result->data.slab.slab_id != DOMAIN_ID_INVALID &&
                 create_slab_command_undo(project,&command->data.create_slab,
@@ -1286,6 +1419,8 @@ int sitehelper_command_undo(
             );
 
         case SITEHELPER_COMMAND_DELETE_WALL:
+        case SITEHELPER_COMMAND_DELETE_ROOF:
+        case SITEHELPER_COMMAND_EDIT_ROOF_SOURCE:
         case SITEHELPER_COMMAND_DELETE_SLAB:
         case SITEHELPER_COMMAND_DELETE_SLAB_PENETRATION:
         case SITEHELPER_COMMAND_DELETE_SLAB_REGION:
@@ -1364,7 +1499,15 @@ int sitehelper_command_redo(
         case SITEHELPER_COMMAND_EDIT_SLAB_REGION:
         case SITEHELPER_COMMAND_EDIT_SLAB_EDGE_REBATE:
         case SITEHELPER_COMMAND_MOVE_SLAB_VERTEX:
+        case SITEHELPER_COMMAND_EDIT_ROOF_SOURCE:
             return 0; /* History-owned snapshot is required for exact verification. */
+
+        case SITEHELPER_COMMAND_CREATE_ROOF:
+            return create_roof_command_redo(project, &command->data.create_roof,
+                result->data.roof.roof_id, result->data.roof.portion_id);
+        case SITEHELPER_COMMAND_DELETE_ROOF:
+            return command->data.delete_roof.roof_id == result->data.roof.roof_id &&
+                delete_roof_command_execute(project, &command->data.delete_roof);
 
         case SITEHELPER_COMMAND_CREATE_SLAB:
             return create_slab_command_redo(project,&command->data.create_slab,

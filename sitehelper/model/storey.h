@@ -4,6 +4,7 @@
 #include "build_structure.h"
 #include "build_settings.h"
 #include "slab_types.h"
+#include "roof_types.h"
 
 /* Authoritative, exclusively owned by SiteHelperProject. Containment owns all
  * Rooms, Walls, virtual separators and independent Slabs; openings remain owned by Walls.
@@ -18,6 +19,7 @@ typedef struct Storey {
     StoreyBuildSettings settings;
     BuildStructure structure;
     SlabCollection slabs; /* Independent physical construction, exclusively owned. */
+    RoofCollection roofs; /* Authoritative roof intent, exclusively owned by this Storey. */
 } Storey;
 
 #endif

@@ -11,6 +11,7 @@ typedef enum
     SITEHELPER_PERSISTENCE_UNSUPPORTED_VERSION,
     SITEHELPER_PERSISTENCE_MALFORMED_DATA,
     SITEHELPER_PERSISTENCE_INVALID_PROJECT,
+    SITEHELPER_PERSISTENCE_UNSUPPORTED_PROJECT_DATA,
     SITEHELPER_PERSISTENCE_REGENERATION_FAILED,
     SITEHELPER_PERSISTENCE_ALLOCATION_FAILED,
     /* Legacy opening cannot regenerate with faithfully preserved framing and
@@ -23,6 +24,10 @@ typedef enum
  * without suffixes/unit markers (../model/MEASUREMENTS.md). IDs, counts, flags
  * and modes are not measurements. Supported versions 1-14 all use millimetres;
  * legacy geometry-reference migrations below do not change dimensional units.
+ * Version 15 adds Storey-owned authoritative Roof records after slabs. Roof and
+ * portion IDs, support polygons, source generation/slope/vertical-reference
+ * intent, compositions and terminations are serialized; generated roof geometry
+ * and structural-layout snapshots are regenerated and are never saved.
  * Version 14 adds slab-owned edge-rebate records after regions. Each stores an
  * outer edge index, integer-mm U interval, inward width and local-top-relative
  * depth. Versions 1-13 have zero edge rebates. Derived geometry is not saved.
@@ -46,10 +51,11 @@ SiteHelperPersistenceResult sitehelper_project_save_file(
 );
 
 /*
- * Loads versions 1-14 transactionally into an initialized destination. Parse,
+ * Loads versions 1-15 transactionally into an initialized destination. Parse,
  * authoritative validation and framing regeneration must all succeed before
  * replacing it. On failure destination remains unchanged.
- * Versions 1-10 load with zero slabs. Slab quantities are never serialized.
+ * Versions 1-14 load with zero roofs. Versions 1-10 load with zero slabs. Slab
+ * quantities are never serialized.
  * Versions 1-7 migrate into one elevation-zero Storey. Existing entity IDs
  * and ordered geometry are preserved. The old watermark supplies the fresh
  * Storey ID and advances once; collision/exhaustion fails without wrapping.

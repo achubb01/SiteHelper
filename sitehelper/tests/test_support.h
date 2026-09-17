@@ -7,6 +7,7 @@
 
 #include "sitehelper_project.h"
 #include "wall.h"
+#include "roof.h"
 
 static inline int test_timber_equal_value(
     const Timber *expected,
@@ -239,6 +240,35 @@ static inline void test_assert_slab_equal(const Slab *expected, const Slab *actu
     }
 }
 
+
+static inline void test_assert_roof_equal(const Roof *expected, const Roof *actual)
+{
+    assert(expected && actual && expected->id == actual->id);
+    const RoofDefinition *a=&expected->definition,*b=&actual->definition;
+    assert(a->portion_count==b->portion_count && a->composition_count==b->composition_count &&
+        a->termination_count==b->termination_count);
+    for(size_t i=0;i<a->portion_count;i++){
+        const RoofPortionDefinition *pa=&a->portions[i];
+        const RoofPortionDefinition *pb=roof_find_portion_by_id_const(actual,pa->id);
+        assert(pb && pa->support_vertex_count==pb->support_vertex_count && pa->generation==pb->generation &&
+            pa->slope_ppm==pb->slope_ppm && pa->reference_z_mm==pb->reference_z_mm &&
+            pa->direction.x==pb->direction.x && pa->direction.y==pb->direction.y &&
+            pa->single_slope_reference==pb->single_slope_reference);
+        for(size_t j=0;j<pa->support_vertex_count;j++)
+            assert(pa->support_vertices[j].x==pb->support_vertices[j].x && pa->support_vertices[j].y==pb->support_vertices[j].y);
+    }
+    for(size_t i=0;i<a->composition_count;i++){
+        assert(a->compositions[i].first_portion_id==b->compositions[i].first_portion_id &&
+            a->compositions[i].second_portion_id==b->compositions[i].second_portion_id &&
+            a->compositions[i].kind==b->compositions[i].kind);
+    }
+    for(size_t i=0;i<a->termination_count;i++){
+        assert(a->terminations[i].portion_id==b->terminations[i].portion_id &&
+            a->terminations[i].end==b->terminations[i].end &&
+            a->terminations[i].termination_offset_mm==b->terminations[i].termination_offset_mm);
+    }
+}
+
 static inline void test_assert_project_model_equal(
     const SiteHelperProject *expected,
     const SiteHelperProject *actual
@@ -254,6 +284,12 @@ static inline void test_assert_project_model_equal(
         assert(expected->storeys[level].slabs.count == actual->storeys[level].slabs.count);
         for (size_t i = 0; i < expected->storeys[level].slabs.count; i++) {
             test_assert_slab_equal(&expected->storeys[level].slabs.items[i], &actual->storeys[level].slabs.items[i]);
+        }
+        assert(expected->storeys[level].roofs.count == actual->storeys[level].roofs.count);
+        for (size_t i = 0; i < expected->storeys[level].roofs.count; i++) {
+            const Roof *er=&expected->storeys[level].roofs.items[i];
+            const Roof *ar=roof_collection_find_by_id_const(&actual->storeys[level].roofs,er->id);
+            assert(ar); test_assert_roof_equal(er,ar);
         }
         assert(expected->storeys[level].elevation_mm == actual->storeys[level].elevation_mm);
         assert(expected->storeys[level].settings.has_stud_height_override == actual->storeys[level].settings.has_stud_height_override);
@@ -364,6 +400,15 @@ static inline void test_clone_project_authoritative(
         destination->storeys[level].settings = source->storeys[level].settings;
         for (size_t i = 0; i < source->storeys[level].slabs.count; i++) {
             assert(sitehelper_project_insert_slab(destination, source->storeys[level].id, &source->storeys[level].slabs.items[i]));
+        }
+        if (source->storeys[level].roofs.count) {
+            RoofCollection *dc=&destination->storeys[level].roofs;
+            dc->items=calloc(source->storeys[level].roofs.count,sizeof *dc->items);
+            assert(dc->items); dc->capacity=source->storeys[level].roofs.count;
+            for(size_t i=0;i<source->storeys[level].roofs.count;i++){
+                assert(roof_clone(&source->storeys[level].roofs.items[i],&dc->items[i])==ROOF_SUCCESS);
+                dc->count++;
+            }
         }
         for (size_t i = 0; i < source->storeys[level].structure.wall_count; i++) {
             Wall wall = {0};

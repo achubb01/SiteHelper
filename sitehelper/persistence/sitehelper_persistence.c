@@ -11,11 +11,12 @@
 
 #include "wall.h"
 #include "slab.h"
+#include "roof.h"
 #include "project_settings_internal.h"
 
 enum
 {
-    SITEHELPER_PROJECT_FORMAT_VERSION = 14,
+    SITEHELPER_PROJECT_FORMAT_VERSION = 15,
     PERSISTENCE_TOKEN_CAPACITY = 64
 };
 
@@ -42,6 +43,7 @@ static SiteHelperPersistenceResult read_required_token(
 );
 
 static int parse_int_token(const char *token, int *value);
+static int parse_int64_token(const char *token, int64_t *value);
 static int parse_size_token(const char *token, size_t *value);
 static int parse_domain_id_token(const char *token, DomainId *value);
 static int parse_stud_spacing_mode(
@@ -53,9 +55,17 @@ static int parse_opening_type(
     OpeningType *type
 );
 static int parse_bool_token(const char *token, bool *value);
+static int parse_roof_generation(const char *token, RoofPortionGeneration *generation);
+static int parse_roof_single_slope_reference(const char *token, RoofSingleSlopeReference *reference);
+static int parse_roof_composition_kind(const char *token, RoofCompositionKind *kind);
+static int parse_roof_end(const char *token, RoofEnd *end);
 
 static const char *stud_spacing_mode_token(StudSpacingMode mode);
 static const char *opening_type_token(OpeningType type);
+static const char *roof_generation_token(RoofPortionGeneration generation);
+static const char *roof_single_slope_reference_token(RoofSingleSlopeReference reference);
+static const char *roof_composition_kind_token(RoofCompositionKind kind);
+static const char *roof_end_token(RoofEnd end);
 
 static int project_contains_id(const SiteHelperProject *project, DomainId id)
 {
@@ -147,6 +157,18 @@ static int parse_int_token(const char *token, int *value)
     }
 
     *value = (int)parsed;
+    return 1;
+}
+
+static int parse_int64_token(const char *token, int64_t *value)
+{
+    if (token == NULL || value == NULL || token[0] == '\0') { return 0; }
+    errno = 0;
+    char *end = NULL;
+    intmax_t parsed = strtoimax(token, &end, 10);
+    if (errno == ERANGE || end == token || *end != '\0' ||
+        parsed < INT64_MIN || parsed > INT64_MAX) { return 0; }
+    *value = (int64_t)parsed;
     return 1;
 }
 
@@ -257,6 +279,39 @@ static int parse_bool_token(const char *token, bool *value)
     return 0;
 }
 
+static int parse_roof_generation(const char *token, RoofPortionGeneration *generation)
+{
+    if (token == NULL || generation == NULL) { return 0; }
+    if (strcmp(token, "opposing_slopes") == 0) { *generation = ROOF_PORTION_OPPOSING_SLOPES; return 1; }
+    if (strcmp(token, "all_boundary_slopes") == 0) { *generation = ROOF_PORTION_ALL_BOUNDARY_SLOPES; return 1; }
+    if (strcmp(token, "single_slope") == 0) { *generation = ROOF_PORTION_SINGLE_SLOPE; return 1; }
+    return 0;
+}
+
+static int parse_roof_single_slope_reference(const char *token, RoofSingleSlopeReference *reference)
+{
+    if (token == NULL || reference == NULL) { return 0; }
+    if (strcmp(token, "low_edge") == 0) { *reference = ROOF_SINGLE_SLOPE_REFERENCE_LOW_EDGE; return 1; }
+    if (strcmp(token, "high_edge") == 0) { *reference = ROOF_SINGLE_SLOPE_REFERENCE_HIGH_EDGE; return 1; }
+    return 0;
+}
+
+static int parse_roof_composition_kind(const char *token, RoofCompositionKind *kind)
+{
+    if (token == NULL || kind == NULL) { return 0; }
+    if (strcmp(token, "intersects") == 0) { *kind = ROOF_COMPOSITION_INTERSECTS; return 1; }
+    if (strcmp(token, "abuts") == 0) { *kind = ROOF_COMPOSITION_ABUTS; return 1; }
+    return 0;
+}
+
+static int parse_roof_end(const char *token, RoofEnd *end)
+{
+    if (token == NULL || end == NULL) { return 0; }
+    if (strcmp(token, "negative_axis") == 0) { *end = ROOF_END_NEGATIVE_AXIS; return 1; }
+    if (strcmp(token, "positive_axis") == 0) { *end = ROOF_END_POSITIVE_AXIS; return 1; }
+    return 0;
+}
+
 static const char *stud_spacing_mode_token(StudSpacingMode mode)
 {
     switch (mode) {
@@ -286,6 +341,43 @@ static const char *opening_type_token(OpeningType type)
 }
 
 
+
+static const char *roof_generation_token(RoofPortionGeneration generation)
+{
+    switch (generation) {
+        case ROOF_PORTION_OPPOSING_SLOPES: return "opposing_slopes";
+        case ROOF_PORTION_ALL_BOUNDARY_SLOPES: return "all_boundary_slopes";
+        case ROOF_PORTION_SINGLE_SLOPE: return "single_slope";
+        default: return NULL;
+    }
+}
+
+static const char *roof_single_slope_reference_token(RoofSingleSlopeReference reference)
+{
+    switch (reference) {
+        case ROOF_SINGLE_SLOPE_REFERENCE_LOW_EDGE: return "low_edge";
+        case ROOF_SINGLE_SLOPE_REFERENCE_HIGH_EDGE: return "high_edge";
+        default: return NULL;
+    }
+}
+
+static const char *roof_composition_kind_token(RoofCompositionKind kind)
+{
+    switch (kind) {
+        case ROOF_COMPOSITION_INTERSECTS: return "intersects";
+        case ROOF_COMPOSITION_ABUTS: return "abuts";
+        default: return NULL;
+    }
+}
+
+static const char *roof_end_token(RoofEnd end)
+{
+    switch (end) {
+        case ROOF_END_NEGATIVE_AXIS: return "negative_axis";
+        case ROOF_END_POSITIVE_AXIS: return "positive_axis";
+        default: return NULL;
+    }
+}
 
 static SiteHelperPersistenceResult parse_settings(
     FILE *file,
@@ -929,6 +1021,185 @@ static SiteHelperPersistenceResult parse_slabs(FILE *file, SiteHelperProject *pr
     return SITEHELPER_PERSISTENCE_SUCCESS;
 }
 
+static SiteHelperPersistenceResult parse_roofs(
+    FILE *file,
+    SiteHelperProject *project,
+    Storey *storey
+)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    size_t roof_count;
+    if (expect_token(file, "roofs") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token, &roof_count) || roof_count > SIZE_MAX / sizeof(Roof)) {
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    for (size_t roof_index = 0; roof_index < roof_count; roof_index++) {
+        Roof roof = {0};
+        size_t portion_count;
+        if (expect_token(file, "roof") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token, &roof.id) || roof.id == DOMAIN_ID_INVALID ||
+            project_contains_id(project, roof.id) ||
+            expect_token(file, "portions") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_size_token(token, &portion_count) || portion_count == 0 ||
+            portion_count > SIZE_MAX / sizeof(RoofPortionDefinition)) {
+            roof_destroy(&roof);
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+
+        SiteHelperPersistenceResult result = SITEHELPER_PERSISTENCE_SUCCESS;
+        for (size_t portion_index = 0; portion_index < portion_count; portion_index++) {
+            DomainId portion_id;
+            RoofPortionGeneration generation;
+            int64_t slope_ppm;
+            int reference_z_mm;
+            RoofDirection direction;
+            RoofSingleSlopeReference single_slope_reference;
+            size_t vertex_count;
+
+            if (expect_token(file, "portion") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_domain_id_token(token, &portion_id) || portion_id == DOMAIN_ID_INVALID ||
+                portion_id == roof.id || project_contains_id(project, portion_id) ||
+                expect_token(file, "generation") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_roof_generation(token, &generation) ||
+                expect_token(file, "slope_ppm") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int64_token(token, &slope_ppm) ||
+                expect_token(file, "reference_z") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &reference_z_mm) ||
+                expect_token(file, "direction") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &direction.x) ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &direction.y) ||
+                expect_token(file, "single_slope_reference") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_roof_single_slope_reference(token, &single_slope_reference) ||
+                expect_token(file, "support") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_size_token(token, &vertex_count)) {
+                result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+                break;
+            }
+            if (vertex_count < 3 || vertex_count > SIZE_MAX / sizeof(PlanPosition)) {
+                result = SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+                break;
+            }
+
+            PlanPosition *vertices = malloc(vertex_count * sizeof *vertices);
+            if (vertices == NULL) {
+                result = SITEHELPER_PERSISTENCE_ALLOCATION_FAILED;
+                break;
+            }
+            for (size_t vertex_index = 0; vertex_index < vertex_count; vertex_index++) {
+                if (expect_token(file, "vertex") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                    read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                    !parse_int_token(token, &vertices[vertex_index].x) ||
+                    read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                    !parse_int_token(token, &vertices[vertex_index].y)) {
+                    result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+                    break;
+                }
+            }
+            if (result == SITEHELPER_PERSISTENCE_SUCCESS &&
+                expect_token(file, "end_portion") != SITEHELPER_PERSISTENCE_SUCCESS) {
+                result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+            }
+            if (result == SITEHELPER_PERSISTENCE_SUCCESS) {
+                RoofPortionSpec spec = {
+                    vertices, vertex_count, generation, slope_ppm, reference_z_mm,
+                    direction, single_slope_reference
+                };
+                RoofCode code = roof_definition_append_portion(&roof.definition, portion_id, &spec);
+                if (code != ROOF_SUCCESS) {
+                    result = code == ROOF_ALLOCATION_FAILED
+                        ? SITEHELPER_PERSISTENCE_ALLOCATION_FAILED
+                        : SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+                }
+            }
+            free(vertices);
+            if (result != SITEHELPER_PERSISTENCE_SUCCESS) { break; }
+        }
+
+        size_t composition_count = 0;
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS &&
+            (expect_token(file, "compositions") != SITEHELPER_PERSISTENCE_SUCCESS ||
+             read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+             !parse_size_token(token, &composition_count) ||
+             composition_count > SIZE_MAX / sizeof(RoofComposition))) {
+            result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        for (size_t i = 0; result == SITEHELPER_PERSISTENCE_SUCCESS && i < composition_count; i++) {
+            RoofComposition composition;
+            if (expect_token(file, "composition") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_domain_id_token(token, &composition.first_portion_id) ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_domain_id_token(token, &composition.second_portion_id) ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_roof_composition_kind(token, &composition.kind)) {
+                result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+                break;
+            }
+            RoofCode code = roof_definition_append_composition(&roof.definition, composition);
+            if (code != ROOF_SUCCESS) {
+                result = code == ROOF_ALLOCATION_FAILED
+                    ? SITEHELPER_PERSISTENCE_ALLOCATION_FAILED
+                    : SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+            }
+        }
+
+        size_t termination_count = 0;
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS &&
+            (expect_token(file, "terminations") != SITEHELPER_PERSISTENCE_SUCCESS ||
+             read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+             !parse_size_token(token, &termination_count) ||
+             termination_count > SIZE_MAX / sizeof(RoofTermination))) {
+            result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        for (size_t i = 0; result == SITEHELPER_PERSISTENCE_SUCCESS && i < termination_count; i++) {
+            RoofTermination termination;
+            if (expect_token(file, "termination") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_domain_id_token(token, &termination.portion_id) ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_roof_end(token, &termination.end) ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &termination.termination_offset_mm)) {
+                result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+                break;
+            }
+            RoofCode code = roof_definition_append_termination(&roof.definition, termination);
+            if (code != ROOF_SUCCESS) {
+                result = code == ROOF_ALLOCATION_FAILED
+                    ? SITEHELPER_PERSISTENCE_ALLOCATION_FAILED
+                    : SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+            }
+        }
+
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS &&
+            expect_token(file, "end_roof") != SITEHELPER_PERSISTENCE_SUCCESS) {
+            result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS && roof_validate(&roof) != ROOF_SUCCESS) {
+            result = SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS &&
+            !sitehelper_project_insert_roof_at(project, storey->id, &roof, storey->roofs.count)) {
+            result = SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+        roof_destroy(&roof);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
 static SiteHelperPersistenceResult parse_project(
     FILE *file,
     SiteHelperProject *project
@@ -1028,6 +1299,10 @@ static SiteHelperPersistenceResult parse_project(
             result = parse_slabs(file, project, storey, version);
             if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
         }
+        if (version >= 15) {
+            result = parse_roofs(file, project, storey);
+            if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+        }
         if (version >= 8 && expect_token(file, "end_storey") != SITEHELPER_PERSISTENCE_SUCCESS) {
             return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
         }
@@ -1079,6 +1354,15 @@ static SiteHelperPersistenceResult regenerate_project(
                     &structure->walls[wall_index],
                     &resolved)) {
 
+                return SITEHELPER_PERSISTENCE_REGENERATION_FAILED;
+            }
+        }
+        for (size_t roof_index = 0; roof_index < project->storeys[i].roofs.count; roof_index++) {
+            RoofPrototypeGeometry geometry = {0};
+            RoofCode code = roof_build_derived_geometry(
+                &project->storeys[i].roofs.items[roof_index], &geometry);
+            roof_prototype_geometry_destroy(&geometry);
+            if (code != ROOF_SUCCESS) {
                 return SITEHELPER_PERSISTENCE_REGENERATION_FAILED;
             }
         }
@@ -1232,6 +1516,62 @@ static int write_project(
             }
             if (fputs("end_slab\n", file) == EOF) { return 0; }
         }
+        if (fprintf(file, "roofs %zu\n", storey->roofs.count) < 0) { return 0; }
+        for (size_t roof_index = 0; roof_index < storey->roofs.count; roof_index++) {
+            const Roof *roof = &storey->roofs.items[roof_index];
+            if (fprintf(file, "roof %" PRIu64 " portions %zu\n",
+                    (uint64_t)roof->id, roof->definition.portion_count) < 0) { return 0; }
+            for (size_t portion_index = 0;
+                 portion_index < roof->definition.portion_count;
+                 portion_index++) {
+                const RoofPortionDefinition *portion = &roof->definition.portions[portion_index];
+                const char *generation = roof_generation_token(portion->generation);
+                const char *reference = roof_single_slope_reference_token(
+                    portion->single_slope_reference);
+                if (generation == NULL || reference == NULL ||
+                    fprintf(file,
+                        "portion %" PRIu64 " generation %s slope_ppm %" PRId64
+                        " reference_z %d direction %d %d single_slope_reference %s support %zu\n",
+                        (uint64_t)portion->id, generation, portion->slope_ppm,
+                        portion->reference_z_mm, portion->direction.x, portion->direction.y,
+                        reference, portion->support_vertex_count) < 0) { return 0; }
+                for (size_t vertex_index = 0;
+                     vertex_index < portion->support_vertex_count;
+                     vertex_index++) {
+                    if (fprintf(file, "vertex %d %d\n",
+                            portion->support_vertices[vertex_index].x,
+                            portion->support_vertices[vertex_index].y) < 0) { return 0; }
+                }
+                if (fputs("end_portion\n", file) == EOF) { return 0; }
+            }
+            if (fprintf(file, "compositions %zu\n", roof->definition.composition_count) < 0) {
+                return 0;
+            }
+            for (size_t composition_index = 0;
+                 composition_index < roof->definition.composition_count;
+                 composition_index++) {
+                const RoofComposition *composition =
+                    &roof->definition.compositions[composition_index];
+                const char *kind = roof_composition_kind_token(composition->kind);
+                if (kind == NULL || fprintf(file, "composition %" PRIu64 " %" PRIu64 " %s\n",
+                        (uint64_t)composition->first_portion_id,
+                        (uint64_t)composition->second_portion_id, kind) < 0) { return 0; }
+            }
+            if (fprintf(file, "terminations %zu\n", roof->definition.termination_count) < 0) {
+                return 0;
+            }
+            for (size_t termination_index = 0;
+                 termination_index < roof->definition.termination_count;
+                 termination_index++) {
+                const RoofTermination *termination =
+                    &roof->definition.terminations[termination_index];
+                const char *end = roof_end_token(termination->end);
+                if (end == NULL || fprintf(file, "termination %" PRIu64 " %s %d\n",
+                        (uint64_t)termination->portion_id, end,
+                        termination->termination_offset_mm) < 0) { return 0; }
+            }
+            if (fputs("end_roof\n", file) == EOF) { return 0; }
+        }
         if (fputs("end_storey\n", file) == EOF) { return 0; }
     }
     return fputs("end_project\n", file) != EOF;
@@ -1249,7 +1589,6 @@ SiteHelperPersistenceResult sitehelper_project_save_file(
     if (sitehelper_project_validate(project).code != SITEHELPER_PROJECT_VALID) {
         return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
     }
-
     FILE *file = fopen(path, "w");
 
     if (file == NULL) {

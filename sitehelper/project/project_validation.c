@@ -1,6 +1,7 @@
 #include "sitehelper_project.h"
 #include "wall.h"
 #include "slab.h"
+#include "roof.h"
 #include "project_settings_internal.h"
 
 static SiteHelperProjectValidation validation(SiteHelperProjectValidationCode code,
@@ -41,6 +42,14 @@ static int duplicate_id(const SiteHelperProject *project, DomainId id)
         const SlabCollection *slabs = &project->storeys[s].slabs;
         for (size_t i = 0; i < slabs->count; i++) {
             if (slabs->items[i].id == id && seen++) { return 1; }
+        }
+        const RoofCollection *roofs = &project->storeys[s].roofs;
+        for (size_t i = 0; i < roofs->count; i++) {
+            const Roof *roof = &roofs->items[i];
+            if (roof->id == id && seen++) { return 1; }
+            for (size_t j = 0; j < roof->definition.portion_count; j++) {
+                if (roof->definition.portions[j].id == id && seen++) { return 1; }
+            }
         }
     }
     return 0;
@@ -171,6 +180,23 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
             }
         }
     }
+    /* Roof authority metadata is established before global identity traversal. */
+    for (size_t s = 0; s < project->storey_count; s++) {
+        const Storey *storey = &project->storeys[s];
+        const RoofCollection *roofs = &storey->roofs;
+        if (roofs->count > roofs->capacity ||
+            (roofs->capacity == 0 && roofs->items != NULL) ||
+            (roofs->capacity != 0 && roofs->items == NULL) ||
+            roofs->capacity > SIZE_MAX / sizeof *roofs->items) {
+            return validation(SITEHELPER_PROJECT_INVALID_ROOF_COLLECTION, storey->id, storey->id);
+        }
+        for (size_t i = 0; i < roofs->count; i++) {
+            RoofCode code = roof_validate(&roofs->items[i]);
+            if (code == ROOF_INVALID_COLLECTION) {
+                return validation(SITEHELPER_PROJECT_INVALID_ROOF_COLLECTION, roofs->items[i].id, storey->id);
+            }
+        }
+    }
     for (size_t s = 0; s < project->storey_count; s++) {
         if (!storey_build_settings_valid(&project->storeys[s].settings)) {
             return validation(SITEHELPER_PROJECT_INVALID_STOREY_SETTINGS, project->storeys[s].id, 0);
@@ -217,6 +243,18 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
                 SITEHELPER_PROJECT_INVALID_SLAB_ID, project->storeys[s].id, &maximum);
             if (result.code != SITEHELPER_PROJECT_VALID) { return result; }
         }
+        const RoofCollection *roofs = &project->storeys[s].roofs;
+        for (size_t i = 0; i < roofs->count; i++) {
+            const Roof *roof = &roofs->items[i];
+            SiteHelperProjectValidation result = validate_id(project, roof->id,
+                SITEHELPER_PROJECT_INVALID_ROOF_ID, project->storeys[s].id, &maximum);
+            if (result.code != SITEHELPER_PROJECT_VALID) { return result; }
+            for (size_t j = 0; j < roof->definition.portion_count; j++) {
+                result = validate_id(project, roof->definition.portions[j].id,
+                    SITEHELPER_PROJECT_INVALID_ROOF_PORTION_ID, roof->id, &maximum);
+                if (result.code != SITEHELPER_PROJECT_VALID) { return result; }
+            }
+        }
     }
     if (project->domain_ids.next == DOMAIN_ID_INVALID || project->domain_ids.next <= maximum) {
         return validation(SITEHELPER_PROJECT_INVALID_ID_GENERATOR, maximum, 0);
@@ -262,6 +300,16 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
     }
     for (size_t s = 0; s < project->storey_count; s++) {
         const Storey *storey = &project->storeys[s];
+        for (size_t i = 0; i < storey->roofs.count; i++) {
+            const Roof *roof = &storey->roofs.items[i];
+            RoofCode roof_code = roof_validate(roof);
+            if (roof_code != ROOF_SUCCESS) {
+                SiteHelperProjectValidationCode code = SITEHELPER_PROJECT_INVALID_ROOF;
+                if (roof_code == ROOF_INVALID_COMPOSITION) code = SITEHELPER_PROJECT_INVALID_ROOF_COMPOSITION;
+                else if (roof_code == ROOF_INVALID_TERMINATION) code = SITEHELPER_PROJECT_INVALID_ROOF_TERMINATION;
+                return validation(code, roof->id, storey->id);
+            }
+        }
         for (size_t i = 0; i < storey->slabs.count; i++) {
             const Slab *slab = &storey->slabs.items[i];
             SlabCode code = slab_definition_validate(&slab->definition);

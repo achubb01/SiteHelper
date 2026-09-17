@@ -110,7 +110,7 @@ static void test_round_trip_and_copy(void)
     assert(sitehelper_project_add_room(&loaded,1)==6);
     FILE *f=fopen(path,"r"); assert(f); char text[4096];
     size_t n=fread(text,1,sizeof text-1,f); text[n]='\0'; assert(feof(f) && !ferror(f) && fclose(f)==0);
-    assert(strstr(text,"sitehelper_project 14\n")==text);
+    assert(strstr(text,"sitehelper_project 15\n")==text);
     assert(strstr(text,"penetrations 0\n") && strstr(text,"penetrations 1\n") && strstr(text,"penetrations 2\n"));
     assert(!strstr(text,"area") && !strstr(text,"volume") && !strstr(text,"perimeter"));
     PlanPosition *vertices=p.storeys[0].slabs.items[0].definition.penetrations.items[0].outline.vertices;

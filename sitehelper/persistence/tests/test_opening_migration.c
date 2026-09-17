@@ -115,7 +115,7 @@ static void test_all_legacy_versions_preserve_physical_framing(void)
         assert_legacy_framing(w,configuration);
         assert(sitehelper_project_save_file(&p,current_path)==SITEHELPER_PERSISTENCE_SUCCESS);
         FILE *f=fopen(current_path,"r");assert(f);char header[64];
-        assert(fgets(header,sizeof header,f));assert(strcmp(header,"sitehelper_project 14\n")==0);assert(fclose(f)==0);
+        assert(fgets(header,sizeof header,f));assert(strcmp(header,"sitehelper_project 15\n")==0);assert(fclose(f)==0);
         assert(sitehelper_project_load_file(&loaded,current_path)==SITEHELPER_PERSISTENCE_SUCCESS);
         test_assert_project_authoritative_equal(&p,&loaded);
         assert_legacy_framing(sitehelper_project_find_wall_by_id_const(&loaded,2),configuration);

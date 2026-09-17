@@ -37,6 +37,69 @@ if(NOT MSVC)
     target_link_libraries(sitehelper_model PRIVATE m)
 endif()
 
+# Priority 26D roof-intent/geometry prototype. This target remains isolated from
+# SiteHelperProject/persistence/editor ownership until compound fixtures prove
+# the source abstraction in 26E.
+add_library(sitehelper_roof_geometry_prototype roof/roof_geometry_prototype.c)
+target_include_directories(sitehelper_roof_geometry_prototype PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/roof)
+target_link_libraries(sitehelper_roof_geometry_prototype PUBLIC sitehelper_model)
+
+add_executable(test_roof_geometry_prototype roof/tests/test_roof_geometry_prototype.c)
+target_link_libraries(test_roof_geometry_prototype PRIVATE sitehelper_roof_geometry_prototype)
+add_test(NAME roof_geometry_prototype_tests COMMAND test_roof_geometry_prototype)
+
+# Priority 26E1 compound/intersection prototype. Composition remains explicit
+# source authority while valley/ridge clipping stays transient derived geometry.
+add_library(sitehelper_roof_compound_prototype roof/roof_compound_prototype.c)
+target_include_directories(sitehelper_roof_compound_prototype PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/roof)
+target_link_libraries(sitehelper_roof_compound_prototype PUBLIC sitehelper_roof_geometry_prototype)
+
+add_executable(test_roof_compound_prototype roof/tests/test_roof_compound_prototype.c)
+target_link_libraries(test_roof_compound_prototype PRIVATE sitehelper_roof_compound_prototype)
+add_test(NAME roof_compound_prototype_tests COMMAND test_roof_compound_prototype)
+
+# Priority 26E2 termination-semantics prototype. The source carries primitive
+# end/station intent; generated hips/cut geometry remain transient.
+add_executable(test_roof_termination_prototype roof/tests/test_roof_termination_prototype.c)
+target_link_libraries(test_roof_termination_prototype PRIVATE sitehelper_roof_compound_prototype)
+add_test(NAME roof_termination_prototype_tests COMMAND test_roof_termination_prototype)
+
+add_executable(test_roof_multilevel_composition_prototype
+    roof/tests/test_roof_multilevel_composition_prototype.c)
+target_link_libraries(test_roof_multilevel_composition_prototype
+    PRIVATE sitehelper_roof_compound_prototype)
+add_test(NAME roof_multilevel_composition_prototype_tests
+    COMMAND test_roof_multilevel_composition_prototype)
+
+# Priority 26G1 production roof authority. The authoritative source model is
+# production; exact derived topology still delegates to the proven prototype
+# kernel until its rational-boundary representation is promoted separately.
+add_library(sitehelper_roof roof/roof.c roof/roof_plan_query.c)
+target_include_directories(sitehelper_roof PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/roof)
+target_link_libraries(sitehelper_roof PUBLIC sitehelper_model PRIVATE sitehelper_roof_compound_prototype)
+
+add_executable(test_roof_domain roof/tests/test_roof_domain.c)
+target_link_libraries(test_roof_domain PRIVATE sitehelper_roof sitehelper_roof_compound_prototype)
+add_test(NAME roof_domain_tests COMMAND test_roof_domain)
+
+add_executable(test_roof_plan_query roof/tests/test_roof_plan_query.c)
+target_link_libraries(test_roof_plan_query PRIVATE sitehelper_roof)
+add_test(NAME roof_plan_query_tests COMMAND test_roof_plan_query)
+
+add_library(sitehelper_roof_structural_layout_prototype
+    roof/roof_structural_layout_prototype.c)
+target_include_directories(sitehelper_roof_structural_layout_prototype
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/roof)
+target_link_libraries(sitehelper_roof_structural_layout_prototype
+    PUBLIC sitehelper_roof_geometry_prototype)
+
+add_executable(test_roof_structural_layout_prototype
+    roof/tests/test_roof_structural_layout_prototype.c)
+target_link_libraries(test_roof_structural_layout_prototype
+    PRIVATE sitehelper_roof_structural_layout_prototype)
+add_test(NAME roof_structural_layout_prototype_tests
+    COMMAND test_roof_structural_layout_prototype)
+
 add_library(sitehelper_wall
     wall/wall_plan.c
     wall/wall_generation.c
@@ -89,6 +152,7 @@ if(NOT MSVC)
 endif()
 
 add_library(sitehelper_project
+    project/project_roofs.c
     project/project_slabs.c
     project/project_settings.c
     project/room_separator.c
@@ -105,6 +169,7 @@ target_link_libraries(sitehelper_project
     PUBLIC
         sitehelper_model
         sitehelper_slab
+        sitehelper_roof
     PRIVATE
         sitehelper_wall
 )
@@ -183,6 +248,9 @@ add_library(sitehelper_command
     command/slab_feature_command.c
     command/edit_slab_command.c
     command/move_slab_vertex_command.c
+    command/create_roof_command.c
+    command/delete_roof_command.c
+    command/roof_source_edit_command.c
     command/sitehelper_command.c
     command/command_history.c
 )
@@ -250,6 +318,7 @@ target_link_libraries(sitehelper_editor
         sitehelper_model
         sitehelper_wall
         sitehelper_command
+        sitehelper_roof
         geometry
     PRIVATE
         sitehelper_grid
@@ -653,6 +722,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
 endif()
 add_test(NAME slab_command_tests COMMAND test_slab_command)
 
+add_executable(test_roof_command command/tests/test_roof_command.c)
+target_link_libraries(test_roof_command PRIVATE sitehelper_command sitehelper_test_support)
+add_test(NAME roof_command_tests COMMAND test_roof_command)
+
+add_executable(test_roof_source_edit_command command/tests/test_roof_source_edit_command.c)
+target_link_libraries(test_roof_source_edit_command PRIVATE sitehelper_command sitehelper_test_support)
+add_test(NAME roof_source_edit_command_tests COMMAND test_roof_source_edit_command)
+
 add_executable(test_slab_feature_insert slab/tests/test_slab_feature_insert.c)
 target_link_libraries(test_slab_feature_insert PRIVATE sitehelper_slab sitehelper_test_support)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
@@ -780,6 +857,10 @@ target_link_libraries(test_sitehelper_project
 
 add_test(NAME sitehelper_project_tests COMMAND test_sitehelper_project)
 
+add_executable(test_project_roofs project/tests/test_project_roofs.c)
+target_link_libraries(test_project_roofs PRIVATE sitehelper_project sitehelper_persistence sitehelper_roof)
+add_test(NAME project_roof_tests COMMAND test_project_roofs)
+
 add_executable(test_room_location project/tests/test_room_location.c)
 target_link_libraries(test_room_location PRIVATE sitehelper_project sitehelper_test_support)
 add_test(NAME room_location_tests COMMAND test_room_location)
@@ -885,6 +966,12 @@ target_link_libraries(test_editor_selection
 )
 
 add_test(NAME editor_selection_tests COMMAND test_editor_selection)
+
+add_executable(test_roof_editor_integration
+    editor/tests/test_roof_editor_integration.c
+)
+target_link_libraries(test_roof_editor_integration PRIVATE sitehelper_editor sitehelper_project)
+add_test(NAME roof_editor_integration_tests COMMAND test_roof_editor_integration)
 
 add_executable(test_editor_snap_state
     editor/tests/test_editor_snap_state.c

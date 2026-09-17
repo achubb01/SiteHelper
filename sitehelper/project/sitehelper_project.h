@@ -62,7 +62,14 @@ typedef enum
     SITEHELPER_PROJECT_SLAB_EDGE_REBATE_INVALID_EDGE,
     SITEHELPER_PROJECT_SLAB_EDGE_REBATE_INVALID_INTERVAL,
     SITEHELPER_PROJECT_SLAB_EDGE_REBATE_INVALID_DIMENSIONS,
-    SITEHELPER_PROJECT_SLAB_EDGE_REBATE_OVERLAP
+    SITEHELPER_PROJECT_SLAB_EDGE_REBATE_OVERLAP,
+    SITEHELPER_PROJECT_INVALID_ROOF_COLLECTION,
+    SITEHELPER_PROJECT_INVALID_ROOF_ID,
+    SITEHELPER_PROJECT_INVALID_ROOF_PORTION_ID,
+    SITEHELPER_PROJECT_INVALID_ROOF,
+    SITEHELPER_PROJECT_INVALID_ROOF_GEOMETRY,
+    SITEHELPER_PROJECT_INVALID_ROOF_COMPOSITION,
+    SITEHELPER_PROJECT_INVALID_ROOF_TERMINATION
 } SiteHelperProjectValidationCode;
 
 typedef struct
@@ -73,7 +80,8 @@ typedef struct
     DomainId subject_id;
     /* Containing wall for invalid
      * openings; preceding conflicting opening for OVERLAPPING_OPENINGS.
-     * For slab errors, owning Storey ID. Zero for other categories. */
+     * For slab/roof errors, owning Storey ID unless the roof relationship uses
+     * its Roof ID as the more useful parent. Zero for other categories. */
     DomainId related_id;
 } SiteHelperProjectValidation;
 
@@ -83,9 +91,10 @@ typedef struct
  * and region association are not project-integrity invariants.
  * Returns the first failure in deterministic order: settings, all collection
  * metadata, Storey settings, identities/allocator, then wall geometry/openings
- * and separators (using each Storey's resolved settings), then slab geometry.
- * Within each pass, Storeys are visited in stored order. Identity order is
- * Storey, Rooms, Walls (each before its openings), separators, then slabs. All nested
+ * and separators (using each Storey's resolved settings), then roof source
+ * authority and slab geometry. Within each pass, Storeys are visited in stored
+ * order. Identity order is Storey, Rooms, Walls (each before its openings),
+ * separators, Slabs, then Roofs (each before its portions). All nested
  * collection metadata is checked before any global identity traversal.
  * Metadata checks cannot establish the
  * actual allocation size or validity of arbitrary non-null C pointers. */
@@ -176,6 +185,56 @@ int sitehelper_project_insert_room_separator(SiteHelperProject *project, DomainI
 /* Storey-owned slabs, independent of BuildStructure. Deep-copies the ordered
  * outline; failure preserves project allocations and ID watermark. A successful
  * add/insert may invalidate borrowed slab pointers in that Storey. */
+
+/* Priority 26G1 authoritative roof ownership. Creation is transactional: a Roof
+ * enters a Storey only together with one valid source portion, and all globally
+ * identifiable Roof/portion objects use the Project DomainId allocator.
+ * Compositions and terminations are roof-owned value relationships keyed by
+ * stable portion IDs; generated planes/edges/layout snapshots have no IDs. */
+DomainId sitehelper_project_add_roof(SiteHelperProject *project, DomainId storey_id,
+    const RoofPortionSpec *initial_portion, DomainId *portion_id);
+/* Adds a new portion and its explicit relationship as one transaction so a
+ * successful mutation never leaves an uncomposed multi-portion Roof. */
+DomainId sitehelper_project_add_roof_portion_composed(SiteHelperProject *project, DomainId roof_id,
+    const RoofPortionSpec *spec, DomainId existing_portion_id, RoofCompositionKind kind);
+/* History redo variant: inserts a new portion using an existing identity below
+ * the allocator watermark. The ID must be globally free. */
+int sitehelper_project_restore_roof_portion_composed(SiteHelperProject *project, DomainId roof_id,
+    DomainId portion_id, const RoofPortionSpec *spec, DomainId existing_portion_id,
+    RoofCompositionKind kind);
+int sitehelper_project_set_roof_portion(SiteHelperProject *project, DomainId roof_id,
+    DomainId portion_id, const RoofPortionSpec *spec);
+int sitehelper_project_remove_roof_portion(SiteHelperProject *project, DomainId roof_id,
+    DomainId portion_id);
+int sitehelper_project_set_roof_composition(SiteHelperProject *project, DomainId roof_id,
+    RoofComposition composition);
+int sitehelper_project_remove_roof_composition(SiteHelperProject *project, DomainId roof_id,
+    DomainId first_portion_id, DomainId second_portion_id);
+int sitehelper_project_set_roof_termination(SiteHelperProject *project, DomainId roof_id,
+    RoofTermination termination);
+int sitehelper_project_remove_roof_termination(SiteHelperProject *project, DomainId roof_id,
+    DomainId portion_id, RoofEnd end);
+/* History restoration primitive for source edits. Replacement must retain the
+ * same Roof identity. New-to-current portion IDs must be globally free and
+ * below the existing allocator watermark. */
+int sitehelper_project_replace_roof(SiteHelperProject *project, const Roof *replacement);
+/* Legacy additive aliases retained for current callers. */
+int sitehelper_project_add_roof_composition(SiteHelperProject *project, DomainId roof_id,
+    RoofComposition composition);
+int sitehelper_project_add_roof_termination(SiteHelperProject *project, DomainId roof_id,
+    RoofTermination termination);
+Roof *sitehelper_project_find_roof_by_id(SiteHelperProject *project, DomainId id);
+const Roof *sitehelper_project_find_roof_by_id_const(const SiteHelperProject *project, DomainId id);
+RoofPortionDefinition *sitehelper_project_find_roof_portion_by_id(SiteHelperProject *project, DomainId id);
+const RoofPortionDefinition *sitehelper_project_find_roof_portion_by_id_const(
+    const SiteHelperProject *project, DomainId id);
+int sitehelper_project_remove_roof_by_id(SiteHelperProject *project, DomainId id);
+/* Existing-identity restoration/redo. Deep-copies the Roof and preserves the
+ * requested Storey collection order. Does not advance the global ID watermark;
+ * callers restoring history must ensure all identities are below it. */
+int sitehelper_project_insert_roof_at(SiteHelperProject *project, DomainId storey_id,
+    const Roof *roof, size_t index);
+
 DomainId sitehelper_project_add_slab(SiteHelperProject *project, DomainId storey_id,
     const PlanPosition *vertices, size_t vertex_count, int thickness_mm, int top_level_offset_mm);
 Slab *sitehelper_project_find_slab_by_id(SiteHelperProject *project, DomainId id);

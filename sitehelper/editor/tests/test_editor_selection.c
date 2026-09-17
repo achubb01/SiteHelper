@@ -10,6 +10,7 @@ static void assert_empty(const EditorSelection *selection)
     assert(selection->scope == EDITOR_SELECTION_SCOPE_NONE);
     assert(selection->wall_id == DOMAIN_ID_INVALID && selection->opening_id == DOMAIN_ID_INVALID);
     assert(selection->slab_id == DOMAIN_ID_INVALID && selection->slab_feature_index == SIZE_MAX);
+    assert(selection->roof_id == DOMAIN_ID_INVALID && selection->roof_portion_id == DOMAIN_ID_INVALID);
     assert(wall_selection_is_empty(&selection->wall_member));
     assert(selection->wall_member.timber.length == 0);
     assert(!editor_selection_matches_scope(selection, EDITOR_SELECTION_SCOPE_NONE));
@@ -250,6 +251,25 @@ static void test_slab_selection_is_value_only(void)
     assert_empty(&selection);
 }
 
+static void test_roof_selection_is_value_only(void)
+{
+    EditorSelection selection;
+    editor_selection_set_roof(&selection,EDITOR_SELECTION_SCOPE_PLAN,80);
+    assert(selection.kind==EDITOR_SELECTION_ROOF && selection.roof_id==80);
+    assert(selection.roof_portion_id==DOMAIN_ID_INVALID && selection.wall_id==DOMAIN_ID_INVALID);
+    editor_selection_set_roof_portion(&selection,EDITOR_SELECTION_SCOPE_PLAN,80,81);
+    assert(selection.kind==EDITOR_SELECTION_ROOF_PORTION && selection.roof_id==80);
+    assert(selection.roof_portion_id==81);
+    editor_selection_set_roof(&selection,EDITOR_SELECTION_SCOPE_WALL_ELEVATION,80);
+    assert_empty(&selection);
+    editor_selection_set_roof_portion(&selection,EDITOR_SELECTION_SCOPE_PLAN,80,DOMAIN_ID_INVALID);
+    assert_empty(&selection);
+    editor_selection_set_roof_portion(&selection,EDITOR_SELECTION_SCOPE_PLAN,DOMAIN_ID_INVALID,81);
+    assert_empty(&selection);
+    editor_selection_set_roof(NULL,EDITOR_SELECTION_SCOPE_PLAN,80);
+    editor_selection_set_roof_portion(NULL,EDITOR_SELECTION_SCOPE_PLAN,80,81);
+}
+
 int main(void)
 {
     test_kinds_scopes_and_invalid_setters();
@@ -259,6 +279,7 @@ int main(void)
     test_selection_can_be_cleared();
     test_invalid_wall_clears_selection();
     test_slab_selection_is_value_only();
+    test_roof_selection_is_value_only();
 
     printf(
         "All editor selection tests passed.\n"

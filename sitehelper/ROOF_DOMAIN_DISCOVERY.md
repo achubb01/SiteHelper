@@ -1,10 +1,11 @@
 # Priority 26 — Roof Domain Discovery
 
-Status: discovery/design plus isolated numeric prototype. Priorities 26A
-(standards/regulatory discovery), 26B (geometry acceptance fixtures) and 26C
-(slope/plane numeric contract) are complete. This document intentionally
-introduces no persisted `Roof` C type, no persistence grammar, no editor tool,
-no standards calculator and no framing generator.
+Status: discovery/design plus isolated numeric and geometry prototypes.
+Priorities 26A (standards/regulatory discovery), 26B (geometry acceptance
+fixtures), 26C (slope/plane numeric contract) and 26D (minimal roof-intent /
+geometry prototype) are complete. This document intentionally introduces no
+persisted `Roof` C type, no persistence grammar, no editor tool, no standards
+calculator and no framing generator.
 
 The purpose of Priority 26 is to identify the information that must remain
 **authoritative** before SiteHelper commits to a roof object model. The existing
@@ -646,11 +647,10 @@ workflow demonstrates that stable identity is genuinely needed.
 
 Priority 26 does **not** decide or implement:
 
-- exact C structs or enum names;
+- final production/persisted C structs or enum names;
 - roof persistence/version changes;
 - roof editor tools or UI presets;
 - a general 3D coordinate type;
-- the final pitch numeric representation;
 - automatic roof generation from rooms/walls;
 - roof support/load-path engineering;
 - project/site wind and true-north modelling;
@@ -708,8 +708,11 @@ stage then emits clipped roof planes and classified intersections.
 This describes all six discovery fixtures without making valleys authoritative
 and still leaves room for future imported explicit-plane geometry.
 
-**Verdict:** strongest candidate. Do not freeze its struct shape until a geometry
-prototype proves the necessary fields.
+**Verdict:** strongest candidate. Priority 26D now proves the simple A/B/E
+fixtures with a minimal source-intent object and a transient exact geometry
+snapshot, without source ridge/hip fields. The source struct is still not frozen:
+26E must prove compound/intersection semantics before this representation can
+become project authority.
 
 ## Coordinate-space direction
 
@@ -808,9 +811,10 @@ loops during persistence migration.
 
 ## Recommended Priority 26 implementation sequence
 
-Priorities 26A-26C are complete. Code should now advance into the smallest
-roof-intent/geometry prototype rather than jumping to rafters, persistence or
-standards calculators.
+Priorities 26A-26E3 are complete. The six geometry fixture families have now
+challenged the source/geometry prototype across simple, intersecting, terminated
+and multi-level composition. Code should now move to the structural-layout
+boundary rather than jumping to persistence or standards calculators.
 
 ### 26A — standards and regulatory discovery — COMPLETE
 
@@ -838,31 +842,131 @@ of 1,000,000; derived planes use integer affine coefficients; and fractional
 intersection coordinates remain exact rationals. The prototype exercises A0, C1
 and F1 without introducing a production roof API.
 
-### 26D — minimal roof-intent / geometry prototype
+### 26D — minimal roof-intent / geometry prototype — COMPLETE
 
-Implement the smallest source representation capable of gable, hip and skillion
-without storing derived ridges/hips. Generate an owned transient roof-geometry
-snapshot.
+`ROOF_GEOMETRY_PROTOTYPE.md` plus `roof/roof_geometry_prototype.[ch]` and its
+fixture tests prove a minimal borrowed source intent for A0/A1, B0 and E0/E1.
+The generator owns a transient exact plane/boundary/interior-edge snapshot and
+derives ridge/hip/high-edge geometry rather than storing it in source authority.
+The prototype is intentionally limited to axis-aligned rectangles and remains
+isolated from project ownership/persistence until 26E tests compound roofs.
 
-### 26E — compound/intersection prototype
+### 26E — compound/intersection prototype — COMPLETE
 
-Add the intersecting-gable valley case and then Dutch-gable/termination and
-multi-level cases. If the 26D representation needs special-case fields for each
-named roof style, stop and revise the abstraction before persistence/editor
-integration.
+#### 26E1 — source portions + explicit intersection composition — COMPLETE
 
-### 26F — structural-layout boundary prototype
+`ROOF_COMPOUND_PROTOTYPE.md` plus `roof/roof_compound_prototype.[ch]` and its
+fixture tests extend the 26D source contract with an explicit composition edge
+between source portions. C0/C1 now derive clipped visible planes, two valleys,
+two ridges and the exact unequal-pitch junction without any persisted valley
+coordinates or an `INTERSECTING_GABLE` roof type. Plan overlap alone remains
+insufficient to trigger composition.
 
-Define the contract between derived roof geometry and structural strategies.
-Prove at the API/model level that both a conventional rafter system and a truss
-system can consume the same geometry while supplying different support/layout
-intent. Do not implement full engineering yet.
+The E1 prototype intentionally supports one perpendicular intersecting-gable
+relationship only. It proves the source/composition abstraction, not a general
+polygon boolean or arbitrary roof solver.
 
-### 26G — ownership, IDs, commands and persistence
+#### 26E2 — Dutch-gable / termination semantics — COMPLETE
 
-Only after all six geometry fixtures and the structural-layout boundary fit
-naturally should roof authority enter `SiteHelperProject`/Storey, global
-identity, command history and a new persistence version.
+`ROOF_TERMINATION_PROTOTYPE.md` and
+`roof/tests/test_roof_termination_prototype.c` extend the compound prototype
+with primitive end-termination intent. D0 now derives three visible sloping
+planes, two hips, a shortened ridge and an explicit termination/cut seam from
+the source termination offset. The triangular gablet closure is available from
+derived boundary geometry but is not misclassified as a sloping roof plane.
+
+No `DUTCH_GABLE` core type or authoritative hip/cut coordinates were added.
+Changing only the source termination offset regenerates all affected geometry,
+and unsupported/failed termination builds preserve the previous output.
+
+#### 26E3 — multi-level / abutment / intersection semantics — COMPLETE
+
+`ROOF_MULTILEVEL_COMPOSITION_PROTOTYPE.md` and
+`roof/tests/test_roof_multilevel_composition_prototype.c` complete the frozen
+geometry fixtures. F0 adds explicit `ABUTS` semantics and preserves two physical
+3D interface edges with the same plan projection but different Z values. F1
+uses explicit `INTERSECTS` semantics to clip a gable and unequal-pitch skillion
+at an exact rational plane seam.
+
+E3 also exposes two source/derived-contract refinements: a single-slope source
+must identify whether its low or high parallel boundary owns the authored Z
+datum, and derived boundary topology ultimately needs exact rational endpoints
+rather than the prototype's legacy integer-only `RoofPrototypeBoundary`. No
+`OVERLAYS` relation was added because no frozen fixture currently requires it.
+
+### 26F — structural-layout boundary prototype — COMPLETE
+
+The A0 gable now feeds two structural strategies through a separate prototype
+layer without changing `RoofPrototypeGeometry`. Conventional framing resolves
+to two rafter fields meeting at the derived ridge; prefabricated truss framing
+resolves to one bearing-to-bearing truss run spanning both envelope planes.
+
+Bearing lines are explicit structural intent and are validated against the roof
+geometry rather than inferred from eaves. Likewise, the structural role of a
+conventional ridge is authored: a geometric ridge does not automatically become
+a ridge beam/support. Layout references to plane/edge indices are snapshot-local
+and must be rebuilt with regenerated roof geometry.
+
+The prototype deliberately stops before individual member placement, member
+sizing, RLW/ULW, reactions, load paths or standards compliance. See
+`ROOF_STRUCTURAL_LAYOUT_PROTOTYPE.md`.
+
+### 26G — ownership, IDs, commands and persistence — IN PROGRESS
+
+26G is split so identity/ownership, command semantics and persistence do not
+become one irreversible change.
+
+#### 26G1 — authoritative roof domain + ownership — COMPLETE
+
+`SiteHelperProject -> Storey -> RoofCollection -> Roof -> RoofDefinition` is now
+production authority. `Roof` and `RoofPortionDefinition` receive global
+`DomainId`s; composition and termination records are roof-owned relationships
+keyed by stable portion IDs. Storeys may own multiple roofs. Project owner
+lookup, global identity validation, destruction and test support now include
+roofs/portions.
+
+All A–F fixture families regenerate from this production source authority. The
+still-experimental exact derived topology remains transient behind
+`roof_build_derived_geometry()`; generated planes/edges receive no IDs.
+
+Priority 26G3 now promotes roof authority into persistence v15. Versions 1–14
+load with zero roofs; v15 serializes only Roof/portion source authority and
+relationships, then regenerates derived geometry on load. See
+`ROOF_PERSISTENCE.md`.
+
+#### 26G2 — commands and history — COMPLETE
+
+**26G2A — lifecycle commands is complete.** `CREATE_ROOF` and `DELETE_ROOF` now
+participate in the existing command/history system. Create undo/redo preserves
+the original Roof and initial-portion identities without rewinding the global ID
+watermark. Delete history owns an authoritative deep Roof snapshot and restores
+the exact Roof/portion IDs and Storey collection order; derived geometry is
+regenerated rather than snapshotted. Identity collisions fail closed without
+moving the history cursor. See `ROOF_COMMAND_HISTORY.md`.
+
+**26G2B — source-edit commands is complete.** Portion, composition and
+termination authority now mutates through candidate-copy -> validate ->
+regenerate -> commit transactions with exact pre-edit Roof snapshots, exact-ID
+redo for added portions and fail-closed divergence checks.
+
+#### 26G3 — persistence — COMPLETE
+
+Project format v15 serializes Storey-owned Roof authority only: Roof/portion IDs,
+support polygons, generation/slope/vertical-reference intent, compositions and
+terminations. Generated geometry and structural-layout snapshots are not saved.
+Versions 1–14 load with zero roofs. Loads remain transactional and explicitly
+regenerate/check roof geometry before replacing the destination project. See
+`ROOF_PERSISTENCE.md`.
+
+#### 26G4 — project/editor integration hardening — COMPLETE
+
+Storey-local authoritative roof support polygons now have a deterministic Plan
+query boundary, editor selection stores Roof/portion IDs only, and reconciliation
+clears stale roof identity after edits/deletes/project replacement. Ordinary Plan
+SELECT precedence is intentionally unchanged because Roofs and Slabs normally
+overlap. The inexact prototype boundary representation is **not** promoted; the
+transitional derived-geometry bridge remains explicit until rational derived
+topology is introduced. See `ROOF_EDITOR_INTEGRATION.md`.
 
 ### Later engineering priorities — not Priority 26
 
@@ -873,8 +977,9 @@ model rather than define it.
 
 ## Exit criteria for Priority 26 discovery
 
-Priorities 26A, 26B and 26C are complete. The project may proceed into 26D
-while preserving these constraints:
+Priorities 26A through 26F are complete. All six frozen roof-geometry fixture
+families have been exercised and the structural-layout boundary has been
+prototyped. The project may proceed into 26G while preserving these constraints:
 
 1. named roof styles are presets/classifications, not the sole core model;
 2. roof envelope geometry, roof covering and structural roof system are separate
@@ -897,14 +1002,44 @@ while preserving these constraints:
 12. roof slope/plane arithmetic uses the 26C fixed 1,000,000 rise/run scale,
     integer affine planes and exact rational derived intersections;
 13. the six fixtures above gate any proposed struct design;
-14. persistence remains v14 until an authoritative representation is proven;
-15. full framing/engineering implementation starts only after roof geometry and
-    structural-layout boundaries represent the compound fixtures cleanly.
+14. persistence v15 stores only authoritative roof source/relationships and
+    regenerates derived geometry on load; versions 1–14 load with zero roofs;
+15. the 26D simple generator proves that support extent, generation/slope/
+    direction intent and vertical reference can derive A/B/E planes, ridges,
+    hips and boundary semantics without persistent derived geometry;
+16. the 26E1 compound prototype proves that plan overlap is not composition and
+    that explicit `INTERSECTS` source relationships can derive C0/C1 valley
+    networks without an `INTERSECTING_GABLE` type;
+17. the 26E2 termination prototype proves that an explicit end/station
+    termination can derive D0 hips, ridge shortening and a cut seam without a
+    `DUTCH_GABLE` type, while leaving the vertical closure to the envelope layer;
+18. the 26E3 multi-level prototype proves that explicit `ABUTS` preserves two
+    3D edges at one plan location while `INTERSECTS` derives an exact rational
+    clipping seam; plan contact/overlap never chooses between those semantics;
+19. a single-slope source must identify which parallel boundary owns its
+    vertical datum; an unlabeled elevation is insufficient for F0/F1;
+20. derived boundary/topology coordinates must eventually share the exact
+    rational representation used by plane polygons and intersections; the
+    prototype's integer-only `RoofPrototypeBoundary` is not suitable as a final
+    contract;
+21. `RoofPrototypeIntent` is not yet a persistence contract: its rectangular,
+    axis-direction and one-relation restrictions are prototype constraints, not
+    intended product limits;
+22. the 26F structural-layout prototype proves that the same A0 envelope can
+    resolve to two conventional rafter fields or one bearing-to-bearing truss
+    run without modifying roof geometry;
+23. geometric edges are not structural supports by implication: bearing lines
+    and the structural role of a conventional ridge are explicit structural
+    intent;
+24. structural-layout references into derived roof planes/edges are transient
+    snapshot-local references and are rebuilt with regenerated geometry;
+25. full framing/engineering implementation starts only after roof geometry,
+    structural-layout boundaries and authoritative ownership are cleanly
+    separated.
 
-The next coding/design task is therefore **26D — minimal roof-intent / geometry
-prototype**, not a framing generator, persistence integration or standards
-calculator. `ROOF_GEOMETRY_FIXTURES.md` remains the geometry acceptance contract
-and `ROOF_NUMERIC_CONTRACT.md` is the arithmetic contract for that prototype.
+Priority **26G1 — authoritative roof domain + ownership**, **26G2 — roof
+commands/history**, **26G3 — roof persistence**, and **26G4 — project/editor
+integration hardening** are complete. **Priority 26G is complete.**
 
 ## Standards and construction references consulted
 

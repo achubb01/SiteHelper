@@ -13,6 +13,9 @@
 #include "slab_feature_command.h"
 #include "edit_slab_command.h"
 #include "move_slab_vertex_command.h"
+#include "create_roof_command.h"
+#include "delete_roof_command.h"
+#include "roof_source_edit_command.h"
 #include "sitehelper_project.h"
 
 typedef enum
@@ -40,6 +43,9 @@ typedef enum
     SITEHELPER_COMMAND_EDIT_SLAB_REGION,
     SITEHELPER_COMMAND_EDIT_SLAB_EDGE_REBATE,
     SITEHELPER_COMMAND_MOVE_SLAB_VERTEX,
+    SITEHELPER_COMMAND_CREATE_ROOF,
+    SITEHELPER_COMMAND_DELETE_ROOF,
+    SITEHELPER_COMMAND_EDIT_ROOF_SOURCE,
 
     SITEHELPER_COMMAND_COUNT
 } SiteHelperCommandType;
@@ -71,6 +77,9 @@ typedef struct
         EditSlabRegionCommand edit_slab_region;
         EditSlabEdgeRebateCommand edit_slab_edge_rebate;
         MoveSlabVertexCommand move_slab_vertex;
+        CreateRoofCommand create_roof;
+        DeleteRoofCommand delete_roof;
+        RoofSourceEditCommand edit_roof_source;
     } data;
 } SiteHelperCommand;
 
@@ -111,6 +120,7 @@ typedef struct
         struct { DomainId separator_id; } room_separator;
         struct { DomainId wall_id, opening_id; } edit_opening;
         struct { DomainId slab_id; } slab;
+        struct { DomainId roof_id, portion_id; } roof;
         struct { DomainId slab_id; size_t feature_index; } slab_feature;
         struct {
             DomainId slab_id;
@@ -173,9 +183,16 @@ int sitehelper_command_from_edit_slab_region(const EditSlabRegionCommand *edit, 
 int sitehelper_command_from_edit_slab_edge_rebate(const EditSlabEdgeRebateCommand *edit, SiteHelperCommand *command);
 int sitehelper_command_from_move_slab_vertex(const MoveSlabVertexCommand *move,
     SiteHelperCommand *command);
+int sitehelper_command_from_create_roof(const CreateRoofCommand *create,
+    SiteHelperCommand *command);
+int sitehelper_command_from_delete_roof(const DeleteRoofCommand *deletion,
+    SiteHelperCommand *command);
+int sitehelper_command_from_roof_source_edit(const RoofSourceEditCommand *edit,
+    SiteHelperCommand *command);
 
-/* Commands are owned values. CREATE_SLAB and polygon feature ADD commands own
- * outlines. Do not shallow-copy them; clone explicitly and destroy each owner
+/* Commands are owned values. CREATE_SLAB, CREATE_ROOF, EDIT_ROOF_SOURCE where applicable,
+ * and polygon feature ADD commands own outlines/source geometry. Do not shallow-copy them;
+ * clone explicitly and destroy each owner
  * exactly once. History clones, so caller lifetime remains independent. */
 int sitehelper_command_clone(const SiteHelperCommand *source, SiteHelperCommand *output);
 void sitehelper_command_destroy(SiteHelperCommand *command);

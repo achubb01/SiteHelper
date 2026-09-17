@@ -16,7 +16,9 @@ typedef enum
     EDITOR_SELECTION_SLAB,
     EDITOR_SELECTION_SLAB_PENETRATION,
     EDITOR_SELECTION_SLAB_REGION,
-    EDITOR_SELECTION_SLAB_EDGE_REBATE
+    EDITOR_SELECTION_SLAB_EDGE_REBATE,
+    EDITOR_SELECTION_ROOF,
+    EDITOR_SELECTION_ROOF_PORTION
 } EditorSelectionKind;
 
 /* Context of a transient selection, independent of its object kind and of
@@ -36,6 +38,8 @@ typedef struct
     DomainId wall_id;
     DomainId opening_id; /* Only for OPENING; wall_id is its explicit owner. */
     DomainId slab_id;
+    DomainId roof_id;
+    DomainId roof_portion_id; /* Only for ROOF_PORTION; roof_id is its owner. */
     /* Only for subordinate slab kinds. Ephemeral collection position, not ID. */
     size_t slab_feature_index;
 
@@ -56,6 +60,10 @@ void editor_selection_set_slab(EditorSelection *selection,
 void editor_selection_set_slab_feature(EditorSelection *selection,
     EditorSelectionScope scope, DomainId slab_id, EditorSelectionKind kind,
     size_t feature_index);
+void editor_selection_set_roof(EditorSelection *selection,
+    EditorSelectionScope scope, DomainId roof_id);
+void editor_selection_set_roof_portion(EditorSelection *selection,
+    EditorSelectionScope scope, DomainId roof_id, DomainId portion_id);
 
 void editor_selection_init(
     EditorSelection *selection

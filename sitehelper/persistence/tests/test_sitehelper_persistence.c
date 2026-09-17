@@ -4,6 +4,7 @@
 #include <string.h>
 #include "sitehelper_persistence.h"
 #include "wall.h"
+#include "roof.h"
 #include "test_support.h"
 
 static const char *round_trip_path =
@@ -309,7 +310,7 @@ static void test_unsupported_version_is_rejected(void)
     assert(sitehelper_project_add_storey(&destination, 0));
 
     write_text_file(unsupported_path,
-        "sitehelper_project 15\n");
+        "sitehelper_project 16\n");
 
     assert(sitehelper_project_load_file(&destination, unsupported_path) ==
         SITEHELPER_PERSISTENCE_UNSUPPORTED_VERSION);
@@ -625,7 +626,7 @@ static void test_version_ten_ordered_segments_round_trip(void)
     assert(!ferror(file) && feof(file));
     text[count] = '\0';
     assert(fclose(file) == 0);
-    assert(strstr(text, "sitehelper_project 14\n") == text);
+    assert(strstr(text, "sitehelper_project 15\n") == text);
     assert(strstr(text, "segment 1000 2000 4600 6800 openings 1") != NULL);
     assert(strstr(text, "segment 4600 6800 1000 2000 openings 1") != NULL);
     assert(strstr(text, " origin ") == NULL && strstr(text, " length ") == NULL);
@@ -894,7 +895,7 @@ static void test_versions_one_through_six_migrate_without_separators(void)
         assert(feof(file) && !ferror(file));
         text[count] = '\0';
         assert(fclose(file) == 0);
-        assert(strstr(text, "sitehelper_project 14\n") == text);
+        assert(strstr(text, "sitehelper_project 15\n") == text);
         assert(strstr(text, "wall_ref") == NULL);
         assert(strstr(text, version == 6 ? "room 1 placement placed -12 34\nend_room\n" :
                 "room 1 placement unplaced\nend_room\n") &&
@@ -953,7 +954,7 @@ static void test_room_placement_round_trip(void)
     size_t count = fread(text, 1, sizeof text - 1, file);
     assert(feof(file) && !ferror(file) && fclose(file) == 0);
     text[count] = '\0';
-    assert(strstr(text, "sitehelper_project 14\n") == text);
+    assert(strstr(text, "sitehelper_project 15\n") == text);
     assert(strstr(text, "room 2 placement unplaced\nend_room\n"));
     assert(strstr(text, "room 3 placement placed 0 0\nend_room\n"));
     assert(strstr(text, "room 5 placement unplaced\nend_room\n"));
@@ -1092,8 +1093,175 @@ static void test_malformed_room_separators_are_transactional(void)
     assert(remove(malformed_path) == 0);
 }
 
+
+static RoofPortionSpec persistence_roof_spec(
+    const PlanPosition *support,
+    RoofPortionGeneration generation,
+    int64_t slope_ppm,
+    int reference_z_mm,
+    RoofDirection direction,
+    RoofSingleSlopeReference reference
+)
+{
+    return (RoofPortionSpec){support, 4, generation, slope_ppm, reference_z_mm,
+        direction, reference};
+}
+
+static void test_roof_authority_round_trip_and_regeneration(void)
+{
+    static const PlanPosition main_support[] = {
+        {0,0},{12000,0},{12000,8000},{0,8000}
+    };
+    static const PlanPosition wing_support[] = {
+        {4000,4000},{8000,4000},{8000,11000},{4000,11000}
+    };
+    static const PlanPosition skillion_support[] = {
+        {2000,-3000},{10000,-3000},{10000,0},{2000,0}
+    };
+
+    SiteHelperProject original, loaded;
+    sitehelper_project_init(&original);
+    DomainId storey = sitehelper_project_add_storey(&original, 0);
+    assert(storey != DOMAIN_ID_INVALID);
+    sitehelper_project_init(&loaded);
+    assert(sitehelper_project_add_storey(&loaded, 999) != DOMAIN_ID_INVALID);
+
+    RoofPortionSpec main = persistence_roof_spec(main_support,
+        ROOF_PORTION_OPPOSING_SLOPES, 414214, 0, (RoofDirection){1,0},
+        ROOF_SINGLE_SLOPE_REFERENCE_LOW_EDGE);
+    DomainId main_id = DOMAIN_ID_INVALID;
+    DomainId compound_roof = sitehelper_project_add_roof(&original, storey, &main, &main_id);
+    assert(compound_roof != DOMAIN_ID_INVALID && main_id != DOMAIN_ID_INVALID);
+
+    RoofPortionSpec wing = persistence_roof_spec(wing_support,
+        ROOF_PORTION_OPPOSING_SLOPES, 577350, 0, (RoofDirection){0,1},
+        ROOF_SINGLE_SLOPE_REFERENCE_LOW_EDGE);
+    DomainId wing_id = sitehelper_project_add_roof_portion_composed(&original, compound_roof,
+        &wing, main_id, ROOF_COMPOSITION_INTERSECTS);
+    assert(wing_id != DOMAIN_ID_INVALID);
+
+    DomainId terminated_portion = DOMAIN_ID_INVALID;
+    DomainId terminated_roof = sitehelper_project_add_roof(&original, storey, &main,
+        &terminated_portion);
+    assert(terminated_roof != DOMAIN_ID_INVALID);
+    assert(sitehelper_project_set_roof_termination(&original, terminated_roof,
+        (RoofTermination){terminated_portion, ROOF_END_NEGATIVE_AXIS, 2000}));
+
+    RoofPortionSpec skillion = persistence_roof_spec(skillion_support,
+        ROOF_PORTION_SINGLE_SLOPE, 87489, -300, (RoofDirection){0,-1},
+        ROOF_SINGLE_SLOPE_REFERENCE_HIGH_EDGE);
+    DomainId skillion_portion = DOMAIN_ID_INVALID;
+    DomainId skillion_roof = sitehelper_project_add_roof(&original, storey, &skillion,
+        &skillion_portion);
+    assert(skillion_roof != DOMAIN_ID_INVALID && skillion_portion != DOMAIN_ID_INVALID);
+
+    DomainId watermark = original.domain_ids.next;
+    assert(sitehelper_project_save_file(&original, round_trip_path) ==
+        SITEHELPER_PERSISTENCE_SUCCESS);
+
+    FILE *file = fopen(round_trip_path, "r");
+    assert(file != NULL);
+    char text[16384];
+    size_t size = fread(text, 1, sizeof text - 1, file);
+    assert(!ferror(file) && feof(file) && fclose(file) == 0);
+    text[size] = '\0';
+    assert(strstr(text, "sitehelper_project 15\n") == text);
+    assert(strstr(text, "roofs 3\n") != NULL);
+    assert(strstr(text, "generation opposing_slopes slope_ppm 577350") != NULL);
+    assert(strstr(text, "single_slope_reference high_edge") != NULL);
+    assert(strstr(text, "composition ") != NULL && strstr(text, " intersects\n") != NULL);
+    assert(strstr(text, "termination ") != NULL && strstr(text, " negative_axis 2000\n") != NULL);
+    assert(strstr(text, "ridge") == NULL && strstr(text, "valley") == NULL &&
+        strstr(text, "interior_edge") == NULL);
+
+    assert(sitehelper_project_load_file(&loaded, round_trip_path) ==
+        SITEHELPER_PERSISTENCE_SUCCESS);
+    test_assert_project_authoritative_equal(&original, &loaded);
+    assert(loaded.domain_ids.next == watermark);
+    assert(loaded.storeys[0].roofs.count == 3);
+
+    for (size_t i = 0; i < loaded.storeys[0].roofs.count; i++) {
+        RoofPrototypeGeometry geometry = {0};
+        assert(roof_build_derived_geometry(&loaded.storeys[0].roofs.items[i], &geometry) ==
+            ROOF_SUCCESS);
+        assert(geometry.plane_count > 0);
+        roof_prototype_geometry_destroy(&geometry);
+    }
+
+    sitehelper_project_destroy(&loaded);
+    sitehelper_project_destroy(&original);
+    assert(remove(round_trip_path) == 0);
+}
+
+static void test_version_fourteen_loads_with_zero_roofs(void)
+{
+    SiteHelperProject project;
+    sitehelper_project_init(&project);
+    write_text_file(round_trip_path,
+        "sitehelper_project 14\n"
+        "domain_id_next 2\n"
+        "settings 2400 90 35 600 1200 0 0 maximise\n"
+        "storeys 1\n"
+        "storey 1 elevation 0\n"
+        "stud_height inherit\n"
+        "walls 0\nrooms 0\nroom_separators 0\nslabs 0\n"
+        "end_storey\nend_project\n");
+    assert(sitehelper_project_load_file(&project, round_trip_path) ==
+        SITEHELPER_PERSISTENCE_SUCCESS);
+    assert(project.storey_count == 1 && project.storeys[0].roofs.count == 0);
+    assert(sitehelper_project_validate(&project).code == SITEHELPER_PROJECT_VALID);
+    sitehelper_project_destroy(&project);
+    assert(remove(round_trip_path) == 0);
+}
+
+static void test_invalid_roof_persistence_is_transactional(void)
+{
+    SiteHelperProject destination, expected;
+    make_non_trivial_project(&destination);
+    make_non_trivial_project(&expected);
+
+    write_text_file(malformed_path,
+        "sitehelper_project 15\n"
+        "domain_id_next 10\n"
+        "settings 2400 90 35 600 1200 0 0 maximise\n"
+        "storeys 1\nstorey 1 elevation 0\nstud_height inherit\n"
+        "walls 0\nrooms 0\nroom_separators 0\nslabs 0\n"
+        "roofs 1\nroof 2 portions 1\n"
+        "portion 3 generation opposing_slopes slope_ppm 414214 reference_z 0 "
+        "direction 1 0 single_slope_reference low_edge support 4\n"
+        "vertex 0 0\nvertex 12000 0\nvertex 12000 8000\nvertex 0 8000\n"
+        "end_portion\ncompositions 1\ncomposition 3 9 intersects\n"
+        "terminations 0\nend_roof\nend_storey\nend_project\n");
+    assert(sitehelper_project_load_file(&destination, malformed_path) ==
+        SITEHELPER_PERSISTENCE_INVALID_PROJECT);
+    assert_project_equal(&expected, &destination);
+
+    write_text_file(malformed_path,
+        "sitehelper_project 15\n"
+        "domain_id_next 10\n"
+        "settings 2400 90 35 600 1200 0 0 maximise\n"
+        "storeys 1\nstorey 1 elevation 0\nstud_height inherit\n"
+        "walls 0\nrooms 0\nroom_separators 0\nslabs 0\n"
+        "roofs 1\nroof 2 portions 1\n"
+        "portion 2 generation opposing_slopes slope_ppm 414214 reference_z 0 "
+        "direction 1 0 single_slope_reference low_edge support 4\n"
+        "vertex 0 0\nvertex 12000 0\nvertex 12000 8000\nvertex 0 8000\n"
+        "end_portion\ncompositions 0\nterminations 0\nend_roof\n"
+        "end_storey\nend_project\n");
+    assert(sitehelper_project_load_file(&destination, malformed_path) ==
+        SITEHELPER_PERSISTENCE_MALFORMED_DATA);
+    assert_project_equal(&expected, &destination);
+
+    sitehelper_project_destroy(&expected);
+    sitehelper_project_destroy(&destination);
+    assert(remove(malformed_path) == 0);
+}
+
 int main(void)
 {
+    test_roof_authority_round_trip_and_regeneration();
+    test_version_fourteen_loads_with_zero_roofs();
+    test_invalid_roof_persistence_is_transactional();
     test_room_separators_round_trip();
     test_malformed_room_separators_are_transactional();
     test_room_placement_round_trip();

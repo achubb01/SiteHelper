@@ -321,3 +321,6 @@ Modified:
 - `sitehelper/topology/tests/test_plan_topology.c`
 - `sitehelper/topology/tests/test_room_region.c`
 - `sitehelper/topology/tests/test_wall_junctions.c`
+
+
+Priority 26G1 adds Storey-owned `RoofCollection` authority. Roofs and roof portions use the same project-global DomainId namespace; compositions/terminations are roof-owned value relationships. Derived roof geometry is regenerated and is not project authority. Persistence remains v14 and refuses roof-bearing saves until 26G3.

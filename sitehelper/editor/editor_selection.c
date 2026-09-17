@@ -19,6 +19,8 @@ void editor_selection_init(
         .wall_id = DOMAIN_ID_INVALID,
         .opening_id = DOMAIN_ID_INVALID,
         .slab_id = DOMAIN_ID_INVALID,
+        .roof_id = DOMAIN_ID_INVALID,
+        .roof_portion_id = DOMAIN_ID_INVALID,
         .slab_feature_index = SIZE_MAX
     };
 
@@ -55,6 +57,31 @@ void editor_selection_set_slab_feature(EditorSelection *selection,
     selection->scope = scope;
     selection->slab_id = slab_id;
     selection->slab_feature_index = feature_index;
+}
+
+
+void editor_selection_set_roof(EditorSelection *selection,
+    EditorSelectionScope scope, DomainId roof_id)
+{
+    if (selection == NULL) { return; }
+    editor_selection_clear(selection);
+    if (scope != EDITOR_SELECTION_SCOPE_PLAN || roof_id == DOMAIN_ID_INVALID) { return; }
+    selection->kind = EDITOR_SELECTION_ROOF;
+    selection->scope = scope;
+    selection->roof_id = roof_id;
+}
+
+void editor_selection_set_roof_portion(EditorSelection *selection,
+    EditorSelectionScope scope, DomainId roof_id, DomainId portion_id)
+{
+    if (selection == NULL) { return; }
+    editor_selection_clear(selection);
+    if (scope != EDITOR_SELECTION_SCOPE_PLAN || roof_id == DOMAIN_ID_INVALID ||
+        portion_id == DOMAIN_ID_INVALID) { return; }
+    selection->kind = EDITOR_SELECTION_ROOF_PORTION;
+    selection->scope = scope;
+    selection->roof_id = roof_id;
+    selection->roof_portion_id = portion_id;
 }
 
 void editor_selection_clear(

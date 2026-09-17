@@ -384,7 +384,7 @@ static void test_persistence(void)
     assert(sitehelper_project_save_file(&p, path) == SITEHELPER_PERSISTENCE_SUCCESS);
     FILE *f = fopen(path, "r"); char text[4096]; assert(f);
     size_t length = fread(text, 1, sizeof text - 1, f); text[length] = '\0'; assert(fclose(f) == 0);
-    assert(strstr(text, "sitehelper_project 14\n") == text);
+    assert(strstr(text, "sitehelper_project 15\n") == text);
     assert(strstr(text, "stud_height inherit\n") && strstr(text, "stud_height override 2400\n"));
     assert(sitehelper_project_load_file(&loaded, path) == SITEHELPER_PERSISTENCE_SUCCESS);
     projects_equal(&p, &loaded);
