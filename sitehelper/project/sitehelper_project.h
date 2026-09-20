@@ -5,10 +5,17 @@
 #include "storey.h"
 #include "domain_id.h"
 #include "document.h"
+#include "cad_plan_mapping.h"
 
 /* Physical coordinates, dimensions, elevations, settings and mutation arguments
  * use integer millimetres (../model/MEASUREMENTS.md). Callers convert external
  * units before these APIs; Project never interprets unit strings or magnitudes. */
+typedef struct
+{
+    DomainId storey_id;
+    CadPlanReference reference;
+} SiteHelperCadPlanReferenceAttachment;
+
 typedef struct
 {
     /* Stored defaults. Live changes must use the transactional setters below;
@@ -16,6 +23,10 @@ typedef struct
     BuildSettings settings;
     Storey *storeys;
     size_t storey_count, storey_capacity;
+    /* Imported Plan reference/background geometry. This is project-owned
+     * ancillary data scoped to Storeys, not construction/domain authority. */
+    SiteHelperCadPlanReferenceAttachment *cad_plan_references;
+    size_t cad_plan_reference_count, cad_plan_reference_capacity;
     /* Authored non-physical project information; not owned by any Storey. */
     DocumentModel document;
     DomainIdGenerator domain_ids;
@@ -183,6 +194,29 @@ const Storey *sitehelper_project_find_storey_by_id_const(const SiteHelperProject
 /* Append an empty Storey with an existing ID for loading/restoration. Does not
  * allocate an ID or advance the watermark; caller must establish it. */
 int sitehelper_project_insert_storey(SiteHelperProject *project, DomainId id, int elevation_mm);
+
+/* Priority 30E Storey-scoped CAD background reference ownership. The Project
+ * owns at most one mapped reference per Storey without assigning a DomainId to
+ * the reference or its paths. `adopt` transfers the complete CadPlanReference
+ * only on success and zero-initializes the caller's source. A blocked/unmapped
+ * proposal is rejected without mutation. Replacement and clear do not modify
+ * construction authority, global identity allocation or command history. */
+typedef enum
+{
+    SITEHELPER_CAD_REFERENCE_APPLY_SUCCESS = 0,
+    SITEHELPER_CAD_REFERENCE_APPLY_INVALID_ARGUMENT,
+    SITEHELPER_CAD_REFERENCE_APPLY_STOREY_NOT_FOUND,
+    SITEHELPER_CAD_REFERENCE_APPLY_REFERENCE_NOT_READY,
+    SITEHELPER_CAD_REFERENCE_APPLY_INVALID_COLLECTION,
+    SITEHELPER_CAD_REFERENCE_APPLY_ALLOCATION_FAILED
+} SiteHelperCadReferenceApplyCode;
+
+SiteHelperCadReferenceApplyCode sitehelper_project_adopt_cad_plan_reference(
+    SiteHelperProject *project, DomainId storey_id, CadPlanReference *reference);
+const CadPlanReference *sitehelper_project_find_cad_plan_reference(
+    const SiteHelperProject *project, DomainId storey_id);
+int sitehelper_project_clear_cad_plan_reference(
+    SiteHelperProject *project, DomainId storey_id);
 
 /* Project-scope queries are deliberately limited to global identity/ownership.
  * Feature/spatial/report queries remain in their owning subsystems; see

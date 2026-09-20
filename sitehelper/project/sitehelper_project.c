@@ -51,6 +51,10 @@ void sitehelper_project_destroy(
         roof_collection_destroy(&project->storeys[i].roofs);
     }
     free(project->storeys);
+    for (size_t i = 0; i < project->cad_plan_reference_count; i++) {
+        cad_plan_reference_destroy(&project->cad_plan_references[i].reference);
+    }
+    free(project->cad_plan_references);
     document_model_destroy(&project->document);
 
     *project = (SiteHelperProject){0};

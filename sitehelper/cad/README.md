@@ -369,3 +369,12 @@ these invariants:
 8. export is an adapter/view of SiteHelper authority, not a replacement for
    SiteHelper persistence; and
 9. core model/domain code remains completely independent of DWG/DXF libraries.
+
+## Priority 30E — live reference ownership
+
+`CAD_REFERENCE_OWNERSHIP.md` defines the first live-project lifecycle for mapped
+Plan references. `SiteHelperProject` owns at most one ancillary reference per
+Storey through explicit adopt/replace/clear APIs. References and their paths have
+no `DomainId`, never become construction authority, and do not enter editor
+selection/snapping or persistence in 30E. Application is transactional: decode,
+mapping or adoption failure leaves the live Project unchanged.

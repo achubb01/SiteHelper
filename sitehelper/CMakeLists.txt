@@ -205,6 +205,7 @@ if(NOT MSVC)
 endif()
 
 add_library(sitehelper_project
+    project/project_cad_references.c
     project/project_roofs.c
     project/project_slabs.c
     project/project_settings.c
@@ -224,9 +225,22 @@ target_link_libraries(sitehelper_project
         sitehelper_slab
         sitehelper_roof
         sitehelper_document
+        sitehelper_cad_plan_mapping
     PRIVATE
         sitehelper_wall
 )
+
+add_executable(test_cad_reference_ownership cad/tests/test_cad_reference_ownership.c)
+target_link_libraries(test_cad_reference_ownership PRIVATE
+    sitehelper_project
+    sitehelper_cad_dxf_ascii
+)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_cad_reference_ownership PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_cad_reference_ownership PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME cad_reference_ownership_tests COMMAND test_cad_reference_ownership)
 
 add_library(sitehelper_takeoff takeoff/framing_takeoff.c)
 target_include_directories(sitehelper_takeoff PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/takeoff)
