@@ -334,9 +334,12 @@ interpretation remain independently testable:
    30A ASCII subset into `CadIrDocument`, preserving exact source decimals,
    provenance and partial-success diagnostics without any Project/domain or
    Plan-mm dependency.
-4. **30D — Plan mapping/import proposal.** Resolve units/origin/rotation/layers,
-   convert to checked integer millimetres and produce explicit candidate
-   SiteHelper semantics plus ambiguity diagnostics.
+4. **30D — Plan mapping/reference proposal. COMPLETE.**
+   [`CAD_PLAN_MAPPING.md`](CAD_PLAN_MAPPING.md) and `cad_plan_mapping.[ch]` resolve
+   units, exact layer filtering and optional integer-mm translation, then convert
+   source decimals into checked canonical `PlanPosition` reference paths. The
+   proposal deep-owns provenance/diagnostics and still creates no construction
+   semantics or Project objects.
 5. **30E — Transactional application/reference ownership.** Add the actual
    project/reference lifecycle required by the chosen workflow and make import
    atomic with validation/history semantics.

@@ -23,6 +23,26 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
 endif()
 add_test(NAME dxf_ascii_tests COMMAND test_dxf_ascii)
 
+add_library(sitehelper_cad_plan_mapping cad/cad_plan_mapping.c)
+target_include_directories(sitehelper_cad_plan_mapping
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/cad
+        ${CMAKE_CURRENT_SOURCE_DIR}/model
+)
+target_link_libraries(sitehelper_cad_plan_mapping PUBLIC sitehelper_cad_ir)
+
+add_executable(test_cad_plan_mapping cad/tests/test_cad_plan_mapping.c)
+target_link_libraries(test_cad_plan_mapping PRIVATE
+    sitehelper_cad_plan_mapping
+    sitehelper_cad_dxf_ascii
+)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_cad_plan_mapping PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_cad_plan_mapping PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME cad_plan_mapping_tests COMMAND test_cad_plan_mapping)
+
 add_library(sitehelper_optimisation optimisation/linear_cut_optimizer.c)
 target_include_directories(sitehelper_optimisation PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/optimisation)
 
