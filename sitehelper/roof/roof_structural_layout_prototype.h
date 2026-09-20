@@ -28,6 +28,9 @@ typedef struct {
     PlanPosition end;
 } RoofPrototypeSupportLine;
 
+/* Structural intent/layout is support topology, not member sizing, design
+ * verification or engineering approval. Later calculations consume this kind
+ * of state through the boundary documented in ../structural/README.md. */
 typedef struct {
     RoofPrototypeStructuralStrategy strategy;
     const RoofPrototypeSupportLine *bearing_lines;

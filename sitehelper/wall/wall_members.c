@@ -77,6 +77,9 @@ int wall_add_header(
     int64_t length = (int64_t)frame.width + 2 * (int64_t)settings->stud_width;
     if (left < 0 || length > INT_MAX || frame.top_z + settings->stud_width > settings->stud_height) { return 0; }
 
+    /* This is generated framing geometry, not structural sizing. The section
+     * follows Wall framing settings; a future lintel/beam calculator must stay
+     * behind the structural calculation boundary in structural/README.md. */
     Timber header = {
         .length = (int)length,
         .depth = settings->stud_depth,

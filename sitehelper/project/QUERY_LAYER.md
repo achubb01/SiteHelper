@@ -51,6 +51,7 @@ meaning:
 | Generated framing material totals | `framing_takeoff` |
 | Required generated pieces | `cut_list` |
 | Future stock optimisation | `optimisation`, consuming required pieces rather than Project internals |
+| Future structural calculations | dedicated structural calculation subsystem consuming explicit snapshots/assumptions; results remain derived |
 | Annotation lookup/content | `document`, with Project providing only global typed identity access |
 
 A feature may accept `SiteHelperProject` as a convenience input when it needs to

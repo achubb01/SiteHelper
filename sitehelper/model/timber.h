@@ -10,6 +10,8 @@ typedef enum
     TIMBER_STUD,
     TIMBER_NOGGIN,
     TIMBER_PLATE,
+    /* Generated opening-framing role only. The current Wall generator does not
+     * structurally size or approve a lintel/header; see structural/README.md. */
     TIMBER_HEADER,
     TIMBER_SILL
 } TimberType;

@@ -234,4 +234,8 @@ The boundary is proven well enough to proceed to ownership/integration work:
 5. structural-layout references into derived geometry are transient;
 6. individual generated members and engineering calculations remain downstream.
 
+Priority 29 later freezes the next boundary explicitly: structural calculation
+inputs/results remain derived from this layout and cannot be promoted into
+engineering approval by calculation success. See `structural/README.md`.
+
 The next Priority 26 task is **26G — ownership, IDs, commands and persistence**.

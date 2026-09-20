@@ -28,6 +28,12 @@ Each Wall contributes its bottom plate, top plate, every `studs[]` entry, every
 already physical entries in `members[]`; no opening rules are repeated here.
 Both plates use `TIMBER_PLATE` and can aggregate.
 
+This accounting is not a structural check. In particular, a `TIMBER_HEADER` is
+the generated opening-framing member currently present in the Wall; its presence
+or dimensions do not mean that a lintel has been structurally sized or approved.
+Future structural calculations remain a separate derived subsystem as documented
+in `../structural/README.md`.
+
 Requirements aggregate by `(TimberType, StudType for studs, length_mm, depth_mm,
 width_mm)`. Output follows that ascending lexicographic order, with enum values
 ordering categories/subtypes. Non-stud `stud_type` is canonically `STUD_COMMON`,

@@ -39,6 +39,11 @@ No reverse dependency or topology dependency is introduced. Snapshots are derive
 data, have no identity of their own, are not serialized, and do not participate
 in commands/history or modify the project, framing or `Timber`.
 
+A required piece is also not evidence of structural adequacy. The cut list must
+not consume a calculator-proposed beam/lintel size until that choice has been
+explicitly committed into project design authority. Calculation success itself
+never implies engineering approval; see `../structural/README.md`.
+
 Available stock is an intentionally separate future model. Stock lengths,
 inventory, purchasing, packing/optimisation, kerf, waste, offcuts/remnants,
 pricing, saw-bench instructions, labels/barcodes and GUI are outside this layer.
