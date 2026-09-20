@@ -295,24 +295,25 @@ The CAD/interoperability area may depend on public domain/project APIs when it
 performs mapping. Core domain, project, command, editor, persistence, take-off,
 cut-list and structural layers must not depend on a CAD library or format adapter.
 
-## 9. What Priority 30 intentionally does not add yet
+## 9. What the completed first CAD workflow still does not add
 
-This boundary decision adds no:
+Priorities 30A-30F now provide a deliberately narrow ASCII-DXF reference import
+and Plan-linework export path. They still add no:
 
-- DWG library dependency;
-- DXF parser/writer;
-- generic `CadDocument`/`CadEntity` production schema;
-- automatic wall/opening/room/slab/roof recognition;
-- CAD reference/background object in `SiteHelperProject`;
+- DWG library dependency or DWG adapter;
+- generic all-CAD `CadDocument`/`CadEntity` object model;
+- automatic wall/opening/room/slab/roof recognition from CAD;
 - layer-to-Storey convention;
 - import conflict-resolution UI;
 - coordinate rounding tolerance;
 - external-handle-to-`DomainId` mapping;
+- persisted/linked CAD reference-resource contract;
+- reference selection/snapping authority;
 - persistence format change; or
 - claim that a CAD round trip is lossless.
 
-Those choices should be introduced by the first concrete interoperability
-workflow rather than guessed at the architecture stage.
+Those choices should be introduced only by concrete interoperability workflows
+rather than by broadening the core model pre-emptively.
 
 ## 10. Recommended implementation sequence
 
@@ -340,12 +341,16 @@ interpretation remain independently testable:
    source decimals into checked canonical `PlanPosition` reference paths. The
    proposal deep-owns provenance/diagnostics and still creates no construction
    semantics or Project objects.
-5. **30E — Transactional application/reference ownership.** Add the actual
-   project/reference lifecycle required by the chosen workflow and make import
-   atomic with validation/history semantics.
-6. **30F — Export policy.** Produce the supported external representation from
-   SiteHelper authority through the same IR boundary. Only then assess DWG and
-   richer round-trip needs.
+5. **30E — Transactional application/reference ownership. COMPLETE.**
+   [`CAD_REFERENCE_OWNERSHIP.md`](CAD_REFERENCE_OWNERSHIP.md) gives mapped Plan
+   references a Project-owned, Storey-scoped ancillary lifecycle without IDs,
+   selection/snapping authority or persistence coupling.
+6. **30F — Export policy/representation. COMPLETE.**
+   [`CAD_EXPORT_POLICY.md`](CAD_EXPORT_POLICY.md), `cad_export_ir.[ch]`,
+   `cad_plan_export.[ch]` and `dxf_ascii_export.[ch]` implement the reverse
+   boundary for one Storey: explicitly selected authoritative Plan primitives ->
+   normalized integer-mm export IR -> AC1032 ASCII DXF. CAD background references
+   are excluded and DXF remains separate from SiteHelper persistence.
 
 DWG support can later be another format adapter over the same proven
 interoperability concepts. Do not choose a DWG SDK first and then let its object
@@ -353,7 +358,8 @@ model define SiteHelper's architecture.
 
 ## Priority 30 exit decision
 
-The architecture is ready for CAD work when every implementation can preserve
+With 30A-30F implemented, the first CAD slice is complete. Future CAD work should
+continue only while preserving
 these invariants:
 
 1. external format/library types stop at the adapter boundary;
@@ -378,3 +384,14 @@ Storey through explicit adopt/replace/clear APIs. References and their paths hav
 no `DomainId`, never become construction authority, and do not enter editor
 selection/snapping or persistence in 30E. Application is transactional: decode,
 mapping or adoption failure leaves the live Project unchanged.
+
+
+## Priority 30F — first export boundary
+
+`CAD_EXPORT_POLICY.md` completes the first narrow export path. One explicit
+Storey can be translated into a format-neutral `CadExportDocument` containing
+wall centre-lines, room separators and/or slab outer outlines on stable logical
+layers. `dxf_ascii_export.[ch]` then writes that IR as millimetre AC1032 ASCII
+DXF using `LINE`/`LWPOLYLINE`. Imported 30E background references, generated
+framing and unselected domain representations are never emitted implicitly.
+The writer and mapper are transactional and no persistence version changes.

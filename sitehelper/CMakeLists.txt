@@ -43,6 +43,27 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
 endif()
 add_test(NAME cad_plan_mapping_tests COMMAND test_cad_plan_mapping)
 
+add_library(sitehelper_cad_export_ir cad/cad_export_ir.c)
+target_include_directories(sitehelper_cad_export_ir PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/cad)
+
+add_library(sitehelper_cad_dxf_ascii_export cad/dxf_ascii_export.c)
+target_include_directories(sitehelper_cad_dxf_ascii_export PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/cad)
+target_link_libraries(sitehelper_cad_dxf_ascii_export PUBLIC sitehelper_cad_export_ir)
+
+add_executable(test_cad_export_ir cad/tests/test_cad_export_ir.c)
+target_link_libraries(test_cad_export_ir PRIVATE
+    sitehelper_cad_export_ir
+    sitehelper_cad_dxf_ascii_export
+    sitehelper_cad_dxf_ascii
+    sitehelper_cad_plan_mapping
+)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_cad_export_ir PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_cad_export_ir PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME cad_export_ir_tests COMMAND test_cad_export_ir)
+
 add_library(sitehelper_optimisation optimisation/linear_cut_optimizer.c)
 target_include_directories(sitehelper_optimisation PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/optimisation)
 
@@ -241,6 +262,30 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
         "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
 endif()
 add_test(NAME cad_reference_ownership_tests COMMAND test_cad_reference_ownership)
+
+add_library(sitehelper_cad_plan_export cad/cad_plan_export.c)
+target_include_directories(sitehelper_cad_plan_export
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/cad
+        ${CMAKE_CURRENT_SOURCE_DIR}/project
+)
+target_link_libraries(sitehelper_cad_plan_export
+    PUBLIC
+        sitehelper_cad_export_ir
+        sitehelper_project
+)
+
+add_executable(test_cad_plan_export cad/tests/test_cad_plan_export.c)
+target_link_libraries(test_cad_plan_export PRIVATE
+    sitehelper_cad_plan_export
+    sitehelper_cad_dxf_ascii_export
+)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_cad_plan_export PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_cad_plan_export PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME cad_plan_export_tests COMMAND test_cad_plan_export)
 
 add_library(sitehelper_takeoff takeoff/framing_takeoff.c)
 target_include_directories(sitehelper_takeoff PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/takeoff)
