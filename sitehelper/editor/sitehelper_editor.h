@@ -9,12 +9,17 @@
 #include "opening_placement.h"
 #include "wall_tool.h"
 #include "measurement_tool.h"
+#include "plan_dimension_tool.h"
+#include "plan_callout_tool.h"
+#include "plan_direction_symbol_tool.h"
+#include "plan_revision_cloud_tool.h"
 #include "slab_tool.h"
 #include "slab_feature_tool.h"
 #include "slab_geometry_tool.h"
 #include "opening_command.h"
 #include "editor_action.h"
 #include "sitehelper_project.h"
+#include "plan_dimension_geometry.h"
 
 /* Transient view state; never part of SiteHelperProject. */
 typedef enum
@@ -45,6 +50,10 @@ typedef struct
     OpeningPlacement opening_placement;
     WallTool wall_tool;
     MeasurementTool measurement_tool;
+    PlanDimensionTool dimension_tool;
+    PlanCalloutTool callout_tool;
+    PlanDirectionSymbolTool direction_symbol_tool;
+    PlanRevisionCloudTool revision_cloud_tool;
     SlabTool slab_tool;
     SlabPolygonFeatureTool slab_penetration_tool;
     SlabPolygonFeatureTool slab_region_tool;
@@ -251,6 +260,64 @@ int sitehelper_editor_create_active_polygon_action(const SiteHelperEditor *edito
     EditorAction *action);
 int sitehelper_editor_create_delete_selection_action(const SiteHelperEditor *editor,
     EditorAction *action);
+/* Note authoring boundary for application text UI. Commands own copied text;
+ * these helpers do not introduce keyboard focus or persistent typography. */
+
+/* Transient authoring preview. Before the second reference is fixed, the
+ * second point follows the snapped pointer with zero offset. Afterwards the
+ * same derived geometry follows the raw pointer's signed perpendicular offset. */
+int sitehelper_editor_get_plan_dimension_preview(const SiteHelperEditor *editor,
+    DocumentPlanDimensionGeometry *geometry, int *distance_mm, int *ready);
+
+int sitehelper_editor_create_plan_dimension_action(const SiteHelperEditor *editor,
+    DocumentDimensionReference first, DocumentDimensionReference second, int offset_mm,
+    EditorAction *action);
+int sitehelper_editor_create_edit_plan_dimension_action(const SiteHelperEditor *editor,
+    DocumentDimensionReference first, DocumentDimensionReference second, int offset_mm,
+    EditorAction *action);
+
+int sitehelper_editor_create_plan_symbol_action(const SiteHelperEditor *editor,
+    DocumentPlanSymbolKind kind, PlanPosition anchor, DocumentPlanDirection direction,
+    EditorAction *action);
+int sitehelper_editor_create_edit_plan_symbol_action(const SiteHelperEditor *editor,
+    DocumentPlanSymbolKind kind, PlanPosition anchor, DocumentPlanDirection direction,
+    EditorAction *action);
+/* Two-click view-direction authoring preview. First click fixes anchor; second
+ * point defines an exact primitive integer direction vector. */
+int sitehelper_editor_get_view_direction_preview(const SiteHelperEditor *editor,
+    PlanPosition *anchor, PlanPoint *direction_point, int *ready);
+
+int sitehelper_editor_create_plan_callout_action(const SiteHelperEditor *editor,
+    PlanPosition target, PlanPosition label_anchor, const char *text, EditorAction *action);
+int sitehelper_editor_create_edit_plan_callout_action(const SiteHelperEditor *editor,
+    PlanPosition target, PlanPosition label_anchor, const char *text, EditorAction *action);
+/* Returns a completed two-point authoring geometry waiting for text. The caller
+ * should transfer it to keyboard focus then reset the transient tool. */
+int sitehelper_editor_get_plan_callout_ready(const SiteHelperEditor *editor,
+    PlanPosition *target, PlanPosition *label_anchor);
+/* Read-only transient preview after the target click. */
+int sitehelper_editor_get_plan_callout_preview(const SiteHelperEditor *editor,
+    PlanPosition *target, PlanPoint *label, int *ready);
+void sitehelper_editor_reset_plan_callout_tool(SiteHelperEditor *editor);
+
+int sitehelper_editor_create_plan_note_action(const SiteHelperEditor *editor,
+    PlanPosition position, DomainId target_id, const char *text, EditorAction *action);
+int sitehelper_editor_create_edit_plan_note_action(const SiteHelperEditor *editor,
+    PlanPosition position, DomainId target_id, const char *text, EditorAction *action);
+/* Resolve a Note-tool click without mutating Project authority. Existing notes
+ * are selected and return their exact anchor; empty space returns a snapped
+ * Plan position for a new note and clears any stale selection. */
+int sitehelper_editor_prepare_plan_note_authoring(SiteHelperEditor *editor,
+    const SiteHelperProject *project, Vec2 view_position,
+    DomainId *annotation_id, PlanPosition *position);
+/* Revision-cloud authoring is an explicit closed Plan boundary. Clicks append
+ * snapped integer-mm vertices; Enter produces the create command and Esc cancels.
+ * Presentation scallops remain derived in the application renderer. */
+int sitehelper_editor_create_plan_revision_cloud_action(
+    const SiteHelperEditor *editor, EditorAction *action);
+int sitehelper_editor_get_plan_revision_cloud_preview(
+    const SiteHelperEditor *editor, const PlanPosition **vertices, size_t *count,
+    PlanPoint *preview, int *has_preview);
 int sitehelper_editor_get_slab_preview(const SiteHelperEditor *editor,
     const PlanPosition **vertices, size_t *count, PlanPoint *preview,
     int *has_preview);

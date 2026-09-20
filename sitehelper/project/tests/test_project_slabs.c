@@ -190,7 +190,7 @@ static void test_round_trip(void)
     FILE *f = fopen(path, "r"); assert(f); char text[4096];
     size_t n = fread(text, 1, sizeof text - 1, f); text[n] = '\0';
     assert(feof(f) && !ferror(f) && fclose(f) == 0);
-    assert(strstr(text,"sitehelper_project 15\n") == text);
+    assert(strstr(text,"sitehelper_project 22\n") == text);
     assert(strstr(text,"slabs 2\n") && strstr(text,"slabs 0\n"));
     assert(strstr(text,"top_level_offset -50 thickness 100 outline 4"));
     assert(!strstr(text,"area") && !strstr(text,"volume") && !strstr(text,"perimeter"));

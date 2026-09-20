@@ -185,15 +185,30 @@ int main(void)
     assert(sitehelper_app_init(&app));
     assert(app.backend.context != NULL);
     EditorTool slab_feature_tool;
-    assert(app.toolbar.button_count==9&&
+    assert(app.toolbar.button_count==15&&
         sitehelper_app_toolbar_action_tool(SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION,
             &slab_feature_tool)&&slab_feature_tool==EDITOR_TOOL_SLAB_PENETRATION);
+    const GuiButton *last_toolbar_button = &app.toolbar.buttons[app.toolbar.button_count - 1];
+    assert(last_toolbar_button->bounds.position.y + last_toolbar_button->bounds.height <=
+        app.toolbar.bounds.position.y + app.toolbar.bounds.height + 0.001);
     assert(sitehelper_app_toolbar_action_tool(SITEHELPER_TOOLBAR_ACTION_SLAB_REGION,
         &slab_feature_tool)&&slab_feature_tool==EDITOR_TOOL_SLAB_REGION);
     assert(sitehelper_app_toolbar_action_tool(SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE,
         &slab_feature_tool)&&slab_feature_tool==EDITOR_TOOL_SLAB_EDGE_REBATE);
     assert(sitehelper_app_toolbar_action_tool(SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY,
         &slab_feature_tool)&&slab_feature_tool==EDITOR_TOOL_SLAB_GEOMETRY);
+    assert(sitehelper_app_toolbar_action_tool(SITEHELPER_TOOLBAR_ACTION_NOTE,
+        &slab_feature_tool)&&slab_feature_tool==EDITOR_TOOL_NOTE);
+    assert(sitehelper_app_toolbar_action_tool(SITEHELPER_TOOLBAR_ACTION_DIMENSION,
+        &slab_feature_tool)&&slab_feature_tool==EDITOR_TOOL_DIMENSION);
+    assert(sitehelper_app_toolbar_action_tool(SITEHELPER_TOOLBAR_ACTION_SYMBOL,
+        &slab_feature_tool)&&slab_feature_tool==EDITOR_TOOL_SYMBOL);
+    assert(sitehelper_app_toolbar_action_tool(SITEHELPER_TOOLBAR_ACTION_CALLOUT,
+        &slab_feature_tool)&&slab_feature_tool==EDITOR_TOOL_CALLOUT);
+    assert(sitehelper_app_toolbar_action_tool(SITEHELPER_TOOLBAR_ACTION_VIEW_DIRECTION,
+        &slab_feature_tool)&&slab_feature_tool==EDITOR_TOOL_VIEW_DIRECTION);
+    assert(sitehelper_app_toolbar_action_tool(SITEHELPER_TOOLBAR_ACTION_REVISION_CLOUD,
+        &slab_feature_tool)&&slab_feature_tool==EDITOR_TOOL_REVISION_CLOUD);
     sitehelper_app_process_events(&app);
     original_backend = app.backend;
     RendererBackend recording = app.backend; recording.draw_screen_text = record_text; recording.draw_line = record_line;

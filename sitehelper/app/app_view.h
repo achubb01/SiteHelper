@@ -23,6 +23,30 @@ void app_render_slabs(
     Renderer2D *renderer, const SiteHelperProject *project,
     const SiteHelperEditor *editor, const SlabPlanRenderStyle *style
 );
+/* Project-owned persistent dimension overlay; Plan view only. */
+void app_render_plan_dimensions(Renderer2D *renderer, const SiteHelperProject *project,
+    const SiteHelperEditor *editor);
+/* Transient three-click dimension authoring overlay; Plan view only. */
+void app_render_plan_dimension_preview(Renderer2D *renderer, const SiteHelperEditor *editor);
+
+/* Project-owned point-marker symbol overlay; fixed-pixel target, Plan view only. */
+void app_render_plan_symbols(Renderer2D *renderer, const SiteHelperProject *project,
+    const SiteHelperEditor *editor);
+
+/* Project-owned leader/callout overlay and transient two-point authoring preview. */
+void app_render_plan_callouts(Renderer2D *renderer, const SiteHelperProject *project,
+    const SiteHelperEditor *editor);
+void app_render_plan_callout_preview(Renderer2D *renderer, const SiteHelperEditor *editor);
+
+/* Project-owned note overlay; fixed-pixel marker/text, Plan view only. */
+void app_render_plan_notes(Renderer2D *renderer, const SiteHelperProject *project,
+    const SiteHelperEditor *editor);
+
+/* Project-owned revision markup. Boundary is authoritative; scallops are derived. */
+void app_render_plan_revision_clouds(Renderer2D *renderer, const SiteHelperProject *project,
+    const SiteHelperEditor *editor);
+void app_render_plan_revision_cloud_preview(Renderer2D *renderer,
+    const SiteHelperEditor *editor);
 
 /* Caller supplies the normal viewport clip; label formatting stays in app. */
 void app_render_measurement(Renderer2D *renderer, const SiteHelperEditor *editor);

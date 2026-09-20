@@ -331,6 +331,57 @@ static inline void test_assert_project_model_equal(
             test_assert_wall_definition_equal(expected_wall, actual_wall);
         }
     }
+    assert(expected->document.annotation_count == actual->document.annotation_count);
+    for (size_t i = 0; i < expected->document.annotation_count; i++) {
+        const DocumentAnnotation *a = &expected->document.annotations[i];
+        const DocumentAnnotation *b = sitehelper_project_find_annotation_by_id_const(actual, a->id);
+        assert(b != NULL);
+        assert(a->kind == b->kind);
+        assert(a->anchor.storey_id == b->anchor.storey_id);
+        assert(a->anchor.position.x == b->anchor.position.x);
+        assert(a->anchor.position.y == b->anchor.position.y);
+        assert(a->target_id == b->target_id);
+        assert(a->text != NULL && b->text != NULL && strcmp(a->text, b->text) == 0);
+    }
+    assert(expected->document.dimension_count == actual->document.dimension_count);
+    for (size_t i = 0; i < expected->document.dimension_count; i++) {
+        const DocumentPlanDimension *a = &expected->document.dimensions[i];
+        const DocumentPlanDimension *b = sitehelper_project_find_dimension_by_id_const(actual, a->id);
+        assert(b != NULL);
+        assert(a->storey_id == b->storey_id && a->offset_mm == b->offset_mm);
+        assert(memcmp(&a->first, &b->first, sizeof a->first) == 0);
+        assert(memcmp(&a->second, &b->second, sizeof a->second) == 0);
+    }
+    assert(expected->document.symbol_count == actual->document.symbol_count);
+    for (size_t i = 0; i < expected->document.symbol_count; i++) {
+        const DocumentPlanSymbol *a = &expected->document.symbols[i];
+        const DocumentPlanSymbol *b = sitehelper_project_find_symbol_by_id_const(actual, a->id);
+        assert(b != NULL);
+        assert(a->storey_id == b->storey_id && a->kind == b->kind);
+        assert(a->anchor.x == b->anchor.x && a->anchor.y == b->anchor.y);
+    }
+    assert(expected->document.callout_count == actual->document.callout_count);
+    for (size_t i=0;i<expected->document.callout_count;i++) {
+        const DocumentPlanCallout *a=&expected->document.callouts[i];
+        const DocumentPlanCallout *b=sitehelper_project_find_callout_by_id_const(actual,a->id);
+        assert(b != NULL);
+        assert(a->storey_id == b->storey_id);
+        assert(a->target.x == b->target.x && a->target.y == b->target.y);
+        assert(a->label_anchor.x == b->label_anchor.x &&
+            a->label_anchor.y == b->label_anchor.y);
+        assert(a->text != NULL && b->text != NULL && strcmp(a->text,b->text) == 0);
+    }
+    assert(expected->document.revision_cloud_count == actual->document.revision_cloud_count);
+    for (size_t i=0;i<expected->document.revision_cloud_count;i++) {
+        const DocumentPlanRevisionCloud *a=&expected->document.revision_clouds[i];
+        const DocumentPlanRevisionCloud *b=
+            sitehelper_project_find_revision_cloud_by_id_const(actual,a->id);
+        assert(b != NULL);
+        assert(a->storey_id == b->storey_id);
+        assert(a->vertex_count == b->vertex_count);
+        assert(a->vertex_count == 0 ||
+            memcmp(a->vertices,b->vertices,a->vertex_count*sizeof *a->vertices) == 0);
+    }
 }
 
 static inline void test_assert_project_authoritative_equal(
@@ -435,6 +486,22 @@ static inline void test_clone_project_authoritative(
         for (size_t i = 0; i < source->storeys[level].structure.room_separator_count; i++) {
             assert(build_insert_room_separator(&destination->storeys[level].structure, &source->storeys[level].structure.room_separators[i], i));
         }
+    }
+    for (size_t i = 0; i < source->document.annotation_count; i++) {
+        assert(sitehelper_project_insert_annotation(destination, &source->document.annotations[i]));
+    }
+    for (size_t i = 0; i < source->document.dimension_count; i++) {
+        assert(sitehelper_project_insert_dimension(destination, &source->document.dimensions[i]));
+    }
+    for (size_t i = 0; i < source->document.symbol_count; i++) {
+        assert(sitehelper_project_insert_symbol(destination, &source->document.symbols[i]));
+    }
+    for (size_t i=0;i<source->document.callout_count;i++) {
+        assert(sitehelper_project_insert_callout(destination,&source->document.callouts[i]));
+    }
+    for (size_t i=0;i<source->document.revision_cloud_count;i++) {
+        assert(sitehelper_project_insert_revision_cloud(
+            destination,&source->document.revision_clouds[i]));
     }
 }
 

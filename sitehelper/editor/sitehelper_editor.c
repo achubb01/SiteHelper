@@ -9,7 +9,9 @@
 #include "slab_plan_query.h"
 #include "roof_plan_query.h"
 #include "roof.h"
+#include "document_plan_query.h"
 #include "plan_position_conversion.h"
+#include "plan_dimension_geometry.h"
 
 int sitehelper_editor_set_current_storey(SiteHelperEditor *editor,
     const SiteHelperProject *project, DomainId storey_id)
@@ -32,7 +34,10 @@ int sitehelper_editor_tool_available(EditorView view, EditorTool tool)
             (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_WALL || tool == EDITOR_TOOL_MEASURE ||
              tool == EDITOR_TOOL_SLAB || tool == EDITOR_TOOL_SLAB_PENETRATION ||
              tool == EDITOR_TOOL_SLAB_REGION || tool == EDITOR_TOOL_SLAB_EDGE_REBATE ||
-             tool == EDITOR_TOOL_SLAB_GEOMETRY)) ||
+             tool == EDITOR_TOOL_SLAB_GEOMETRY || tool == EDITOR_TOOL_NOTE ||
+             tool == EDITOR_TOOL_DIMENSION || tool == EDITOR_TOOL_SYMBOL ||
+             tool == EDITOR_TOOL_VIEW_DIRECTION || tool == EDITOR_TOOL_CALLOUT ||
+             tool == EDITOR_TOOL_REVISION_CLOUD)) ||
         (view == EDITOR_VIEW_WALL_ELEVATION &&
             (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_OPENING));
 }
@@ -107,6 +112,26 @@ int sitehelper_editor_set_active_tool(
     if (tool == EDITOR_TOOL_MEASURE) { measurement_tool_activate(&editor->measurement_tool); }
     else { measurement_tool_init(&editor->measurement_tool); }
 
+    if (tool == EDITOR_TOOL_DIMENSION) { plan_dimension_tool_activate(&editor->dimension_tool); }
+    else { plan_dimension_tool_cancel(&editor->dimension_tool); editor->dimension_tool.active=0; }
+
+    if (tool == EDITOR_TOOL_CALLOUT) { plan_callout_tool_activate(&editor->callout_tool); }
+    else { plan_callout_tool_cancel(&editor->callout_tool); editor->callout_tool.active=0; }
+
+    if (tool == EDITOR_TOOL_VIEW_DIRECTION) {
+        plan_direction_symbol_tool_activate(&editor->direction_symbol_tool);
+    } else {
+        plan_direction_symbol_tool_cancel(&editor->direction_symbol_tool);
+        editor->direction_symbol_tool.active=0;
+    }
+
+    if (tool == EDITOR_TOOL_REVISION_CLOUD) {
+        plan_revision_cloud_tool_activate(&editor->revision_cloud_tool);
+    } else {
+        plan_revision_cloud_tool_cancel(&editor->revision_cloud_tool);
+        editor->revision_cloud_tool.active=0;
+    }
+
     if (tool == EDITOR_TOOL_SLAB) { slab_tool_activate(&editor->slab_tool); }
     else { slab_tool_cancel(&editor->slab_tool); }
 
@@ -157,6 +182,10 @@ void sitehelper_editor_init(
 
     wall_tool_init(&editor->wall_tool);
     measurement_tool_init(&editor->measurement_tool);
+    plan_dimension_tool_init(&editor->dimension_tool);
+    plan_callout_tool_init(&editor->callout_tool);
+    plan_direction_symbol_tool_init(&editor->direction_symbol_tool);
+    plan_revision_cloud_tool_init(&editor->revision_cloud_tool);
     slab_tool_init(&editor->slab_tool);
     slab_polygon_feature_tool_init(&editor->slab_penetration_tool);
     slab_polygon_feature_tool_init(&editor->slab_region_tool);
@@ -170,6 +199,7 @@ void sitehelper_editor_init(
 void sitehelper_editor_destroy(SiteHelperEditor *editor)
 {
     if (editor == NULL) { return; }
+    plan_revision_cloud_tool_destroy(&editor->revision_cloud_tool);
     slab_tool_destroy(&editor->slab_tool);
     slab_polygon_feature_tool_destroy(&editor->slab_penetration_tool);
     slab_polygon_feature_tool_destroy(&editor->slab_region_tool);
@@ -328,7 +358,14 @@ void sitehelper_editor_reconcile(
     const EditorSelection *selection = &editor->selection;
 
     if (selection->kind != EDITOR_SELECTION_NONE) {
-        if (selection->kind == EDITOR_SELECTION_ROOF ||
+        if (selection->kind == EDITOR_SELECTION_DOCUMENT) {
+            DomainId document_storey = document_model_object_storey_id(
+                &project->document, selection->document);
+            if (document_storey != storey->id ||
+                selection->scope != EDITOR_SELECTION_SCOPE_PLAN) {
+                sitehelper_editor_clear_selection(editor);
+            }
+        } else if (selection->kind == EDITOR_SELECTION_ROOF ||
             selection->kind == EDITOR_SELECTION_ROOF_PORTION) {
             const Roof *selected_roof = roof_collection_find_by_id_const(
                 &storey->roofs, selection->roof_id);
@@ -706,6 +743,12 @@ void sitehelper_editor_pointer_move_in_project(SiteHelperEditor *editor,
         editor->active_tool != EDITOR_TOOL_SLAB_REGION &&
         editor->active_tool != EDITOR_TOOL_SLAB_EDGE_REBATE &&
         editor->active_tool != EDITOR_TOOL_SLAB_GEOMETRY &&
+        editor->active_tool != EDITOR_TOOL_NOTE &&
+        editor->active_tool != EDITOR_TOOL_DIMENSION &&
+        editor->active_tool != EDITOR_TOOL_SYMBOL &&
+        editor->active_tool != EDITOR_TOOL_VIEW_DIRECTION &&
+        editor->active_tool != EDITOR_TOOL_CALLOUT &&
+        editor->active_tool != EDITOR_TOOL_REVISION_CLOUD &&
         !sitehelper_project_resolve_storey_build_settings(project, storey->id, &resolved))) {
         sitehelper_editor_invalidate_transient_state(editor);
         return;
@@ -781,6 +824,52 @@ void sitehelper_editor_pointer_move_in_project(SiteHelperEditor *editor,
             tool->has_preview=0;
         }
         return;
+    }
+    if (editor->active_tool == EDITOR_TOOL_DIMENSION) {
+        PlanDimensionTool *tool=&editor->dimension_tool;
+        if (tool->stage == PLAN_DIMENSION_TOOL_PICK_SECOND) {
+            PlanPoint point;
+            if (editor_measurement_point(editor,view_position,&point)) {
+                (void)plan_dimension_tool_update_pointer(tool,point);
+            }
+        } else if (tool->stage == PLAN_DIMENSION_TOOL_PLACE_OFFSET) {
+            sitehelper_editor_clear_snap(editor);
+            (void)plan_dimension_tool_update_pointer(tool,
+                (PlanPoint){view_position.x,view_position.y});
+        }
+        return;
+    }
+    if (editor->active_tool == EDITOR_TOOL_CALLOUT) {
+        PlanCalloutTool *tool=&editor->callout_tool;
+        if (tool->stage == PLAN_CALLOUT_TOOL_PICK_LABEL) {
+            PlanPoint point;
+            if (editor_measurement_point(editor,view_position,&point)) {
+                (void)plan_callout_tool_update_pointer(tool,point);
+            }
+        }
+        return;
+    }
+    if (editor->active_tool == EDITOR_TOOL_VIEW_DIRECTION) {
+        PlanDirectionSymbolTool *tool=&editor->direction_symbol_tool;
+        if (tool->stage == PLAN_DIRECTION_SYMBOL_TOOL_PICK_DIRECTION) {
+            PlanPoint point;
+            if (editor_measurement_point(editor,view_position,&point)) {
+                (void)plan_direction_symbol_tool_update_pointer(tool,point);
+            }
+        }
+        return;
+    }
+    if (editor->active_tool == EDITOR_TOOL_REVISION_CLOUD) {
+        PlanPoint point;
+        if (editor_measurement_point(editor,view_position,&point)) {
+            plan_revision_cloud_tool_update(&editor->revision_cloud_tool,point);
+        } else {
+            editor->revision_cloud_tool.has_preview=0;
+        }
+        return;
+    }
+    if (editor->active_tool == EDITOR_TOOL_SYMBOL) {
+        return; /* Snap state itself is the one-click point-marker preview. */
     }
     editor_pointer_move_resolved(editor, wall, &resolved, view_position);
 }
@@ -930,6 +1019,12 @@ void sitehelper_editor_pointer_leave(
         sitehelper_editor_clear_snap(editor);
     } else if (editor->active_tool == EDITOR_TOOL_SLAB_GEOMETRY) {
         editor->slab_geometry_tool.has_preview=0;
+        sitehelper_editor_clear_snap(editor);
+    } else if (editor->active_tool == EDITOR_TOOL_DIMENSION) {
+        editor->dimension_tool.has_pointer=0;
+        sitehelper_editor_clear_snap(editor);
+    } else if (editor->active_tool == EDITOR_TOOL_VIEW_DIRECTION) {
+        editor->direction_symbol_tool.has_pointer=0;
         sitehelper_editor_clear_snap(editor);
     } else {
         sitehelper_editor_invalidate_transient_state(editor);
@@ -1286,6 +1381,135 @@ int sitehelper_editor_primary_action(SiteHelperEditor *editor,
     return editor_primary_action_resolved(editor, wall, view_position, action);
 }
 
+
+static DomainId editor_find_plan_dimension_at_position(const SiteHelperProject *project,
+    DomainId storey_id, PlanPoint point, double tolerance_mm)
+{
+    if (project == NULL || storey_id == DOMAIN_ID_INVALID || !(tolerance_mm >= 0.0)) {
+        return DOMAIN_ID_INVALID;
+    }
+    DomainId best=DOMAIN_ID_INVALID;
+    double best_distance=tolerance_mm;
+    for (size_t i=project->document.dimension_count;i>0;i--) {
+        const DocumentPlanDimension *dimension=&project->document.dimensions[i-1];
+        if (dimension->storey_id != storey_id) continue;
+        PlanPosition a,b; int distance_mm;
+        if (!sitehelper_project_resolve_plan_dimension(project,dimension->id,&a,&b,&distance_mm)) continue;
+        (void)distance_mm;
+        DocumentPlanDimensionGeometry geometry;
+        if (!document_plan_dimension_geometry(a,b,dimension->offset_mm,&geometry)) continue;
+        double distance=document_plan_dimension_hit_distance(&geometry,point);
+        if (distance >= 0.0 && distance <= best_distance &&
+            (best == DOMAIN_ID_INVALID || distance < best_distance)) {
+            best=dimension->id;
+            best_distance=distance;
+        }
+    }
+    return best;
+}
+
+
+static int editor_dimension_reference_at(const SiteHelperEditor *editor,
+    const Storey *storey, Vec2 view_position,
+    DocumentDimensionReference *reference, PlanPosition *position)
+{
+    if (editor == NULL || storey == NULL || reference == NULL || position == NULL) {
+        return 0;
+    }
+    Vec2 resolved=view_position;
+    const SnapResult *snap=sitehelper_editor_get_snap_result(editor);
+    if (snap != NULL && snap->type != SNAP_NONE) { resolved=snap->position; }
+    PlanPosition fixed_position;
+    if (!plan_position_from_point((PlanPoint){resolved.x,resolved.y},&fixed_position)) {
+        return 0;
+    }
+
+    /* Endpoint/intersection snaps carry no endpoint source identity. Associate
+     * only when the snapped coordinate names exactly one wall endpoint. This
+     * preserves a semantic endpoint at a T-junction even though intersection
+     * snapping wins the cross-type tie; shared corners and true crossings still
+     * remain fixed points rather than choosing an arbitrary wall. */
+    if (snap != NULL && (snap->type == SNAP_ENDPOINT || snap->type == SNAP_INTERSECTION)) {
+        size_t match_count=0;
+        DomainId wall_id=DOMAIN_ID_INVALID;
+        DocumentDimensionReferenceKind kind=DOCUMENT_DIMENSION_FIXED_POINT;
+        for (size_t i=0;i<storey->structure.wall_count;i++) {
+            const Wall *wall=&storey->structure.walls[i];
+            WallPlanSegment segment=wall->definition.segment;
+            if ((double)segment.start.x == snap->position.x &&
+                (double)segment.start.y == snap->position.y) {
+                match_count++; wall_id=wall->id; kind=DOCUMENT_DIMENSION_WALL_START;
+            }
+            if ((double)segment.end.x == snap->position.x &&
+                (double)segment.end.y == snap->position.y) {
+                match_count++; wall_id=wall->id; kind=DOCUMENT_DIMENSION_WALL_END;
+            }
+        }
+        if (match_count == 1) {
+            *reference=(DocumentDimensionReference){.kind=kind,.target_id=wall_id};
+            *position=fixed_position;
+            return 1;
+        }
+    }
+    *reference=(DocumentDimensionReference){
+        .kind=DOCUMENT_DIMENSION_FIXED_POINT,
+        .position=fixed_position
+    };
+    *position=fixed_position;
+    return 1;
+}
+
+static int editor_dimension_click(SiteHelperEditor *editor,
+    const Storey *storey, Vec2 view_position, EditorAction *action)
+{
+    PlanDimensionTool *tool=&editor->dimension_tool;
+    if (tool->stage == PLAN_DIMENSION_TOOL_PLACE_OFFSET) {
+        if (!plan_dimension_tool_update_pointer(tool,
+                (PlanPoint){view_position.x,view_position.y})) { return 0; }
+        DocumentDimensionReference first,second;
+        int offset_mm;
+        if (!plan_dimension_tool_command_data(tool,&first,&second,&offset_mm)) { return 0; }
+        return sitehelper_editor_create_plan_dimension_action(editor,first,second,offset_mm,action);
+    }
+
+    DocumentDimensionReference reference;
+    PlanPosition position;
+    if (!editor_dimension_reference_at(editor,storey,view_position,&reference,&position)) {
+        return 0;
+    }
+    if (tool->stage == PLAN_DIMENSION_TOOL_PICK_FIRST) {
+        return plan_dimension_tool_set_first(tool,reference,position);
+    }
+    if (tool->stage == PLAN_DIMENSION_TOOL_PICK_SECOND) {
+        /* A zero-length second pick is handled but leaves the authoring state
+         * waiting for a distinct second reference. */
+        if (position.x == tool->first_position.x && position.y == tool->first_position.y) {
+            return 1;
+        }
+        return plan_dimension_tool_set_second(tool,reference,position);
+    }
+    return 0;
+}
+
+static int editor_callout_click(SiteHelperEditor *editor, Vec2 view_position)
+{
+    if (editor == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->active_tool != EDITOR_TOOL_CALLOUT) { return 0; }
+    PlanPoint point;
+    PlanPosition position;
+    if (!editor_measurement_point(editor,view_position,&point) ||
+        !plan_position_from_point(point,&position)) { return 0; }
+    PlanCalloutTool *tool=&editor->callout_tool;
+    if (tool->stage == PLAN_CALLOUT_TOOL_PICK_TARGET) {
+        return plan_callout_tool_set_target(tool,position);
+    }
+    if (tool->stage == PLAN_CALLOUT_TOOL_PICK_LABEL) {
+        if (position.x == tool->target.x && position.y == tool->target.y) { return 1; }
+        return plan_callout_tool_set_label(tool,position);
+    }
+    return tool->stage == PLAN_CALLOUT_TOOL_READY_TEXT;
+}
+
 int sitehelper_editor_primary_action_in_project(
     SiteHelperEditor *editor,
     const SiteHelperProject *project,
@@ -1300,6 +1524,67 @@ int sitehelper_editor_primary_action_in_project(
     const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
     if (storey == NULL) { return 0; }
     const BuildStructure *structure = &storey->structure;
+
+    if (editor->active_view == EDITOR_VIEW_PLAN &&
+        editor->active_tool == EDITOR_TOOL_CALLOUT) {
+        *action=(EditorAction){0};
+        if (editor->callout_tool.stage == PLAN_CALLOUT_TOOL_PICK_TARGET) {
+            DomainId hit=document_plan_find_callout_at_position(&project->document,storey->id,
+                (PlanPoint){view_position.x,view_position.y},
+                editor->snap.settings.object_snap_tolerance);
+            if (hit != DOMAIN_ID_INVALID) {
+                editor_selection_set_callout(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,hit);
+                sitehelper_editor_update_snap_in_project(editor,project,view_position);
+                return 1;
+            }
+            if (editor_selection_is_document_kind(&editor->selection,
+                    DOCUMENT_OBJECT_CALLOUT)) {
+                sitehelper_editor_clear_selection(editor);
+            }
+        }
+        sitehelper_editor_update_snap_in_project(editor,project,view_position);
+        return editor_callout_click(editor,view_position);
+    }
+
+    if (editor->active_view == EDITOR_VIEW_PLAN &&
+        editor->active_tool == EDITOR_TOOL_SYMBOL) {
+        *action=(EditorAction){0};
+        sitehelper_editor_update_snap_in_project(editor,project,view_position);
+        Vec2 point=editor->snap.result.type == SNAP_NONE ? view_position : editor->snap.result.position;
+        PlanPosition anchor;
+        if (!plan_position_from_point((PlanPoint){point.x,point.y},&anchor)) { return 0; }
+        return sitehelper_editor_create_plan_symbol_action(editor,
+            DOCUMENT_PLAN_SYMBOL_POINT_MARKER,anchor,(DocumentPlanDirection){0,0},action);
+    }
+
+    if (editor->active_view == EDITOR_VIEW_PLAN &&
+        editor->active_tool == EDITOR_TOOL_VIEW_DIRECTION) {
+        *action=(EditorAction){0};
+        sitehelper_editor_update_snap_in_project(editor,project,view_position);
+        Vec2 point=editor->snap.result.type == SNAP_NONE ? view_position : editor->snap.result.position;
+        PlanPosition position;
+        if (!plan_position_from_point((PlanPoint){point.x,point.y},&position)) { return 0; }
+        PlanDirectionSymbolTool *tool=&editor->direction_symbol_tool;
+        if (tool->stage == PLAN_DIRECTION_SYMBOL_TOOL_PICK_ANCHOR) {
+            return plan_direction_symbol_tool_set_anchor(tool,position);
+        }
+        if (!plan_direction_symbol_tool_set_direction_point(tool,position)) { return 1; }
+        PlanPosition anchor; DocumentPlanDirection direction;
+        if (!plan_direction_symbol_tool_ready(tool,&anchor,&direction)) { return 1; }
+        return sitehelper_editor_create_plan_symbol_action(editor,
+            DOCUMENT_PLAN_SYMBOL_VIEW_DIRECTION,anchor,direction,action);
+    }
+
+    if (editor->active_view == EDITOR_VIEW_PLAN &&
+        editor->active_tool == EDITOR_TOOL_DIMENSION) {
+        *action=(EditorAction){0};
+        if (editor->dimension_tool.stage == PLAN_DIMENSION_TOOL_PLACE_OFFSET) {
+            sitehelper_editor_clear_snap(editor);
+        } else {
+            sitehelper_editor_update_snap_in_project(editor,project,view_position);
+        }
+        return editor_dimension_click(editor,storey,view_position,action);
+    }
 
     if (editor->active_view == EDITOR_VIEW_PLAN &&
         editor->active_tool == EDITOR_TOOL_SLAB_GEOMETRY) {
@@ -1328,14 +1613,63 @@ int sitehelper_editor_primary_action_in_project(
     }
 
     if (editor->active_view == EDITOR_VIEW_PLAN &&
+        editor->active_tool == EDITOR_TOOL_REVISION_CLOUD) {
+        *action=(EditorAction){0};
+        sitehelper_editor_update_snap_in_project(editor,project,view_position);
+        Vec2 point=editor->snap.result.type == SNAP_NONE ? view_position : editor->snap.result.position;
+        PlanPosition position;
+        if (!plan_position_from_point((PlanPoint){point.x,point.y},&position)) { return 0; }
+        return plan_revision_cloud_tool_append(&editor->revision_cloud_tool,storey->id,position);
+    }
+
+    if (editor->active_view == EDITOR_VIEW_PLAN &&
         editor->active_tool == EDITOR_TOOL_SELECT) {
         *action = (EditorAction){ .kind = EDITOR_ACTION_NONE };
         sitehelper_editor_clear_selection(editor);
         sitehelper_editor_invalidate_transient_state(editor);
         editor->current_wall_id = DOMAIN_ID_INVALID;
         double nearest = editor->snap.settings.object_snap_tolerance;
+        DomainId revision_cloud_id=document_plan_find_revision_cloud_at_position(
+            &project->document,storey->id,(PlanPoint){view_position.x,view_position.y},nearest);
+        if (revision_cloud_id != DOMAIN_ID_INVALID) {
+            editor_selection_set_revision_cloud(&editor->selection,
+                EDITOR_SELECTION_SCOPE_PLAN,revision_cloud_id);
+            sitehelper_editor_update_snap_in_project(editor,project,view_position);
+            return 1;
+        }
+        DomainId annotation_id = document_plan_find_note_at_position(&project->document,
+            storey->id, (PlanPoint){view_position.x, view_position.y}, nearest);
+        if (annotation_id != DOMAIN_ID_INVALID) {
+            editor_selection_set_annotation(&editor->selection,
+                EDITOR_SELECTION_SCOPE_PLAN, annotation_id);
+            sitehelper_editor_update_snap_in_project(editor, project, view_position);
+            return 1;
+        }
+        DomainId callout_id=document_plan_find_callout_at_position(&project->document,
+            storey->id,(PlanPoint){view_position.x,view_position.y},nearest);
+        if (callout_id != DOMAIN_ID_INVALID) {
+            editor_selection_set_callout(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,callout_id);
+            sitehelper_editor_update_snap_in_project(editor,project,view_position);
+            return 1;
+        }
+        DomainId symbol_id=document_plan_find_symbol_at_position(&project->document,
+            storey->id,(PlanPoint){view_position.x,view_position.y},nearest);
+        if (symbol_id != DOMAIN_ID_INVALID) {
+            editor_selection_set_symbol(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,symbol_id);
+            sitehelper_editor_update_snap_in_project(editor,project,view_position);
+            return 1;
+        }
+        DomainId dimension_id=editor_find_plan_dimension_at_position(project,storey->id,
+            (PlanPoint){view_position.x,view_position.y},nearest);
+        if (dimension_id != DOMAIN_ID_INVALID) {
+            editor_selection_set_dimension(&editor->selection,
+                EDITOR_SELECTION_SCOPE_PLAN,dimension_id);
+            sitehelper_editor_update_snap_in_project(editor,project,view_position);
+            return 1;
+        }
 
-        /* Nearest segment wins; later appended walls win exact ties. */
+        /* Document overlays have precedence over physical geometry. Nearest wall
+         * segment wins next; later appended walls win exact ties. */
         for (size_t index = structure->wall_count; index > 0; index--) {
             const Wall *wall = &structure->walls[index - 1];
             double distance = plan_segment_distance(wall->definition.segment, view_position);
@@ -1481,6 +1815,103 @@ void sitehelper_editor_complete_action(
             wall_tool_cancel(&editor->wall_tool);
             break;
 
+        case SITEHELPER_COMMAND_CREATE_PLAN_NOTE:
+            if (action->command.data.create_plan_note.storey_id == editor->current_storey_id) {
+                editor_selection_set_annotation(&editor->selection,
+                    EDITOR_SELECTION_SCOPE_PLAN, result->data.annotation.annotation_id);
+                editor->current_wall_id = DOMAIN_ID_INVALID;
+            }
+            break;
+        case SITEHELPER_COMMAND_DELETE_PLAN_NOTE:
+            if (editor_selection_matches_document(&editor->selection, DOCUMENT_OBJECT_NOTE,
+                result->data.annotation.annotation_id)) {
+                sitehelper_editor_clear_selection(editor);
+            }
+            break;
+        case SITEHELPER_COMMAND_EDIT_PLAN_NOTE:
+            break;
+        case SITEHELPER_COMMAND_CREATE_PLAN_DIMENSION:
+            if (action->command.data.create_plan_dimension.storey_id == editor->current_storey_id) {
+                editor_selection_set_dimension(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,
+                    result->data.dimension.dimension_id);
+                editor->current_wall_id=DOMAIN_ID_INVALID;
+            }
+            plan_dimension_tool_cancel(&editor->dimension_tool);
+            if (editor->active_tool == EDITOR_TOOL_DIMENSION) { editor->dimension_tool.active=1; }
+            sitehelper_editor_clear_snap(editor);
+            break;
+        case SITEHELPER_COMMAND_DELETE_PLAN_DIMENSION:
+            if (editor_selection_matches_document(&editor->selection, DOCUMENT_OBJECT_DIMENSION,
+                result->data.dimension.dimension_id)) {
+                sitehelper_editor_clear_selection(editor);
+            }
+            break;
+        case SITEHELPER_COMMAND_EDIT_PLAN_DIMENSION:
+            break;
+
+        case SITEHELPER_COMMAND_CREATE_PLAN_SYMBOL:
+            if (action->command.data.create_plan_symbol.storey_id == editor->current_storey_id) {
+                editor_selection_set_symbol(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,
+                    result->data.symbol.symbol_id);
+                editor->current_wall_id=DOMAIN_ID_INVALID;
+            }
+            if (editor->active_tool == EDITOR_TOOL_VIEW_DIRECTION) {
+                plan_direction_symbol_tool_cancel(&editor->direction_symbol_tool);
+                editor->direction_symbol_tool.active=1;
+                sitehelper_editor_clear_snap(editor);
+            }
+            break;
+        case SITEHELPER_COMMAND_DELETE_PLAN_SYMBOL:
+            if (editor_selection_matches_document(&editor->selection, DOCUMENT_OBJECT_SYMBOL,
+                result->data.symbol.symbol_id)) {
+                sitehelper_editor_clear_selection(editor);
+            }
+            break;
+        case SITEHELPER_COMMAND_EDIT_PLAN_SYMBOL:
+            break;
+
+        case SITEHELPER_COMMAND_CREATE_PLAN_CALLOUT:
+            if (action->command.data.create_plan_callout.storey_id == editor->current_storey_id) {
+                editor_selection_set_callout(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,
+                    result->data.callout.callout_id);
+                editor->current_wall_id=DOMAIN_ID_INVALID;
+            }
+            plan_callout_tool_cancel(&editor->callout_tool);
+            if (editor->active_tool == EDITOR_TOOL_CALLOUT) { editor->callout_tool.active=1; }
+            sitehelper_editor_clear_snap(editor);
+            break;
+        case SITEHELPER_COMMAND_DELETE_PLAN_CALLOUT:
+            if (editor_selection_matches_document(&editor->selection, DOCUMENT_OBJECT_CALLOUT,
+                result->data.callout.callout_id)) {
+                sitehelper_editor_clear_selection(editor);
+            }
+            break;
+        case SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT:
+            break;
+
+        case SITEHELPER_COMMAND_CREATE_PLAN_REVISION_CLOUD:
+            if (action->command.data.create_plan_revision_cloud.storey_id ==
+                editor->current_storey_id) {
+                editor_selection_set_revision_cloud(&editor->selection,
+                    EDITOR_SELECTION_SCOPE_PLAN,result->data.revision_cloud.revision_cloud_id);
+                editor->current_wall_id=DOMAIN_ID_INVALID;
+            }
+            plan_revision_cloud_tool_cancel(&editor->revision_cloud_tool);
+            if (editor->active_tool == EDITOR_TOOL_REVISION_CLOUD) {
+                editor->revision_cloud_tool.active=1;
+            }
+            sitehelper_editor_clear_snap(editor);
+            break;
+        case SITEHELPER_COMMAND_DELETE_PLAN_REVISION_CLOUD:
+            if (editor_selection_matches_document(&editor->selection,
+                    DOCUMENT_OBJECT_REVISION_CLOUD,
+                    result->data.revision_cloud.revision_cloud_id)) {
+                sitehelper_editor_clear_selection(editor);
+            }
+            break;
+        case SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD:
+            break;
+
         case SITEHELPER_COMMAND_CREATE_SLAB:
             if (action->command.data.create_slab.storey_id == editor->current_storey_id) {
                 editor_selection_set_slab(&editor->selection,
@@ -1587,6 +2018,18 @@ void sitehelper_editor_invalidate_transient_state(
     editor->opening_tool.preview_valid = 0;
     wall_tool_cancel(&editor->wall_tool);
     measurement_tool_cancel(&editor->measurement_tool);
+    plan_dimension_tool_cancel(&editor->dimension_tool);
+    if (editor->active_tool == EDITOR_TOOL_DIMENSION) { editor->dimension_tool.active=1; }
+    plan_callout_tool_cancel(&editor->callout_tool);
+    if (editor->active_tool == EDITOR_TOOL_CALLOUT) { editor->callout_tool.active=1; }
+    plan_direction_symbol_tool_cancel(&editor->direction_symbol_tool);
+    if (editor->active_tool == EDITOR_TOOL_VIEW_DIRECTION) {
+        editor->direction_symbol_tool.active=1;
+    }
+    plan_revision_cloud_tool_cancel(&editor->revision_cloud_tool);
+    if (editor->active_tool == EDITOR_TOOL_REVISION_CLOUD) {
+        editor->revision_cloud_tool.active=1;
+    }
     slab_tool_cancel(&editor->slab_tool);
     if (editor->active_tool == EDITOR_TOOL_SLAB) { editor->slab_tool.active=1; }
     slab_polygon_feature_tool_cancel(&editor->slab_penetration_tool);
@@ -1674,11 +2117,32 @@ int sitehelper_editor_create_slab_action(const SiteHelperEditor *editor, EditorA
     return ok;
 }
 
+int sitehelper_editor_create_plan_revision_cloud_action(const SiteHelperEditor *editor,
+    EditorAction *action)
+{
+    if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->active_tool != EDITOR_TOOL_REVISION_CLOUD ||
+        editor->revision_cloud_tool.vertex_count < 3 ||
+        editor->revision_cloud_tool.storey_id == DOMAIN_ID_INVALID) { return 0; }
+    CreatePlanRevisionCloudCommand create={0};
+    if (!create_plan_revision_cloud_command_create(editor->revision_cloud_tool.storey_id,
+            editor->revision_cloud_tool.vertices,editor->revision_cloud_tool.vertex_count,
+            &create)) { return 0; }
+    *action=(EditorAction){.kind=EDITOR_ACTION_COMMAND};
+    int ok=sitehelper_command_from_create_plan_revision_cloud(&create,&action->command);
+    create_plan_revision_cloud_command_destroy(&create);
+    if (!ok) { *action=(EditorAction){0}; }
+    return ok;
+}
+
 int sitehelper_editor_create_active_polygon_action(const SiteHelperEditor *editor,
     EditorAction *action)
 {
     if (editor != NULL && editor->active_tool == EDITOR_TOOL_SLAB) {
         return sitehelper_editor_create_slab_action(editor,action);
+    }
+    if (editor != NULL && editor->active_tool == EDITOR_TOOL_REVISION_CLOUD) {
+        return sitehelper_editor_create_plan_revision_cloud_action(editor,action);
     }
     return editor_polygon_feature_action(editor,action);
 }
@@ -1691,6 +2155,45 @@ int sitehelper_editor_create_delete_selection_action(const SiteHelperEditor *edi
     SiteHelperCommand command={0};
     int ok=0;
     switch (editor->selection.kind) {
+        case EDITOR_SELECTION_DOCUMENT: {
+            DomainId id = editor->selection.document.id;
+            switch (editor->selection.document.kind) {
+                case DOCUMENT_OBJECT_NOTE: {
+                    DeletePlanNoteCommand deletion;
+                    ok=delete_plan_note_command_create(id,&deletion) &&
+                        sitehelper_command_from_delete_plan_note(&deletion,&command);
+                    break;
+                }
+                case DOCUMENT_OBJECT_DIMENSION: {
+                    DeletePlanDimensionCommand deletion;
+                    ok=delete_plan_dimension_command_create(id,&deletion) &&
+                        sitehelper_command_from_delete_plan_dimension(&deletion,&command);
+                    break;
+                }
+                case DOCUMENT_OBJECT_SYMBOL: {
+                    DeletePlanSymbolCommand deletion;
+                    ok=delete_plan_symbol_command_create(id,&deletion) &&
+                        sitehelper_command_from_delete_plan_symbol(&deletion,&command);
+                    break;
+                }
+                case DOCUMENT_OBJECT_CALLOUT: {
+                    DeletePlanCalloutCommand deletion;
+                    ok=delete_plan_callout_command_create(id,&deletion) &&
+                        sitehelper_command_from_delete_plan_callout(&deletion,&command);
+                    break;
+                }
+                case DOCUMENT_OBJECT_REVISION_CLOUD: {
+                    DeletePlanRevisionCloudCommand deletion;
+                    ok=delete_plan_revision_cloud_command_create(id,&deletion) &&
+                        sitehelper_command_from_delete_plan_revision_cloud(&deletion,&command);
+                    break;
+                }
+                case DOCUMENT_OBJECT_NONE:
+                default:
+                    break;
+            }
+            break;
+        }
         case EDITOR_SELECTION_SLAB: {
             DeleteSlabCommand deletion;
             ok=delete_slab_command_create(editor->selection.slab_id,&deletion) &&
@@ -1723,6 +2226,253 @@ int sitehelper_editor_create_delete_selection_action(const SiteHelperEditor *edi
     if (!ok) { return 0; }
     *action=(EditorAction){.kind=EDITOR_ACTION_COMMAND,.command=command};
     return 1;
+}
+
+
+int sitehelper_editor_get_plan_dimension_preview(const SiteHelperEditor *editor,
+    DocumentPlanDimensionGeometry *geometry, int *distance_mm, int *ready)
+{
+    if (geometry == NULL || distance_mm == NULL || ready == NULL) { return 0; }
+    *geometry=(DocumentPlanDimensionGeometry){0}; *distance_mm=0; *ready=0;
+    if (editor == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->active_tool != EDITOR_TOOL_DIMENSION ||
+        !plan_dimension_tool_has_started(&editor->dimension_tool) ||
+        !editor->dimension_tool.has_pointer) { return 0; }
+    const PlanDimensionTool *tool=&editor->dimension_tool;
+    PlanPosition second=tool->second_position;
+    int offset=tool->offset_mm;
+    if (tool->stage == PLAN_DIMENSION_TOOL_PICK_SECOND) {
+        if (!plan_position_from_point(tool->pointer,&second) ||
+            (second.x == tool->first_position.x && second.y == tool->first_position.y)) { return 0; }
+        offset=0;
+    } else if (tool->stage != PLAN_DIMENSION_TOOL_PLACE_OFFSET) { return 0; }
+    int distance=wall_plan_segment_length_mm((WallPlanSegment){tool->first_position,second});
+    if (distance <= 0 || !document_plan_dimension_geometry(tool->first_position,second,
+            offset,geometry)) { return 0; }
+    *distance_mm=distance;
+    *ready=tool->stage == PLAN_DIMENSION_TOOL_PLACE_OFFSET;
+    return 1;
+}
+
+int sitehelper_editor_create_plan_dimension_action(const SiteHelperEditor *editor,
+    DocumentDimensionReference first, DocumentDimensionReference second, int offset_mm,
+    EditorAction *action)
+{
+    if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->current_storey_id == DOMAIN_ID_INVALID) { return 0; }
+    CreatePlanDimensionCommand create;
+    if (!create_plan_dimension_command_create(editor->current_storey_id,first,second,
+            offset_mm,&create)) { return 0; }
+    *action=(EditorAction){.kind=EDITOR_ACTION_COMMAND};
+    if (!sitehelper_command_from_create_plan_dimension(&create,&action->command)) {
+        *action=(EditorAction){0}; return 0;
+    }
+    return 1;
+}
+
+int sitehelper_editor_create_edit_plan_dimension_action(const SiteHelperEditor *editor,
+    DocumentDimensionReference first, DocumentDimensionReference second, int offset_mm,
+    EditorAction *action)
+{
+    if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        !editor_selection_is_document_kind(&editor->selection,DOCUMENT_OBJECT_DIMENSION) ||
+        editor->current_storey_id == DOMAIN_ID_INVALID) { return 0; }
+    EditPlanDimensionCommand edit;
+    if (!edit_plan_dimension_command_create(editor->selection.document.id,
+            editor->current_storey_id,first,second,offset_mm,&edit)) { return 0; }
+    *action=(EditorAction){.kind=EDITOR_ACTION_COMMAND};
+    if (!sitehelper_command_from_edit_plan_dimension(&edit,&action->command)) {
+        *action=(EditorAction){0}; return 0;
+    }
+    return 1;
+}
+
+int sitehelper_editor_create_plan_symbol_action(const SiteHelperEditor *editor,
+    DocumentPlanSymbolKind kind, PlanPosition anchor, DocumentPlanDirection direction,
+    EditorAction *action)
+{
+    if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->current_storey_id == DOMAIN_ID_INVALID) { return 0; }
+    CreatePlanSymbolCommand create;
+    if (!create_plan_symbol_command_create(editor->current_storey_id,kind,anchor,direction,&create)) {
+        return 0;
+    }
+    *action=(EditorAction){.kind=EDITOR_ACTION_COMMAND};
+    if (!sitehelper_command_from_create_plan_symbol(&create,&action->command)) {
+        *action=(EditorAction){0}; return 0;
+    }
+    return 1;
+}
+
+int sitehelper_editor_create_edit_plan_symbol_action(const SiteHelperEditor *editor,
+    DocumentPlanSymbolKind kind, PlanPosition anchor, DocumentPlanDirection direction,
+    EditorAction *action)
+{
+    if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        !editor_selection_is_document_kind(&editor->selection,DOCUMENT_OBJECT_SYMBOL) ||
+        editor->current_storey_id == DOMAIN_ID_INVALID) { return 0; }
+    EditPlanSymbolCommand edit;
+    if (!edit_plan_symbol_command_create(editor->selection.document.id,
+            editor->current_storey_id,kind,anchor,direction,&edit)) { return 0; }
+    *action=(EditorAction){.kind=EDITOR_ACTION_COMMAND};
+    if (!sitehelper_command_from_edit_plan_symbol(&edit,&action->command)) {
+        *action=(EditorAction){0}; return 0;
+    }
+    return 1;
+}
+
+int sitehelper_editor_create_plan_callout_action(const SiteHelperEditor *editor,
+    PlanPosition target, PlanPosition label_anchor, const char *text, EditorAction *action)
+{
+    if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->current_storey_id == DOMAIN_ID_INVALID) { return 0; }
+    CreatePlanCalloutCommand create={0};
+    if (!create_plan_callout_command_create(editor->current_storey_id,target,label_anchor,
+            text,&create)) { return 0; }
+    *action=(EditorAction){.kind=EDITOR_ACTION_COMMAND};
+    int ok=sitehelper_command_from_create_plan_callout(&create,&action->command);
+    create_plan_callout_command_destroy(&create);
+    if (!ok) { *action=(EditorAction){0}; }
+    return ok;
+}
+
+int sitehelper_editor_create_edit_plan_callout_action(const SiteHelperEditor *editor,
+    PlanPosition target, PlanPosition label_anchor, const char *text, EditorAction *action)
+{
+    if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        !editor_selection_is_document_kind(&editor->selection,DOCUMENT_OBJECT_CALLOUT) ||
+        editor->current_storey_id == DOMAIN_ID_INVALID) { return 0; }
+    EditPlanCalloutCommand edit={0};
+    if (!edit_plan_callout_command_create(editor->selection.document.id,
+            editor->current_storey_id,target,label_anchor,text,&edit)) { return 0; }
+    *action=(EditorAction){.kind=EDITOR_ACTION_COMMAND};
+    int ok=sitehelper_command_from_edit_plan_callout(&edit,&action->command);
+    edit_plan_callout_command_destroy(&edit);
+    if (!ok) { *action=(EditorAction){0}; }
+    return ok;
+}
+
+int sitehelper_editor_get_plan_callout_ready(const SiteHelperEditor *editor,
+    PlanPosition *target, PlanPosition *label_anchor)
+{
+    return editor != NULL && editor->active_view == EDITOR_VIEW_PLAN &&
+        editor->active_tool == EDITOR_TOOL_CALLOUT &&
+        plan_callout_tool_ready(&editor->callout_tool,target,label_anchor);
+}
+
+int sitehelper_editor_get_plan_callout_preview(const SiteHelperEditor *editor,
+    PlanPosition *target, PlanPoint *label, int *ready)
+{
+    if (target == NULL || label == NULL || ready == NULL) { return 0; }
+    *target=(PlanPosition){0}; *label=(PlanPoint){0}; *ready=0;
+    if (editor == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->active_tool != EDITOR_TOOL_CALLOUT ||
+        editor->callout_tool.stage == PLAN_CALLOUT_TOOL_PICK_TARGET) { return 0; }
+    const PlanCalloutTool *tool=&editor->callout_tool;
+    *target=tool->target;
+    if (tool->stage == PLAN_CALLOUT_TOOL_READY_TEXT) {
+        *label=(PlanPoint){tool->label_anchor.x,tool->label_anchor.y};
+        *ready=1;
+        return 1;
+    }
+    if (!tool->has_pointer) { return 0; }
+    *label=tool->pointer;
+    return 1;
+}
+
+void sitehelper_editor_reset_plan_callout_tool(SiteHelperEditor *editor)
+{
+    if (editor == NULL) { return; }
+    plan_callout_tool_cancel(&editor->callout_tool);
+    if (editor->active_tool == EDITOR_TOOL_CALLOUT) { editor->callout_tool.active=1; }
+    sitehelper_editor_clear_snap(editor);
+}
+
+int sitehelper_editor_get_view_direction_preview(const SiteHelperEditor *editor,
+    PlanPosition *anchor, PlanPoint *direction_point, int *ready)
+{
+    if (anchor == NULL || direction_point == NULL || ready == NULL) { return 0; }
+    *anchor=(PlanPosition){0}; *direction_point=(PlanPoint){0}; *ready=0;
+    if (editor == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->active_tool != EDITOR_TOOL_VIEW_DIRECTION ||
+        editor->direction_symbol_tool.stage == PLAN_DIRECTION_SYMBOL_TOOL_PICK_ANCHOR) {
+        return 0;
+    }
+    const PlanDirectionSymbolTool *tool=&editor->direction_symbol_tool;
+    *anchor=tool->anchor;
+    if (!tool->has_pointer) { return 0; }
+    *direction_point=tool->pointer;
+    DocumentPlanDirection direction;
+    PlanPosition point;
+    if (plan_position_from_point(*direction_point,&point) &&
+        document_plan_direction_from_points(*anchor,point,&direction)) {
+        *ready=1;
+    }
+    return 1;
+}
+
+int sitehelper_editor_create_plan_note_action(const SiteHelperEditor *editor,
+    PlanPosition position, DomainId target_id, const char *text, EditorAction *action)
+{
+    if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->current_storey_id == DOMAIN_ID_INVALID) { return 0; }
+    CreatePlanNoteCommand create={0};
+    if (!create_plan_note_command_create(editor->current_storey_id,position,target_id,text,&create)) {
+        return 0;
+    }
+    *action=(EditorAction){.kind=EDITOR_ACTION_COMMAND};
+    int ok=sitehelper_command_from_create_plan_note(&create,&action->command);
+    create_plan_note_command_destroy(&create);
+    if (!ok) { *action=(EditorAction){0}; }
+    return ok;
+}
+
+int sitehelper_editor_create_edit_plan_note_action(const SiteHelperEditor *editor,
+    PlanPosition position, DomainId target_id, const char *text, EditorAction *action)
+{
+    if (editor == NULL || action == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        !editor_selection_is_document_kind(&editor->selection,DOCUMENT_OBJECT_NOTE) ||
+        editor->current_storey_id == DOMAIN_ID_INVALID) { return 0; }
+    EditPlanNoteCommand edit={0};
+    if (!edit_plan_note_command_create(editor->selection.document.id,
+            editor->current_storey_id,position,target_id,text,&edit)) { return 0; }
+    *action=(EditorAction){.kind=EDITOR_ACTION_COMMAND};
+    int ok=sitehelper_command_from_edit_plan_note(&edit,&action->command);
+    edit_plan_note_command_destroy(&edit);
+    if (!ok) { *action=(EditorAction){0}; }
+    return ok;
+}
+
+int sitehelper_editor_prepare_plan_note_authoring(SiteHelperEditor *editor,
+    const SiteHelperProject *project, Vec2 view_position,
+    DomainId *annotation_id, PlanPosition *position)
+{
+    if (annotation_id == NULL || position == NULL) { return 0; }
+    *annotation_id=DOMAIN_ID_INVALID;
+    if (editor == NULL || project == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->active_tool != EDITOR_TOOL_NOTE || editor->current_storey_id == DOMAIN_ID_INVALID) {
+        return 0;
+    }
+    const Storey *storey=sitehelper_project_find_storey_by_id_const(project,
+        editor->current_storey_id);
+    if (storey == NULL) { return 0; }
+    DomainId hit=document_plan_find_note_at_position(&project->document,storey->id,
+        (PlanPoint){view_position.x,view_position.y},editor->snap.settings.object_snap_tolerance);
+    if (hit != DOMAIN_ID_INVALID) {
+        const DocumentAnnotation *note=sitehelper_project_find_annotation_by_id_const(project,hit);
+        if (note == NULL || note->kind != DOCUMENT_ANNOTATION_NOTE) { return 0; }
+        editor_selection_set_annotation(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,hit);
+        editor->current_wall_id=DOMAIN_ID_INVALID;
+        sitehelper_editor_clear_snap(editor);
+        *annotation_id=hit;
+        *position=note->anchor.position;
+        return 1;
+    }
+    sitehelper_editor_clear_selection(editor);
+    editor->current_wall_id=DOMAIN_ID_INVALID;
+    sitehelper_editor_update_snap_in_project(editor,project,view_position);
+    Vec2 point=editor->snap.result.type == SNAP_NONE ? view_position : editor->snap.result.position;
+    return plan_position_from_point((PlanPoint){point.x,point.y},position);
 }
 
 int sitehelper_editor_get_slab_preview(const SiteHelperEditor *editor,
@@ -1819,6 +2569,22 @@ int sitehelper_editor_get_slab_geometry_overlay(const SiteHelperEditor *editor,
     return 1;
 }
 
+int sitehelper_editor_get_plan_revision_cloud_preview(
+    const SiteHelperEditor *editor, const PlanPosition **vertices, size_t *count,
+    PlanPoint *preview, int *has_preview)
+{
+    if (vertices == NULL || count == NULL || preview == NULL || has_preview == NULL) { return 0; }
+    *vertices=NULL; *count=0; *preview=(PlanPoint){0}; *has_preview=0;
+    if (editor == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->active_tool != EDITOR_TOOL_REVISION_CLOUD ||
+        editor->revision_cloud_tool.vertex_count == 0) { return 0; }
+    *vertices=editor->revision_cloud_tool.vertices;
+    *count=editor->revision_cloud_tool.vertex_count;
+    *preview=editor->revision_cloud_tool.preview;
+    *has_preview=editor->revision_cloud_tool.has_preview;
+    return 1;
+}
+
 int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor)
 {
     if (editor == NULL) { return 0; }
@@ -1830,6 +2596,32 @@ int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor)
         case EDITOR_TOOL_WALL:
             if (!sitehelper_editor_has_wall_preview(editor)) { return 0; }
             sitehelper_editor_cancel_wall_placement(editor);
+            return 1;
+        case EDITOR_TOOL_DIMENSION:
+            if (!plan_dimension_tool_has_started(&editor->dimension_tool)) { return 0; }
+            plan_dimension_tool_cancel(&editor->dimension_tool);
+            editor->dimension_tool.active=1;
+            sitehelper_editor_clear_snap(editor);
+            return 1;
+        case EDITOR_TOOL_CALLOUT:
+            if (editor->callout_tool.stage == PLAN_CALLOUT_TOOL_PICK_TARGET) { return 0; }
+            plan_callout_tool_cancel(&editor->callout_tool);
+            editor->callout_tool.active=1;
+            sitehelper_editor_clear_snap(editor);
+            return 1;
+        case EDITOR_TOOL_VIEW_DIRECTION:
+            if (editor->direction_symbol_tool.stage == PLAN_DIRECTION_SYMBOL_TOOL_PICK_ANCHOR) {
+                return 0;
+            }
+            plan_direction_symbol_tool_cancel(&editor->direction_symbol_tool);
+            editor->direction_symbol_tool.active=1;
+            sitehelper_editor_clear_snap(editor);
+            return 1;
+        case EDITOR_TOOL_REVISION_CLOUD:
+            if (editor->revision_cloud_tool.vertex_count == 0) { return 0; }
+            plan_revision_cloud_tool_cancel(&editor->revision_cloud_tool);
+            editor->revision_cloud_tool.active=1;
+            sitehelper_editor_clear_snap(editor);
             return 1;
         case EDITOR_TOOL_SLAB:
             if (editor->slab_tool.vertex_count == 0) { return 0; }

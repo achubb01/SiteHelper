@@ -325,3 +325,34 @@ Modified:
 
 
 Priority 26G1 adds Storey-owned `RoofCollection` authority. Roofs and roof portions use the same project-global DomainId namespace; compositions/terminations are roof-owned value relationships. Derived roof geometry is regenerated and is not project authority. Persistence remains v14 and refuses roof-bearing saves until 26G3.
+
+
+## Priority 28A — document / annotation authority
+
+`SiteHelperProject` now also owns a `DocumentModel` beside the Storey hierarchy.
+This is deliberate non-physical authority: structural Storeys/Walls/Rooms/Slabs/
+Roofs do not gain note or drafting fields. The first concrete annotation is a
+Storey-plan note with a stable global ID, integer-mm plan anchor, text and an
+optional weak target ID. Live target creation must resolve to physical authority
+on the same Storey; after target deletion the stable ID may remain unresolved so
+undo/restoration can re-associate it without cross-domain mutation. Annotation
+IDs participate in the global identity namespace but annotations have no owning
+Storey. See `../document/README.md` and `QUERY_LAYER.md`.
+
+Persistence format 16 stores the project annotation section after all Storeys.
+Versions 1–15 load with an empty document model. Priority 28B adds transactional
+plan-note updates plus a history-restoration replacement primitive; rendering,
+selection and command/history integration live above Project and keep using the
+annotation's explicit Storey anchor. Dimensions, symbols, revision clouds, paper
+sheets and production style systems remain deferred.
+
+## Priority 28G2 — revision lifecycle grouping
+
+`DocumentRevision` is project-level non-physical metadata with a stable global
+ID, human-facing identifier and optional description. It has no Storey owner and
+is not a Plan-selectable `DocumentObjectRef`. Revision clouds may carry an
+optional weak `revision_id`, allowing one revision record to group clouds across
+Storeys while geometry remains independently authored. Explicit assignment
+requires a live revision; deletion leaves the weak ID intact so undo/restoration
+reconnects automatically. Persistence v22 stores revision records before the
+revision-cloud collection; v21 clouds load unassigned.

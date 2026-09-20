@@ -41,12 +41,18 @@ typedef enum
     SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION = 60,
     SITEHELPER_TOOLBAR_ACTION_SLAB_REGION = 70,
     SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE = 80,
-    SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY = 90
+    SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY = 90,
+    SITEHELPER_TOOLBAR_ACTION_NOTE = 100,
+    SITEHELPER_TOOLBAR_ACTION_DIMENSION = 110,
+    SITEHELPER_TOOLBAR_ACTION_SYMBOL = 120,
+    SITEHELPER_TOOLBAR_ACTION_CALLOUT = 130,
+    SITEHELPER_TOOLBAR_ACTION_VIEW_DIRECTION = 140,
+    SITEHELPER_TOOLBAR_ACTION_REVISION_CLOUD = 150
 } SiteHelperToolbarAction;
 
 enum
 {
-    SITEHELPER_TOOLBAR_BUTTON_COUNT = 9
+    SITEHELPER_TOOLBAR_BUTTON_COUNT = 15
 };
 
 static const GuiButtonId sitehelper_toolbar_button_ids[
@@ -60,7 +66,13 @@ static const GuiButtonId sitehelper_toolbar_button_ids[
     SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION,
     SITEHELPER_TOOLBAR_ACTION_SLAB_REGION,
     SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE,
-    SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY
+    SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY,
+    SITEHELPER_TOOLBAR_ACTION_NOTE,
+    SITEHELPER_TOOLBAR_ACTION_DIMENSION,
+    SITEHELPER_TOOLBAR_ACTION_SYMBOL,
+    SITEHELPER_TOOLBAR_ACTION_CALLOUT,
+    SITEHELPER_TOOLBAR_ACTION_VIEW_DIRECTION,
+    SITEHELPER_TOOLBAR_ACTION_REVISION_CLOUD
 };
 
 typedef struct
@@ -370,6 +382,14 @@ static void sitehelper_app_render(
     app_render_slabs(app->renderer, &app->project, &app->editor, &app->slab_style);
 
     app_render_walls(app->renderer, &app->project, &app->editor, &app->wall_style);
+    app_render_plan_dimensions(app->renderer, &app->project, &app->editor);
+    app_render_plan_symbols(app->renderer, &app->project, &app->editor);
+    app_render_plan_callouts(app->renderer, &app->project, &app->editor);
+    app_render_plan_notes(app->renderer, &app->project, &app->editor);
+    app_render_plan_revision_clouds(app->renderer, &app->project, &app->editor);
+    app_render_plan_dimension_preview(app->renderer, &app->editor);
+    app_render_plan_callout_preview(app->renderer, &app->editor);
+    app_render_plan_revision_cloud_preview(app->renderer, &app->editor);
 
     Rect2 preview_rect;
 
@@ -527,12 +547,24 @@ static void sitehelper_app_render(
             button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION ||
             button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_REGION ||
             button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE ||
-            button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY) {
+            button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY ||
+            button->id == SITEHELPER_TOOLBAR_ACTION_NOTE ||
+            button->id == SITEHELPER_TOOLBAR_ACTION_DIMENSION ||
+            button->id == SITEHELPER_TOOLBAR_ACTION_SYMBOL ||
+            button->id == SITEHELPER_TOOLBAR_ACTION_CALLOUT ||
+            button->id == SITEHELPER_TOOLBAR_ACTION_VIEW_DIRECTION ||
+            button->id == SITEHELPER_TOOLBAR_ACTION_REVISION_CLOUD) {
             const char *label=button->id == SITEHELPER_TOOLBAR_ACTION_MEASURE ? "Meas." :
                 button->id == SITEHELPER_TOOLBAR_ACTION_SLAB ? "Slab" :
                 button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_PENETRATION ? "Void" :
                 button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_REGION ? "Reg." :
-                button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE ? "Rebt." : "Geom";
+                button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_EDGE_REBATE ? "Rebt." :
+                button->id == SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY ? "Geom" :
+                button->id == SITEHELPER_TOOLBAR_ACTION_NOTE ? "Note" :
+                button->id == SITEHELPER_TOOLBAR_ACTION_DIMENSION ? "Dim." :
+                button->id == SITEHELPER_TOOLBAR_ACTION_SYMBOL ? "Mark" :
+                button->id == SITEHELPER_TOOLBAR_ACTION_CALLOUT ? "Call" :
+                button->id == SITEHELPER_TOOLBAR_ACTION_VIEW_DIRECTION ? "View" : "Rev";
             renderer2d_draw_screen_text(app->renderer,
                 (Vec2){button->bounds.position.x + 4, button->bounds.position.y + 20},
                 label,
@@ -551,6 +583,8 @@ static void sitehelper_app_render(
 
 static int sitehelper_app_execute_action(SiteHelperApp *app, EditorAction *action)
 {
+    int note_commit=app != NULL && app->input.focus == APP_KEYBOARD_FOCUS_PLAN_NOTE;
+    int callout_commit=app != NULL && app->input.focus == APP_KEYBOARD_FOCUS_PLAN_CALLOUT;
     SiteHelperCommandResult result;
     if (action->kind != EDITOR_ACTION_COMMAND ||
         !sitehelper_command_history_execute(&app->history, &app->project, &action->command, &result)) {
@@ -561,7 +595,9 @@ static int sitehelper_app_execute_action(SiteHelperApp *app, EditorAction *actio
     sitehelper_editor_complete_action(&app->editor, action, &result);
     editor_action_destroy(action);
     sitehelper_editor_reconcile(&app->editor, &app->project);
-    if (property_commit) { app_input_cancel(&app->input,&app->editor); }
+    if (property_commit || note_commit || callout_commit) {
+        app_input_cancel(&app->input,&app->editor);
+    }
     else { app_input_refresh_in_project(&app->input,&app->editor,&app->project); }
     return 1;
 }
@@ -747,7 +783,7 @@ static void sitehelper_app_process_events(
                         if (sitehelper_app_toolbar_action_tool(
                                 toolbar_result.action_id,
                                 &tool)) {
-                            if (app->input.focus == APP_KEYBOARD_FOCUS_PROPERTY_MM) {
+                            if (app->input.focus != APP_KEYBOARD_FOCUS_NONE) {
                                 app_input_cancel(&app->input,&app->editor);
                             }
                             sitehelper_app_set_active_tool(app, tool);
@@ -782,6 +818,12 @@ static void sitehelper_app_process_events(
                             viewport,
                             screen_position
                         );
+                        if (app->editor.active_view == EDITOR_VIEW_PLAN &&
+                            app->editor.active_tool == EDITOR_TOOL_NOTE) {
+                            (void)app_input_begin_plan_note(&app->input,&app->editor,
+                                &app->project,view_position);
+                            continue;
+                        }
                         EditorAction action;
 
                         if (!sitehelper_editor_primary_action_in_project(
@@ -792,6 +834,23 @@ static void sitehelper_app_process_events(
                             continue;
                         }
 
+                        if (app->editor.active_view == EDITOR_VIEW_PLAN &&
+                            app->editor.active_tool == EDITOR_TOOL_CALLOUT &&
+                            action.kind == EDITOR_ACTION_NONE) {
+                            PlanPosition callout_target,callout_label;
+                            if (sitehelper_editor_get_plan_callout_ready(&app->editor,
+                                    &callout_target,&callout_label)) {
+                                (void)app_input_begin_plan_callout(&app->input,&app->editor,
+                                    &app->project);
+                                continue;
+                            }
+                            if (editor_selection_is_document_kind(&app->editor.selection,
+                                    DOCUMENT_OBJECT_CALLOUT)) {
+                                (void)app_input_begin_selected_plan_callout(&app->input,
+                                    &app->editor,&app->project);
+                                continue;
+                            }
+                        }
                         if (action.kind == EDITOR_ACTION_COMMAND) {
                             (void)sitehelper_app_execute_action(app, &action);
                         }
@@ -820,8 +879,7 @@ static void sitehelper_app_process_events(
                     app->gui_layout.viewport.height
                 );
 
-                app->toolbar.bounds = app->gui_layout.toolbar;
-                gui_toolbar_layout(&app->toolbar);
+                sitehelper_app_layout_gui(app);
 
                 sitehelper_app_set_active_tool(
                     app,
@@ -1024,6 +1082,23 @@ static void sitehelper_app_layout_gui(
         SITEHELPER_TOOLBAR_BUTTON_COUNT,
         app->gui_layout.toolbar
     );
+
+    /* Keep every tool reachable in the fixed vertical toolbar. Preserve the
+     * normal 48 px / 8 px proportions when possible and scale both together
+     * only when the current window height cannot contain all buttons. */
+    if (app->toolbar.button_count > 0) {
+        double available = app->toolbar.bounds.height - 2.0 * app->toolbar.padding;
+        double desired = app->toolbar.button_count * app->toolbar.button_size;
+        if (app->toolbar.button_count > 1) {
+            desired += (app->toolbar.button_count - 1) * app->toolbar.spacing;
+        }
+        if (available > 0.0 && desired > available) {
+            double scale = available / desired;
+            app->toolbar.button_size *= scale;
+            app->toolbar.spacing *= scale;
+            gui_toolbar_layout(&app->toolbar);
+        }
+    }
 }
 
 static void sitehelper_app_set_active_tool(
@@ -1108,6 +1183,30 @@ static int sitehelper_app_toolbar_action_tool(
 
         case SITEHELPER_TOOLBAR_ACTION_SLAB_GEOMETRY:
             *tool = EDITOR_TOOL_SLAB_GEOMETRY;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_NOTE:
+            *tool = EDITOR_TOOL_NOTE;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_DIMENSION:
+            *tool = EDITOR_TOOL_DIMENSION;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_SYMBOL:
+            *tool = EDITOR_TOOL_SYMBOL;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_CALLOUT:
+            *tool = EDITOR_TOOL_CALLOUT;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_VIEW_DIRECTION:
+            *tool = EDITOR_TOOL_VIEW_DIRECTION;
+            return 1;
+
+        case SITEHELPER_TOOLBAR_ACTION_REVISION_CLOUD:
+            *tool = EDITOR_TOOL_REVISION_CLOUD;
             return 1;
 
         default:

@@ -52,6 +52,24 @@ static int duplicate_id(const SiteHelperProject *project, DomainId id)
             }
         }
     }
+    for (size_t i = 0; i < project->document.annotation_count; i++) {
+        if (project->document.annotations[i].id == id && seen++) { return 1; }
+    }
+    for (size_t i = 0; i < project->document.dimension_count; i++) {
+        if (project->document.dimensions[i].id == id && seen++) { return 1; }
+    }
+    for (size_t i = 0; i < project->document.symbol_count; i++) {
+        if (project->document.symbols[i].id == id && seen++) { return 1; }
+    }
+    for (size_t i = 0; i < project->document.callout_count; i++) {
+        if (project->document.callouts[i].id == id && seen++) { return 1; }
+    }
+    for (size_t i = 0; i < project->document.revision_count; i++) {
+        if (project->document.revisions[i].id == id && seen++) { return 1; }
+    }
+    for (size_t i = 0; i < project->document.revision_cloud_count; i++) {
+        if (project->document.revision_clouds[i].id == id && seen++) { return 1; }
+    }
     return 0;
 }
 
@@ -197,6 +215,45 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
             }
         }
     }
+    if (project->document.annotation_count > project->document.annotation_capacity ||
+        (project->document.annotation_capacity == 0 && project->document.annotations != NULL) ||
+        (project->document.annotation_capacity != 0 && project->document.annotations == NULL) ||
+        project->document.annotation_capacity > SIZE_MAX / sizeof *project->document.annotations) {
+        return validation(SITEHELPER_PROJECT_INVALID_ANNOTATION_COLLECTION, 0, 0);
+    }
+    if (project->document.dimension_count > project->document.dimension_capacity ||
+        (project->document.dimension_capacity == 0 && project->document.dimensions != NULL) ||
+        (project->document.dimension_capacity != 0 && project->document.dimensions == NULL) ||
+        project->document.dimension_capacity > SIZE_MAX / sizeof *project->document.dimensions) {
+        return validation(SITEHELPER_PROJECT_INVALID_DIMENSION_COLLECTION, 0, 0);
+    }
+    if (project->document.symbol_count > project->document.symbol_capacity ||
+        (project->document.symbol_capacity == 0 && project->document.symbols != NULL) ||
+        (project->document.symbol_capacity != 0 && project->document.symbols == NULL) ||
+        project->document.symbol_capacity > SIZE_MAX / sizeof *project->document.symbols) {
+        return validation(SITEHELPER_PROJECT_INVALID_SYMBOL_COLLECTION, 0, 0);
+    }
+    if (project->document.callout_count > project->document.callout_capacity ||
+        (project->document.callout_capacity == 0 && project->document.callouts != NULL) ||
+        (project->document.callout_capacity != 0 && project->document.callouts == NULL) ||
+        project->document.callout_capacity > SIZE_MAX / sizeof *project->document.callouts) {
+        return validation(SITEHELPER_PROJECT_INVALID_CALLOUT_COLLECTION, 0, 0);
+    }
+    if (project->document.revision_count > project->document.revision_capacity ||
+        (project->document.revision_capacity == 0 && project->document.revisions != NULL) ||
+        (project->document.revision_capacity != 0 && project->document.revisions == NULL) ||
+        project->document.revision_capacity > SIZE_MAX / sizeof *project->document.revisions) {
+        return validation(SITEHELPER_PROJECT_INVALID_REVISION_COLLECTION, 0, 0);
+    }
+    if (project->document.revision_cloud_count > project->document.revision_cloud_capacity ||
+        (project->document.revision_cloud_capacity == 0 &&
+            project->document.revision_clouds != NULL) ||
+        (project->document.revision_cloud_capacity != 0 &&
+            project->document.revision_clouds == NULL) ||
+        project->document.revision_cloud_capacity >
+            SIZE_MAX / sizeof *project->document.revision_clouds) {
+        return validation(SITEHELPER_PROJECT_INVALID_REVISION_CLOUD_COLLECTION, 0, 0);
+    }
     for (size_t s = 0; s < project->storey_count; s++) {
         if (!storey_build_settings_valid(&project->storeys[s].settings)) {
             return validation(SITEHELPER_PROJECT_INVALID_STOREY_SETTINGS, project->storeys[s].id, 0);
@@ -256,8 +313,150 @@ SiteHelperProjectValidation sitehelper_project_validate(const SiteHelperProject 
             }
         }
     }
+    for (size_t i = 0; i < project->document.annotation_count; i++) {
+        SiteHelperProjectValidation result = validate_id(project,
+            project->document.annotations[i].id, SITEHELPER_PROJECT_INVALID_ANNOTATION_ID,
+            project->document.annotations[i].anchor.storey_id, &maximum);
+        if (result.code != SITEHELPER_PROJECT_VALID) { return result; }
+    }
+    for (size_t i = 0; i < project->document.dimension_count; i++) {
+        SiteHelperProjectValidation result = validate_id(project,
+            project->document.dimensions[i].id, SITEHELPER_PROJECT_INVALID_DIMENSION_ID,
+            project->document.dimensions[i].storey_id, &maximum);
+        if (result.code != SITEHELPER_PROJECT_VALID) { return result; }
+    }
+    for (size_t i = 0; i < project->document.symbol_count; i++) {
+        SiteHelperProjectValidation result = validate_id(project,
+            project->document.symbols[i].id, SITEHELPER_PROJECT_INVALID_SYMBOL_ID,
+            project->document.symbols[i].storey_id, &maximum);
+        if (result.code != SITEHELPER_PROJECT_VALID) { return result; }
+    }
+    for (size_t i = 0; i < project->document.callout_count; i++) {
+        SiteHelperProjectValidation result = validate_id(project,
+            project->document.callouts[i].id, SITEHELPER_PROJECT_INVALID_CALLOUT_ID,
+            project->document.callouts[i].storey_id, &maximum);
+        if (result.code != SITEHELPER_PROJECT_VALID) { return result; }
+    }
+    for (size_t i = 0; i < project->document.revision_count; i++) {
+        SiteHelperProjectValidation result = validate_id(project,
+            project->document.revisions[i].id,
+            SITEHELPER_PROJECT_INVALID_REVISION_ID, 0, &maximum);
+        if (result.code != SITEHELPER_PROJECT_VALID) { return result; }
+    }
+    for (size_t i = 0; i < project->document.revision_cloud_count; i++) {
+        SiteHelperProjectValidation result = validate_id(project,
+            project->document.revision_clouds[i].id,
+            SITEHELPER_PROJECT_INVALID_REVISION_CLOUD_ID,
+            project->document.revision_clouds[i].storey_id, &maximum);
+        if (result.code != SITEHELPER_PROJECT_VALID) { return result; }
+    }
     if (project->domain_ids.next == DOMAIN_ID_INVALID || project->domain_ids.next <= maximum) {
         return validation(SITEHELPER_PROJECT_INVALID_ID_GENERATOR, maximum, 0);
+    }
+    for (size_t i = 0; i < project->document.annotation_count; i++) {
+        const DocumentAnnotation *annotation = &project->document.annotations[i];
+        if (!document_annotation_is_locally_valid(annotation)) {
+            return validation(SITEHELPER_PROJECT_INVALID_ANNOTATION, annotation->id,
+                annotation->anchor.storey_id);
+        }
+        const Storey *scope = sitehelper_project_find_storey_by_id_const(project,
+            annotation->anchor.storey_id);
+        if (scope == NULL) {
+            return validation(SITEHELPER_PROJECT_INVALID_ANNOTATION_REFERENCE, annotation->id,
+                annotation->anchor.storey_id);
+        }
+        if (annotation->target_id != DOMAIN_ID_INVALID) {
+            const Storey *target_owner = sitehelper_project_find_owning_storey_const(project,
+                annotation->target_id);
+            if ((target_owner != NULL && target_owner != scope) ||
+                sitehelper_project_find_annotation_by_id_const(project, annotation->target_id) != NULL ||
+                sitehelper_project_find_dimension_by_id_const(project, annotation->target_id) != NULL ||
+                sitehelper_project_find_symbol_by_id_const(project, annotation->target_id) != NULL ||
+                sitehelper_project_find_callout_by_id_const(project, annotation->target_id) != NULL ||
+                sitehelper_project_find_revision_by_id_const(project, annotation->target_id) != NULL ||
+                sitehelper_project_find_revision_cloud_by_id_const(project,
+                    annotation->target_id) != NULL) {
+                return validation(SITEHELPER_PROJECT_INVALID_ANNOTATION_REFERENCE, annotation->id,
+                    annotation->target_id);
+            }
+            /* Missing physical targets are valid weak associations. This lets
+             * delete/undo operate without coupling physical-domain lifecycle to
+             * document objects; restoration of the same stable ID re-associates
+             * the note automatically. */
+        }
+    }
+    for (size_t i = 0; i < project->document.dimension_count; i++) {
+        const DocumentPlanDimension *dimension = &project->document.dimensions[i];
+        if (!document_plan_dimension_is_locally_valid(dimension)) {
+            return validation(SITEHELPER_PROJECT_INVALID_DIMENSION, dimension->id, dimension->storey_id);
+        }
+        const Storey *scope = sitehelper_project_find_storey_by_id_const(project, dimension->storey_id);
+        if (scope == NULL) {
+            return validation(SITEHELPER_PROJECT_INVALID_DIMENSION_REFERENCE, dimension->id, dimension->storey_id);
+        }
+        const DocumentDimensionReference refs[2] = {dimension->first, dimension->second};
+        for (size_t r = 0; r < 2; r++) {
+            if (refs[r].kind == DOCUMENT_DIMENSION_FIXED_POINT) { continue; }
+            const Storey *owner = sitehelper_project_find_owning_storey_const(project, refs[r].target_id);
+            if (owner != NULL) {
+                if (owner != scope || sitehelper_project_find_wall_by_id_const(project, refs[r].target_id) == NULL) {
+                    return validation(SITEHELPER_PROJECT_INVALID_DIMENSION_REFERENCE, dimension->id, refs[r].target_id);
+                }
+            } else if (sitehelper_project_find_annotation_by_id_const(project, refs[r].target_id) != NULL ||
+                sitehelper_project_find_dimension_by_id_const(project, refs[r].target_id) != NULL ||
+                sitehelper_project_find_symbol_by_id_const(project, refs[r].target_id) != NULL ||
+                sitehelper_project_find_callout_by_id_const(project, refs[r].target_id) != NULL ||
+                sitehelper_project_find_revision_by_id_const(project, refs[r].target_id) != NULL ||
+                sitehelper_project_find_revision_cloud_by_id_const(project,
+                    refs[r].target_id) != NULL) {
+                return validation(SITEHELPER_PROJECT_INVALID_DIMENSION_REFERENCE, dimension->id, refs[r].target_id);
+            }
+        }
+        PlanPosition a, b; int distance;
+        int first_live = refs[0].kind == DOCUMENT_DIMENSION_FIXED_POINT ||
+            sitehelper_project_find_wall_by_id_const(project, refs[0].target_id) != NULL;
+        int second_live = refs[1].kind == DOCUMENT_DIMENSION_FIXED_POINT ||
+            sitehelper_project_find_wall_by_id_const(project, refs[1].target_id) != NULL;
+        if (first_live && second_live &&
+            !sitehelper_project_resolve_plan_dimension(project, dimension->id, &a, &b, &distance)) {
+            return validation(SITEHELPER_PROJECT_INVALID_DIMENSION, dimension->id, dimension->storey_id);
+        }
+    }
+    for (size_t i = 0; i < project->document.symbol_count; i++) {
+        const DocumentPlanSymbol *symbol = &project->document.symbols[i];
+        if (!document_plan_symbol_is_locally_valid(symbol) ||
+            sitehelper_project_find_storey_by_id_const(project, symbol->storey_id) == NULL) {
+            return validation(SITEHELPER_PROJECT_INVALID_SYMBOL, symbol->id, symbol->storey_id);
+        }
+    }
+    for (size_t i = 0; i < project->document.callout_count; i++) {
+        const DocumentPlanCallout *callout=&project->document.callouts[i];
+        if (!document_plan_callout_is_locally_valid(callout) ||
+            sitehelper_project_find_storey_by_id_const(project,callout->storey_id) == NULL) {
+            return validation(SITEHELPER_PROJECT_INVALID_CALLOUT,callout->id,callout->storey_id);
+        }
+    }
+    for (size_t i = 0; i < project->document.revision_count; i++) {
+        const DocumentRevision *revision = &project->document.revisions[i];
+        if (!document_revision_is_locally_valid(revision)) {
+            return validation(SITEHELPER_PROJECT_INVALID_REVISION, revision->id, 0);
+        }
+    }
+    for (size_t i = 0; i < project->document.revision_cloud_count; i++) {
+        const DocumentPlanRevisionCloud *cloud = &project->document.revision_clouds[i];
+        if (!document_plan_revision_cloud_is_locally_valid(cloud) ||
+            sitehelper_project_find_storey_by_id_const(project, cloud->storey_id) == NULL) {
+            return validation(SITEHELPER_PROJECT_INVALID_REVISION_CLOUD,
+                cloud->id, cloud->storey_id);
+        }
+        if (cloud->revision_id != DOMAIN_ID_INVALID &&
+            sitehelper_project_contains_domain_id(project, cloud->revision_id) &&
+            sitehelper_project_find_revision_by_id_const(project, cloud->revision_id) == NULL) {
+            return validation(SITEHELPER_PROJECT_INVALID_REVISION_CLOUD,
+                cloud->id, cloud->revision_id);
+        }
+        /* Missing revision records are valid weak associations so delete/undo
+         * can restore lifecycle metadata without rewriting cloud geometry. */
     }
     for (size_t s = 0; s < project->storey_count; s++) {
         const BuildStructure *structure = &project->storeys[s].structure;

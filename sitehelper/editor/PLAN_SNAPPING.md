@@ -56,3 +56,51 @@ points are not corners; guides have no model; openings have no visible Plan
 geometry. Their snap semantics, persistent constraints and associative dimensions
 are intentionally deferred. Additional visible geometry can supply candidates
 without introducing another resolver.
+
+### Persistent dimension references
+
+The Dimension tool consumes the normal Plan snap result for its first two
+reference clicks. `SNAP_ENDPOINT`, and `SNAP_INTERSECTION` when that intersection
+coordinate uniquely names one authoritative Wall endpoint, become an associative
+wall endpoint. The intersection case preserves endpoint semantics at a T-junction
+even though intersection wins the cross-type snap tie. If multiple endpoints
+coincide, or a true crossing contains no endpoint, the tool stores a fixed Plan
+point instead of inventing an arbitrary source identity. Grid and centreline snaps
+do not create endpoint associations. Offset placement deliberately ignores
+snapping because it controls document presentation rather than measured source
+geometry.
+
+
+### Plan point-marker symbols
+
+The Symbol tool uses the ordinary Project-aware Plan snap result for its single
+authoring click. An enabled endpoint, intersection, centreline or grid snap can
+therefore determine the marker coordinate. The resolved point is converted to
+authoritative integer millimetres before the create command is built.
+
+Unlike persistent dimensions, point-marker symbols do **not** infer a durable
+source association from the snap type. Snapping is placement assistance only;
+the persisted symbol stores a fixed Plan anchor. This keeps the first symbol
+primitive independent from physical model lifecycle and avoids manufacturing
+constraint semantics that the marker does not need.
+
+### Plan view-direction symbols
+
+The View-direction tool uses the same Project-aware snap pipeline for both clicks.
+The first click persists only the fixed anchor. The second click contributes an
+integer delta from that anchor; the delta is reduced by its greatest common
+divisor before persistence, so direction rather than pointer length is authority.
+For example, deltas `(600,800)` and `(3,4)` both persist as `(3,4)`.
+
+As with point markers, the snap source is placement assistance only. The oriented
+marker does not retain a Wall/junction association.
+
+
+### Plan callouts
+
+The Callout tool uses the normal Project-aware Plan snap result for both its target
+and label-anchor clicks. The resolved integer-mm positions are persisted as fixed
+coordinates only. Unlike associative dimension endpoints, a callout does not
+retain the identity of the Wall, junction or other object that produced the snap.
+This keeps drafting placement and model constraints separate until a concrete
+associative-callout requirement exists.

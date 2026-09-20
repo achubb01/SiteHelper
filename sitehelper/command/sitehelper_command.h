@@ -16,6 +16,12 @@
 #include "create_roof_command.h"
 #include "delete_roof_command.h"
 #include "roof_source_edit_command.h"
+#include "plan_note_command.h"
+#include "plan_dimension_command.h"
+#include "plan_symbol_command.h"
+#include "plan_callout_command.h"
+#include "plan_revision_cloud_command.h"
+#include "document_revision_command.h"
 #include "sitehelper_project.h"
 
 typedef enum
@@ -46,6 +52,25 @@ typedef enum
     SITEHELPER_COMMAND_CREATE_ROOF,
     SITEHELPER_COMMAND_DELETE_ROOF,
     SITEHELPER_COMMAND_EDIT_ROOF_SOURCE,
+    SITEHELPER_COMMAND_CREATE_PLAN_NOTE,
+    SITEHELPER_COMMAND_EDIT_PLAN_NOTE,
+    SITEHELPER_COMMAND_DELETE_PLAN_NOTE,
+    SITEHELPER_COMMAND_CREATE_PLAN_DIMENSION,
+    SITEHELPER_COMMAND_EDIT_PLAN_DIMENSION,
+    SITEHELPER_COMMAND_DELETE_PLAN_DIMENSION,
+    SITEHELPER_COMMAND_CREATE_PLAN_SYMBOL,
+    SITEHELPER_COMMAND_EDIT_PLAN_SYMBOL,
+    SITEHELPER_COMMAND_DELETE_PLAN_SYMBOL,
+    SITEHELPER_COMMAND_CREATE_PLAN_CALLOUT,
+    SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT,
+    SITEHELPER_COMMAND_DELETE_PLAN_CALLOUT,
+    SITEHELPER_COMMAND_CREATE_DOCUMENT_REVISION,
+    SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION,
+    SITEHELPER_COMMAND_DELETE_DOCUMENT_REVISION,
+    SITEHELPER_COMMAND_SET_PLAN_REVISION_CLOUD_REVISION,
+    SITEHELPER_COMMAND_CREATE_PLAN_REVISION_CLOUD,
+    SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD,
+    SITEHELPER_COMMAND_DELETE_PLAN_REVISION_CLOUD,
 
     SITEHELPER_COMMAND_COUNT
 } SiteHelperCommandType;
@@ -80,6 +105,25 @@ typedef struct
         CreateRoofCommand create_roof;
         DeleteRoofCommand delete_roof;
         RoofSourceEditCommand edit_roof_source;
+        CreatePlanNoteCommand create_plan_note;
+        EditPlanNoteCommand edit_plan_note;
+        DeletePlanNoteCommand delete_plan_note;
+        CreatePlanDimensionCommand create_plan_dimension;
+        EditPlanDimensionCommand edit_plan_dimension;
+        DeletePlanDimensionCommand delete_plan_dimension;
+        CreatePlanSymbolCommand create_plan_symbol;
+        EditPlanSymbolCommand edit_plan_symbol;
+        DeletePlanSymbolCommand delete_plan_symbol;
+        CreatePlanCalloutCommand create_plan_callout;
+        EditPlanCalloutCommand edit_plan_callout;
+        DeletePlanCalloutCommand delete_plan_callout;
+        CreateDocumentRevisionCommand create_document_revision;
+        EditDocumentRevisionCommand edit_document_revision;
+        DeleteDocumentRevisionCommand delete_document_revision;
+        SetPlanRevisionCloudRevisionCommand set_plan_revision_cloud_revision;
+        CreatePlanRevisionCloudCommand create_plan_revision_cloud;
+        EditPlanRevisionCloudCommand edit_plan_revision_cloud;
+        DeletePlanRevisionCloudCommand delete_plan_revision_cloud;
     } data;
 } SiteHelperCommand;
 
@@ -121,6 +165,12 @@ typedef struct
         struct { DomainId wall_id, opening_id; } edit_opening;
         struct { DomainId slab_id; } slab;
         struct { DomainId roof_id, portion_id; } roof;
+        struct { DomainId annotation_id; } annotation;
+        struct { DomainId dimension_id; } dimension;
+        struct { DomainId symbol_id; } symbol;
+        struct { DomainId callout_id; } callout;
+        struct { DomainId revision_id; } revision;
+        struct { DomainId revision_cloud_id; } revision_cloud;
         struct { DomainId slab_id; size_t feature_index; } slab_feature;
         struct {
             DomainId slab_id;
@@ -189,6 +239,44 @@ int sitehelper_command_from_delete_roof(const DeleteRoofCommand *deletion,
     SiteHelperCommand *command);
 int sitehelper_command_from_roof_source_edit(const RoofSourceEditCommand *edit,
     SiteHelperCommand *command);
+int sitehelper_command_from_create_plan_note(const CreatePlanNoteCommand *create,
+    SiteHelperCommand *command);
+int sitehelper_command_from_edit_plan_note(const EditPlanNoteCommand *edit,
+    SiteHelperCommand *command);
+int sitehelper_command_from_delete_plan_note(const DeletePlanNoteCommand *deletion,
+    SiteHelperCommand *command);
+int sitehelper_command_from_create_plan_dimension(const CreatePlanDimensionCommand *create,
+    SiteHelperCommand *command);
+int sitehelper_command_from_edit_plan_dimension(const EditPlanDimensionCommand *edit,
+    SiteHelperCommand *command);
+int sitehelper_command_from_delete_plan_dimension(const DeletePlanDimensionCommand *deletion,
+    SiteHelperCommand *command);
+int sitehelper_command_from_create_plan_symbol(const CreatePlanSymbolCommand *create,
+    SiteHelperCommand *command);
+int sitehelper_command_from_edit_plan_symbol(const EditPlanSymbolCommand *edit,
+    SiteHelperCommand *command);
+int sitehelper_command_from_delete_plan_symbol(const DeletePlanSymbolCommand *deletion,
+    SiteHelperCommand *command);
+int sitehelper_command_from_create_plan_callout(const CreatePlanCalloutCommand *create,
+    SiteHelperCommand *command);
+int sitehelper_command_from_edit_plan_callout(const EditPlanCalloutCommand *edit,
+    SiteHelperCommand *command);
+int sitehelper_command_from_delete_plan_callout(const DeletePlanCalloutCommand *deletion,
+    SiteHelperCommand *command);
+int sitehelper_command_from_create_document_revision(
+    const CreateDocumentRevisionCommand *create, SiteHelperCommand *command);
+int sitehelper_command_from_edit_document_revision(
+    const EditDocumentRevisionCommand *edit, SiteHelperCommand *command);
+int sitehelper_command_from_delete_document_revision(
+    const DeleteDocumentRevisionCommand *deletion, SiteHelperCommand *command);
+int sitehelper_command_from_set_plan_revision_cloud_revision(
+    const SetPlanRevisionCloudRevisionCommand *set, SiteHelperCommand *command);
+int sitehelper_command_from_create_plan_revision_cloud(
+    const CreatePlanRevisionCloudCommand *create, SiteHelperCommand *command);
+int sitehelper_command_from_edit_plan_revision_cloud(
+    const EditPlanRevisionCloudCommand *edit, SiteHelperCommand *command);
+int sitehelper_command_from_delete_plan_revision_cloud(
+    const DeletePlanRevisionCloudCommand *deletion, SiteHelperCommand *command);
 
 /* Commands are owned values. CREATE_SLAB, CREATE_ROOF, EDIT_ROOF_SOURCE where applicable,
  * and polygon feature ADD commands own outlines/source geometry. Do not shallow-copy them;

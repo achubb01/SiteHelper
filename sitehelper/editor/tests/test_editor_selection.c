@@ -11,6 +11,8 @@ static void assert_empty(const EditorSelection *selection)
     assert(selection->wall_id == DOMAIN_ID_INVALID && selection->opening_id == DOMAIN_ID_INVALID);
     assert(selection->slab_id == DOMAIN_ID_INVALID && selection->slab_feature_index == SIZE_MAX);
     assert(selection->roof_id == DOMAIN_ID_INVALID && selection->roof_portion_id == DOMAIN_ID_INVALID);
+    assert(selection->document.kind == DOCUMENT_OBJECT_NONE &&
+        selection->document.id == DOMAIN_ID_INVALID);
     assert(wall_selection_is_empty(&selection->wall_member));
     assert(selection->wall_member.timber.length == 0);
     assert(!editor_selection_matches_scope(selection, EDITOR_SELECTION_SCOPE_NONE));
@@ -225,6 +227,40 @@ static void test_kinds_scopes_and_invalid_setters(void)
     assert(!editor_selection_matches_scope(NULL, EDITOR_SELECTION_SCOPE_PLAN));
 }
 
+
+static void test_document_selection_uses_one_identity_shape(void)
+{
+    EditorSelection selection;
+    editor_selection_init(&selection);
+
+    editor_selection_set_annotation(&selection,EDITOR_SELECTION_SCOPE_PLAN,101);
+    assert(editor_selection_is_document_kind(&selection,DOCUMENT_OBJECT_NOTE));
+    assert(editor_selection_matches_document(&selection,DOCUMENT_OBJECT_NOTE,101));
+    assert(selection.kind==EDITOR_SELECTION_DOCUMENT);
+
+    editor_selection_set_dimension(&selection,EDITOR_SELECTION_SCOPE_PLAN,102);
+    assert(editor_selection_matches_document(&selection,DOCUMENT_OBJECT_DIMENSION,102));
+    assert(!editor_selection_matches_document(&selection,DOCUMENT_OBJECT_NOTE,102));
+
+    editor_selection_set_symbol(&selection,EDITOR_SELECTION_SCOPE_PLAN,103);
+    assert(editor_selection_matches_document(&selection,DOCUMENT_OBJECT_SYMBOL,103));
+
+    editor_selection_set_callout(&selection,EDITOR_SELECTION_SCOPE_PLAN,104);
+    assert(editor_selection_matches_document(&selection,DOCUMENT_OBJECT_CALLOUT,104));
+
+    editor_selection_set_document(&selection,EDITOR_SELECTION_SCOPE_WALL_ELEVATION,
+        (DocumentObjectRef){DOCUMENT_OBJECT_NOTE,105});
+    assert_empty(&selection);
+    editor_selection_set_document(&selection,EDITOR_SELECTION_SCOPE_PLAN,
+        (DocumentObjectRef){DOCUMENT_OBJECT_NONE,105});
+    assert_empty(&selection);
+    editor_selection_set_document(&selection,EDITOR_SELECTION_SCOPE_PLAN,
+        (DocumentObjectRef){DOCUMENT_OBJECT_NOTE,DOMAIN_ID_INVALID});
+    assert_empty(&selection);
+    assert(!editor_selection_is_document_kind(NULL,DOCUMENT_OBJECT_NOTE));
+    assert(!editor_selection_matches_document(NULL,DOCUMENT_OBJECT_NOTE,101));
+}
+
 static void test_slab_selection_is_value_only(void)
 {
     EditorSelection selection;
@@ -278,6 +314,7 @@ int main(void)
     test_wall_member_selection_is_scoped_to_wall();
     test_selection_can_be_cleared();
     test_invalid_wall_clears_selection();
+    test_document_selection_uses_one_identity_shape();
     test_slab_selection_is_value_only();
     test_roof_selection_is_value_only();
 

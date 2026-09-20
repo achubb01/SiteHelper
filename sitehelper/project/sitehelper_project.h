@@ -4,6 +4,7 @@
 #include "build_settings.h"
 #include "storey.h"
 #include "domain_id.h"
+#include "document.h"
 
 /* Physical coordinates, dimensions, elevations, settings and mutation arguments
  * use integer millimetres (../model/MEASUREMENTS.md). Callers convert external
@@ -15,6 +16,8 @@ typedef struct
     BuildSettings settings;
     Storey *storeys;
     size_t storey_count, storey_capacity;
+    /* Authored non-physical project information; not owned by any Storey. */
+    DocumentModel document;
     DomainIdGenerator domain_ids;
 } SiteHelperProject;
 
@@ -69,7 +72,27 @@ typedef enum
     SITEHELPER_PROJECT_INVALID_ROOF,
     SITEHELPER_PROJECT_INVALID_ROOF_GEOMETRY,
     SITEHELPER_PROJECT_INVALID_ROOF_COMPOSITION,
-    SITEHELPER_PROJECT_INVALID_ROOF_TERMINATION
+    SITEHELPER_PROJECT_INVALID_ROOF_TERMINATION,
+    SITEHELPER_PROJECT_INVALID_ANNOTATION_COLLECTION,
+    SITEHELPER_PROJECT_INVALID_ANNOTATION_ID,
+    SITEHELPER_PROJECT_INVALID_ANNOTATION,
+    SITEHELPER_PROJECT_INVALID_ANNOTATION_REFERENCE,
+    SITEHELPER_PROJECT_INVALID_DIMENSION_COLLECTION,
+    SITEHELPER_PROJECT_INVALID_DIMENSION_ID,
+    SITEHELPER_PROJECT_INVALID_DIMENSION,
+    SITEHELPER_PROJECT_INVALID_DIMENSION_REFERENCE,
+    SITEHELPER_PROJECT_INVALID_SYMBOL_COLLECTION,
+    SITEHELPER_PROJECT_INVALID_SYMBOL_ID,
+    SITEHELPER_PROJECT_INVALID_SYMBOL,
+    SITEHELPER_PROJECT_INVALID_CALLOUT_COLLECTION,
+    SITEHELPER_PROJECT_INVALID_CALLOUT_ID,
+    SITEHELPER_PROJECT_INVALID_CALLOUT,
+    SITEHELPER_PROJECT_INVALID_REVISION_COLLECTION,
+    SITEHELPER_PROJECT_INVALID_REVISION_ID,
+    SITEHELPER_PROJECT_INVALID_REVISION,
+    SITEHELPER_PROJECT_INVALID_REVISION_CLOUD_COLLECTION,
+    SITEHELPER_PROJECT_INVALID_REVISION_CLOUD_ID,
+    SITEHELPER_PROJECT_INVALID_REVISION_CLOUD
 } SiteHelperProjectValidationCode;
 
 typedef struct
@@ -81,7 +104,7 @@ typedef struct
     /* Containing wall for invalid
      * openings; preceding conflicting opening for OVERLAPPING_OPENINGS.
      * For slab/roof errors, owning Storey ID unless the roof relationship uses
-     * its Roof ID as the more useful parent. Zero for other categories. */
+     * its Roof ID as the more useful parent. Annotation/dimension/callout errors use their Storey scope or invalid target ID where useful. Zero for other categories. */
     DomainId related_id;
 } SiteHelperProjectValidation;
 
@@ -94,7 +117,7 @@ typedef struct
  * and separators (using each Storey's resolved settings), then roof source
  * authority and slab geometry. Within each pass, Storeys are visited in stored
  * order. Identity order is Storey, Rooms, Walls (each before its openings),
- * separators, Slabs, then Roofs (each before its portions). All nested
+ * separators, Slabs, Roofs (each before its portions), annotations, dimensions, symbols, callouts, revisions, then revision clouds. All nested
  * collection metadata is checked before any global identity traversal.
  * Metadata checks cannot establish the
  * actual allocation size or validity of arbitrary non-null C pointers. */
@@ -165,7 +188,9 @@ int sitehelper_project_insert_storey(SiteHelperProject *project, DomainId id, in
  * Feature/spatial/report queries remain in their owning subsystems; see
  * QUERY_LAYER.md. Do not turn these typed lookups into a generic repository.
  * Queries assume coherent authoritative collection metadata. The owner query
- * accepts any nested entity ID, including openings, or the Storey's own ID. */
+ * accepts physical nested entity IDs, including openings, or the Storey's own
+ * ID. Project-owned annotations have global IDs but deliberately no owning
+ * Storey; their explicit plan anchor supplies presentation scope. */
 int sitehelper_project_contains_domain_id(const SiteHelperProject *project, DomainId id);
 Storey *sitehelper_project_find_owning_storey(SiteHelperProject *project, DomainId id);
 const Storey *sitehelper_project_find_owning_storey_const(const SiteHelperProject *project, DomainId id);
@@ -237,6 +262,126 @@ int sitehelper_project_remove_roof_by_id(SiteHelperProject *project, DomainId id
  * callers restoring history must ensure all identities are below it. */
 int sitehelper_project_insert_roof_at(SiteHelperProject *project, DomainId storey_id,
     const Roof *roof, size_t index);
+
+
+/* Project-owned document authority. Plan notes are the first supported
+ * annotation payload. They are non-physical, use global stable IDs, and may
+ * optionally associate with a physical object on the same Storey. Live add
+ * requires that target to exist; the association becomes weak if the target is
+ * later deleted. ID allocation is staged and text is deep-copied; failure
+ * preserves project state. */
+DomainId sitehelper_project_add_plan_note(SiteHelperProject *project, DomainId storey_id,
+    PlanPosition position, DomainId target_id, const char *text);
+DocumentAnnotation *sitehelper_project_find_annotation_by_id(
+    SiteHelperProject *project, DomainId id);
+const DocumentAnnotation *sitehelper_project_find_annotation_by_id_const(
+    const SiteHelperProject *project, DomainId id);
+int sitehelper_project_remove_annotation_by_id(SiteHelperProject *project, DomainId id);
+/* Transactional note edit. Identity remains stable and text is deep-copied before
+ * the old payload is released. An unchanged unresolved weak target may remain; a
+ * newly selected target must currently resolve on the destination Storey. */
+int sitehelper_project_update_plan_note(SiteHelperProject *project, DomainId id,
+    DomainId storey_id, PlanPosition position, DomainId target_id, const char *text);
+/* Loading/restoration primitive. Deep-copies text, preserves the existing ID and
+ * does not advance the allocator watermark. */
+int sitehelper_project_insert_annotation(SiteHelperProject *project,
+    const DocumentAnnotation *annotation);
+/* History restoration primitive for an existing annotation identity. Deep-copy
+ * replacement; unresolved weak physical targets are allowed. */
+int sitehelper_project_replace_annotation(SiteHelperProject *project,
+    const DocumentAnnotation *annotation);
+
+/* Persistent plan dimensions. Measurements are derived from two references; the
+ * numeric value is never stored as authority. The first associative reference
+ * contract deliberately supports only semantically stable wall start/end points
+ * plus free fixed points. Missing wall targets are valid weak references after
+ * loading/history, but live creation requires resolvable same-Storey targets. */
+DomainId sitehelper_project_add_plan_dimension(SiteHelperProject *project, DomainId storey_id,
+    DocumentDimensionReference first, DocumentDimensionReference second, int offset_mm);
+DocumentPlanDimension *sitehelper_project_find_dimension_by_id(SiteHelperProject *project, DomainId id);
+const DocumentPlanDimension *sitehelper_project_find_dimension_by_id_const(
+    const SiteHelperProject *project, DomainId id);
+int sitehelper_project_remove_dimension_by_id(SiteHelperProject *project, DomainId id);
+int sitehelper_project_insert_dimension(SiteHelperProject *project,
+    const DocumentPlanDimension *dimension);
+int sitehelper_project_update_plan_dimension(SiteHelperProject *project, DomainId id,
+    DomainId storey_id, DocumentDimensionReference first,
+    DocumentDimensionReference second, int offset_mm);
+int sitehelper_project_replace_dimension(SiteHelperProject *project,
+    const DocumentPlanDimension *dimension);
+/* Returns 0 if either weak association is unresolved or if the resolved points
+ * coincide. On success writes both authoritative plan points and the canonical
+ * nearest-whole-millimetre distance. */
+int sitehelper_project_resolve_plan_dimension(const SiteHelperProject *project, DomainId id,
+    PlanPosition *first, PlanPosition *second, int *distance_mm);
+
+/* Persistent Plan symbols. Symbols are project-owned document authority scoped
+ * to a Storey for presentation; they are not physical Storey children. Concrete
+ * kinds currently include fixed point markers and oriented view-direction marks. */
+DomainId sitehelper_project_add_plan_symbol(SiteHelperProject *project, DomainId storey_id,
+    DocumentPlanSymbolKind kind, PlanPosition anchor, DocumentPlanDirection direction);
+DocumentPlanSymbol *sitehelper_project_find_symbol_by_id(SiteHelperProject *project, DomainId id);
+const DocumentPlanSymbol *sitehelper_project_find_symbol_by_id_const(
+    const SiteHelperProject *project, DomainId id);
+int sitehelper_project_remove_symbol_by_id(SiteHelperProject *project, DomainId id);
+int sitehelper_project_insert_symbol(SiteHelperProject *project, const DocumentPlanSymbol *symbol);
+int sitehelper_project_update_plan_symbol(SiteHelperProject *project, DomainId id,
+    DomainId storey_id, DocumentPlanSymbolKind kind, PlanPosition anchor,
+    DocumentPlanDirection direction);
+int sitehelper_project_replace_symbol(SiteHelperProject *project, const DocumentPlanSymbol *symbol);
+
+/* Persistent Plan leader/callouts. Target and label anchor are fixed integer-mm
+ * authored points; text is deep-owned by the document layer. */
+DomainId sitehelper_project_add_plan_callout(SiteHelperProject *project, DomainId storey_id,
+    PlanPosition target, PlanPosition label_anchor, const char *text);
+DocumentPlanCallout *sitehelper_project_find_callout_by_id(SiteHelperProject *project, DomainId id);
+const DocumentPlanCallout *sitehelper_project_find_callout_by_id_const(
+    const SiteHelperProject *project, DomainId id);
+int sitehelper_project_remove_callout_by_id(SiteHelperProject *project, DomainId id);
+int sitehelper_project_insert_callout(SiteHelperProject *project, const DocumentPlanCallout *callout);
+int sitehelper_project_update_plan_callout(SiteHelperProject *project, DomainId id,
+    DomainId storey_id, PlanPosition target, PlanPosition label_anchor, const char *text);
+int sitehelper_project_replace_callout(SiteHelperProject *project,
+    const DocumentPlanCallout *callout);
+
+
+/* Project-level revision records group review markup. They intentionally carry
+ * only identifier + optional description until sheets/issue workflow/user identity
+ * establish stronger lifecycle semantics. */
+DomainId sitehelper_project_add_revision(SiteHelperProject *project,
+    const char *identifier, const char *description);
+DocumentRevision *sitehelper_project_find_revision_by_id(
+    SiteHelperProject *project, DomainId id);
+const DocumentRevision *sitehelper_project_find_revision_by_id_const(
+    const SiteHelperProject *project, DomainId id);
+int sitehelper_project_remove_revision_by_id(SiteHelperProject *project, DomainId id);
+int sitehelper_project_insert_revision(SiteHelperProject *project,
+    const DocumentRevision *revision);
+int sitehelper_project_update_revision(SiteHelperProject *project, DomainId id,
+    const char *identifier, const char *description);
+int sitehelper_project_replace_revision(SiteHelperProject *project,
+    const DocumentRevision *revision);
+
+/* Project-owned revision markup. The authored closed boundary is deep-owned and
+ * Storey-scoped; no paper-space scallop/style authority is persisted yet. */
+DomainId sitehelper_project_add_plan_revision_cloud(SiteHelperProject *project,
+    DomainId storey_id, const PlanPosition *vertices, size_t vertex_count);
+DocumentPlanRevisionCloud *sitehelper_project_find_revision_cloud_by_id(
+    SiteHelperProject *project, DomainId id);
+const DocumentPlanRevisionCloud *sitehelper_project_find_revision_cloud_by_id_const(
+    const SiteHelperProject *project, DomainId id);
+int sitehelper_project_remove_revision_cloud_by_id(SiteHelperProject *project, DomainId id);
+int sitehelper_project_insert_revision_cloud(SiteHelperProject *project,
+    const DocumentPlanRevisionCloud *cloud);
+int sitehelper_project_update_plan_revision_cloud(SiteHelperProject *project, DomainId id,
+    DomainId storey_id, const PlanPosition *vertices, size_t vertex_count);
+int sitehelper_project_replace_revision_cloud(SiteHelperProject *project,
+    const DocumentPlanRevisionCloud *cloud);
+/* Explicit assignment requires a live revision; DOMAIN_ID_INVALID clears it.
+ * The stored link remains weak so deleting a revision record leaves cloud
+ * authority intact and undo can restore the same revision ID. */
+int sitehelper_project_set_revision_cloud_revision(SiteHelperProject *project,
+    DomainId revision_cloud_id, DomainId revision_id);
 
 DomainId sitehelper_project_add_slab(SiteHelperProject *project, DomainId storey_id,
     const PlanPosition *vertices, size_t vertex_count, int thickness_mm, int top_level_offset_mm);

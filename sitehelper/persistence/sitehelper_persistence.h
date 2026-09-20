@@ -22,8 +22,13 @@ typedef enum
 /*
  * Persisted authoritative physical measurements are integer millimetres,
  * without suffixes/unit markers (../model/MEASUREMENTS.md). IDs, counts, flags
- * and modes are not measurements. Supported versions 1-14 all use millimetres;
+ * and modes are not measurements. Supported versions 1-16 all use millimetres;
  * legacy geometry-reference migrations below do not change dimensional units.
+ * Version 16 adds the project-owned annotation section after all Storeys. The
+ * first supported payload is a Storey-plan note with stable annotation ID,
+ * integer-mm anchor, optional weak physical target ID and hex-encoded text.
+ * Versions 1-15 load with zero annotations. Annotation rendering/editor state is
+ * not persisted.
  * Version 15 adds Storey-owned authoritative Roof records after slabs. Roof and
  * portion IDs, support polygons, source generation/slope/vertical-reference
  * intent, compositions and terminations are serialized; generated roof geometry
@@ -51,10 +56,10 @@ SiteHelperPersistenceResult sitehelper_project_save_file(
 );
 
 /*
- * Loads versions 1-15 transactionally into an initialized destination. Parse,
+ * Loads versions 1-16 transactionally into an initialized destination. Parse,
  * authoritative validation and framing regeneration must all succeed before
  * replacing it. On failure destination remains unchanged.
- * Versions 1-14 load with zero roofs. Versions 1-10 load with zero slabs. Slab
+ * Versions 1-15 load with zero annotations. Versions 1-14 load with zero roofs. Versions 1-10 load with zero slabs. Slab
  * quantities are never serialized.
  * Versions 1-7 migrate into one elevation-zero Storey. Existing entity IDs
  * and ordered geometry are preserved. The old watermark supplies the fresh

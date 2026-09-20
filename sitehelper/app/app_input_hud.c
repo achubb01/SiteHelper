@@ -13,7 +13,7 @@ void app_input_draw_hud(Renderer2D *renderer, const AppInput *input, Rect2 viewp
             unsigned char c = (unsigned char)edit->text[i];
             if ((c & 0xc0) == 0x80) { continue; }
             if (i < edit->cursor) { cursor++; }
-            display[count++] = c < 0x80 ? (char)c : '?';
+            display[count++] = c == '\n' ? '|' : (c < 0x80 ? (char)c : '?');
         }
         display[count] = '\0';
         double available = viewport.width - 24.0;
@@ -37,6 +37,9 @@ void app_input_draw_hud(Renderer2D *renderer, const AppInput *input, Rect2 viewp
         char title[96];
         if (input->focus == APP_KEYBOARD_FOCUS_PROPERTY_MM) {
             snprintf(title,sizeof title,"%s (mm / m)",app_property_label(input->property));
+        } else if (input->focus == APP_KEYBOARD_FOCUS_PLAN_NOTE) {
+            snprintf(title,sizeof title,"%s",
+                input->note_annotation_id == DOMAIN_ID_INVALID ? "New plan note" : "Edit plan note");
         } else {
             snprintf(title,sizeof title,"Wall length (mm / m)");
         }

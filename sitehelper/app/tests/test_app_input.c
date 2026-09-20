@@ -19,6 +19,22 @@ static void text(AppInput *input, SiteHelperEditor *editor, const char *text)
     assert(app_input_route(input, editor, &event, &action) == APP_INPUT_CONSUMED);
     assert(action.kind == EDITOR_ACTION_NONE);
 }
+static AppInputResult key_project(AppInput *input, SiteHelperEditor *editor,
+    SiteHelperProject *project, PlatformKey keycode, int modifiers, EditorAction *action)
+{
+    PlatformEvent event = {.type = PLATFORM_EVENT_KEY_DOWN,
+        .data.key_down = {.key = keycode, .modifiers = modifiers}};
+    return app_input_route_in_project(input, editor, project, &event, action);
+}
+static void text_project(AppInput *input, SiteHelperEditor *editor,
+    SiteHelperProject *project, const char *value)
+{
+    PlatformEvent event = {.type = PLATFORM_EVENT_TEXT_INPUT};
+    snprintf(event.data.text_input.text, sizeof event.data.text_input.text, "%s", value);
+    EditorAction action;
+    assert(app_input_route_in_project(input, editor, project, &event, &action) == APP_INPUT_CONSUMED);
+    assert(action.kind == EDITOR_ACTION_NONE);
+}
 static void begin(SiteHelperEditor *editor, SiteHelperProject *project)
 {
     EditorAction action;
@@ -137,6 +153,126 @@ int main(void)
     assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_WALL_ELEVATION));
     app_input_refresh(&input, &editor);
     assert(input.focus == APP_KEYBOARD_FOCUS_NONE);
+
+    /* Note authoring owns text focus and emits ordinary history commands. */
+    assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_PLAN));
+    assert(sitehelper_editor_set_active_tool(&editor, EDITOR_TOOL_NOTE));
+    assert(app_input_begin_plan_note(&input,&editor,&project,(Vec2){500,500}));
+    assert(input.focus == APP_KEYBOARD_FOCUS_PLAN_NOTE && !app_input_valid(&input));
+    text_project(&input,&editor,&project,"First");
+    assert(key_project(&input,&editor,&project,PLATFORM_KEY_ENTER,PLATFORM_MODIFIER_SHIFT,&action)
+        == APP_INPUT_CONSUMED);
+    text_project(&input,&editor,&project,"line");
+    assert(strcmp(input.text.text,"First\nline")==0 && app_input_valid(&input));
+    assert(key_project(&input,&editor,&project,PLATFORM_KEY_ENTER,0,&action)==APP_INPUT_COMMAND);
+    assert(action.command.type==SITEHELPER_COMMAND_CREATE_PLAN_NOTE);
+    SiteHelperCommandResult note_result;
+    assert(sitehelper_command_history_execute(&history,&project,&action.command,&note_result));
+    sitehelper_editor_complete_action(&editor,&action,&note_result);
+    editor_action_destroy(&action);
+    app_input_cancel(&input,&editor);
+    DomainId note_id=note_result.data.annotation.annotation_id;
+    const DocumentAnnotation *note=sitehelper_project_find_annotation_by_id_const(&project,note_id);
+    assert(note&&strcmp(note->text,"First\nline")==0&&note->anchor.position.x==500&&
+        note->anchor.position.y==500);
+
+    assert(app_input_begin_plan_note(&input,&editor,&project,(Vec2){505,500}));
+    assert(input.note_annotation_id==note_id&&strcmp(input.text.text,"First\nline")==0);
+    text_project(&input,&editor,&project," updated");
+    assert(key_project(&input,&editor,&project,PLATFORM_KEY_ENTER,0,&action)==APP_INPUT_COMMAND);
+    assert(action.command.type==SITEHELPER_COMMAND_EDIT_PLAN_NOTE);
+    assert(sitehelper_command_history_execute(&history,&project,&action.command,&note_result));
+    sitehelper_editor_complete_action(&editor,&action,&note_result);
+    editor_action_destroy(&action); app_input_cancel(&input,&editor);
+    note=sitehelper_project_find_annotation_by_id_const(&project,note_id);
+    assert(note&&strcmp(note->text,"First\nline updated")==0);
+
+    size_t note_history=history.count;
+    assert(app_input_begin_plan_note(&input,&editor,&project,(Vec2){500,500}));
+    assert(key_project(&input,&editor,&project,PLATFORM_KEY_ENTER,0,&action)==APP_INPUT_CONSUMED);
+    assert(input.focus==APP_KEYBOARD_FOCUS_NONE&&history.count==note_history);
+    assert(app_input_begin_plan_note(&input,&editor,&project,(Vec2){900,900}));
+    text_project(&input,&editor,&project,"cancel me");
+    assert(key_project(&input,&editor,&project,PLATFORM_KEY_ESCAPE,0,&action)==APP_INPUT_CONSUMED);
+    assert(input.focus==APP_KEYBOARD_FOCUS_NONE&&history.count==note_history);
+
+    /* Callout authoring uses the same text-focus contract after two Plan picks. */
+    assert(sitehelper_editor_set_active_tool(&editor,EDITOR_TOOL_CALLOUT));
+    assert(sitehelper_editor_primary_action_in_project(&editor,&project,(Vec2){2000,1200},&action));
+    sitehelper_editor_pointer_move_in_project(&editor,&project,(Vec2){2600,1600});
+    assert(sitehelper_editor_primary_action_in_project(&editor,&project,(Vec2){2600,1600},&action));
+    assert(app_input_begin_plan_callout(&input,&editor,&project));
+    assert(input.focus==APP_KEYBOARD_FOCUS_PLAN_CALLOUT&&!app_input_valid(&input));
+    text_project(&input,&editor,&project,"Check");
+    assert(key_project(&input,&editor,&project,PLATFORM_KEY_ENTER,PLATFORM_MODIFIER_SHIFT,&action)
+        == APP_INPUT_CONSUMED);
+    text_project(&input,&editor,&project,"beam");
+    assert(strcmp(input.text.text,"Check\nbeam")==0&&app_input_valid(&input));
+    assert(key_project(&input,&editor,&project,PLATFORM_KEY_ENTER,0,&action)==APP_INPUT_COMMAND);
+    assert(action.command.type==SITEHELPER_COMMAND_CREATE_PLAN_CALLOUT);
+    SiteHelperCommandResult callout_result;
+    assert(sitehelper_command_history_execute(&history,&project,&action.command,&callout_result));
+    sitehelper_editor_complete_action(&editor,&action,&callout_result);
+    editor_action_destroy(&action); app_input_cancel(&input,&editor);
+    DomainId callout_id=callout_result.data.callout.callout_id;
+    const DocumentPlanCallout *callout=sitehelper_project_find_callout_by_id_const(&project,callout_id);
+    assert(callout&&strcmp(callout->text,"Check\nbeam")==0);
+
+    /* Idle Callout tool click on its leader selects it for in-place text edit. */
+    callout=sitehelper_project_find_callout_by_id_const(&project,callout_id); assert(callout);
+    Vec2 callout_mid={(callout->target.x+callout->label_anchor.x)/2.0,
+        (callout->target.y+callout->label_anchor.y)/2.0};
+    assert(sitehelper_editor_primary_action_in_project(&editor,&project,callout_mid,&action));
+    assert(editor_selection_matches_document(&editor.selection,DOCUMENT_OBJECT_CALLOUT,callout_id));
+    assert(app_input_begin_selected_plan_callout(&input,&editor,&project));
+    size_t callout_history=history.count;
+    assert(key_project(&input,&editor,&project,PLATFORM_KEY_ENTER,0,&action)==APP_INPUT_CONSUMED);
+    assert(input.focus==APP_KEYBOARD_FOCUS_NONE&&history.count==callout_history);
+    assert(app_input_begin_selected_plan_callout(&input,&editor,&project));
+    text_project(&input,&editor,&project," updated");
+    assert(key_project(&input,&editor,&project,PLATFORM_KEY_ENTER,0,&action)==APP_INPUT_COMMAND);
+    assert(action.command.type==SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT);
+    assert(sitehelper_command_history_execute(&history,&project,&action.command,&callout_result));
+    sitehelper_editor_complete_action(&editor,&action,&callout_result);
+    editor_action_destroy(&action); app_input_cancel(&input,&editor);
+    callout=sitehelper_project_find_callout_by_id_const(&project,callout_id);
+    assert(callout&&strcmp(callout->text,"Check\nbeam updated")==0);
+
+    /* Revision markup uses the generic polygon commit path: snapped clicks
+     * remain transient until Enter emits one create command. */
+    assert(sitehelper_editor_set_active_tool(&editor,EDITOR_TOOL_REVISION_CLOUD));
+    assert(sitehelper_editor_primary_action_in_project(&editor,&project,(Vec2){3000,2500},&action));
+    assert(sitehelper_editor_primary_action_in_project(&editor,&project,(Vec2){3600,2500},&action));
+    assert(sitehelper_editor_primary_action_in_project(&editor,&project,(Vec2){3600,3000},&action));
+    assert(key_project(&input,&editor,&project,PLATFORM_KEY_ENTER,0,&action)==APP_INPUT_COMMAND);
+    assert(action.command.type==SITEHELPER_COMMAND_CREATE_PLAN_REVISION_CLOUD);
+    SiteHelperCommandResult cloud_result;
+    assert(sitehelper_command_history_execute(&history,&project,&action.command,&cloud_result));
+    sitehelper_editor_complete_action(&editor,&action,&cloud_result);
+    editor_action_destroy(&action);
+    assert(sitehelper_project_find_revision_cloud_by_id_const(&project,
+        cloud_result.data.revision_cloud.revision_cloud_id)!=NULL);
+    assert(editor.revision_cloud_tool.active&&editor.revision_cloud_tool.vertex_count==0);
+
+    /* History shortcuts remain global during Dimension authoring. A successful
+     * history mutation is followed by normal editor reconciliation, which
+     * cancels the partial reference set rather than carrying it across model
+     * authority changes. */
+    assert(sitehelper_editor_set_active_tool(&editor,EDITOR_TOOL_DIMENSION));
+    assert(sitehelper_editor_primary_action_in_project(&editor,&project,(Vec2){6000,0},&action));
+    assert(editor.dimension_tool.stage==PLAN_DIMENSION_TOOL_PICK_SECOND);
+    assert(key_project(&input,&editor,&project,PLATFORM_KEY_Z,PLATFORM_MODIFIER_CTRL,&action)
+        == APP_INPUT_UNDO);
+    assert(sitehelper_command_history_undo(&history,&project));
+    sitehelper_editor_reconcile(&editor,&project);
+    assert(editor.dimension_tool.active&&editor.dimension_tool.stage==PLAN_DIMENSION_TOOL_PICK_FIRST);
+    assert(sitehelper_editor_primary_action_in_project(&editor,&project,(Vec2){6000,0},&action));
+    assert(key_project(&input,&editor,&project,PLATFORM_KEY_Y,PLATFORM_MODIFIER_CTRL,&action)
+        == APP_INPUT_REDO);
+    assert(sitehelper_command_history_redo(&history,&project));
+    sitehelper_editor_reconcile(&editor,&project);
+    assert(editor.dimension_tool.active&&editor.dimension_tool.stage==PLAN_DIMENSION_TOOL_PICK_FIRST);
+
     sitehelper_command_history_destroy(&history);
     sitehelper_project_destroy(&project);
     puts("application input tests passed");

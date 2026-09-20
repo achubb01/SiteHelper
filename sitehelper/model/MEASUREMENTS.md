@@ -59,8 +59,8 @@ Persistence and external import
 -------------------------------
 
 Persisted authoritative physical measurements are integer millimetres without
-unit markers. Current format **14** and supported legacy formats **1–13** use the
-same unit. Existing legacy wall/origin and opening-reference migrations reinterpret
+unit markers. Current format **16** and supported legacy formats **1–15** use the
+same physical unit contract. Existing legacy wall/origin and opening-reference migrations reinterpret
 geometry within millimetres, not through unit rescaling. No format/version change
 is needed for this contract; existing files keep their meaning. Derived framing,
 previews, camera state and topology are not authoritative persisted measurements.

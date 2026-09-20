@@ -7,12 +7,14 @@ focused on its Wall after selection is cleared. Plan Select still updates both
 Wall navigation and selection. Plan rendering continues to highlight the current
 Wall; distinguishing focus from selection visually is deferred.
 
-Selection **kind** identifies what was selected (`WALL`, `OPENING`,
-`WALL_MEMBER`, `SLAB`, or a slab subfeature); selection **scope** identifies its context:
+Selection **kind** identifies the editor-level selection family (`WALL`, `OPENING`,
+`WALL_MEMBER`, `SLAB`, a slab subfeature, `ROOF`, a roof portion, or `DOCUMENT`);
+selection **scope** identifies its context. A document selection carries its own
+`DocumentObjectKind` discriminator for note, dimension, symbol, callout or revision-cloud identity:
 
 | Scope | Coordinate context | Current creation path |
 | --- | --- | --- |
-| `PLAN` | Plan X/Y millimetres | Physical Wall, Slab, penetration, region or rebate selection |
+| `PLAN` | Plan X/Y millimetres | Physical Wall/Slab/Roof selection or project-owned document selection |
 | `WALL_ELEVATION` | Wall-local U/Z millimetres | Generated member or Opening selection |
 | `NONE` | No selection | Initialization, clear or failed setter |
 
@@ -28,6 +30,19 @@ entire selection. `NONE` kind always pairs with `NONE` scope; clear resets both
 IDs and the copied member payload. A Wall selection identifies the physical Wall
 by `wall_id`; an Opening/member selection uses that ID as its explicit owner.
 Scope and ownership are never inferred from `current_wall_id`.
+
+A document selection stores one `DocumentObjectRef`: a concrete
+`DocumentObjectKind` plus the project-global stable `DomainId`. It is Plan-only
+and has no owning Storey pointer or physical owner ID. Reconciliation asks the
+document model for that object's explicit Storey scope and clears the selection if
+the ID no longer resolves or belongs to another active Storey. The payload itself
+remains in its concrete family; selection does not copy note text, dimension
+references, symbol orientation, callout geometry or revision-cloud vertices.
+
+Plan Select applies document-overlay precedence before physical geometry: revision
+clouds, notes, callouts, symbols, dimensions, then Walls and Slabs. Each document family retains
+its own hit geometry; the unified identity shape does not imply a generic document
+hit-test implementation.
 
 A whole Slab selection stores its stable `slab_id`. Penetrations, replacement
 regions and edge rebates remain subordinate slab-owned geometry without global
@@ -57,6 +72,8 @@ then resolves authoritative Wall/Opening values by stable IDs and current Storey
 independently of Wall navigation. It has no cache. Generated members remain
 unsupported by the authoritative property snapshot.
 
-Selection is editor-only: no Project ownership, persistence, DomainId allocation,
-command or undo/redo entry. Multi-selection, remembered per-view selections and
-selection history are not implemented.
+Selection itself remains transient editor state. The selected object may of course
+be Project authority: notes, dimensions, symbols, callouts and revision clouds all have persistent
+global IDs and typed create/edit/delete commands, while the `DocumentObjectRef`
+selection record is never persisted or placed in command history. Multi-selection, remembered per-view
+selections and selection history are not implemented.

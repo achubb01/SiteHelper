@@ -16,7 +16,7 @@
 
 enum
 {
-    SITEHELPER_PROJECT_FORMAT_VERSION = 15,
+    SITEHELPER_PROJECT_FORMAT_VERSION = 22,
     PERSISTENCE_TOKEN_CAPACITY = 64
 };
 
@@ -1200,6 +1200,399 @@ static SiteHelperPersistenceResult parse_roofs(
     return SITEHELPER_PERSISTENCE_SUCCESS;
 }
 
+static int hex_value(int character)
+{
+    if (character >= '0' && character <= '9') { return character - '0'; }
+    if (character >= 'a' && character <= 'f') { return character - 'a' + 10; }
+    if (character >= 'A' && character <= 'F') { return character - 'A' + 10; }
+    return -1;
+}
+
+static SiteHelperPersistenceResult parse_annotations(FILE *file, SiteHelperProject *project)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    size_t count;
+    if (expect_token(file, "annotations") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token, &count) || count > SIZE_MAX / sizeof(DocumentAnnotation)) {
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        DocumentAnnotation annotation = {.kind = DOCUMENT_ANNOTATION_NOTE};
+        size_t text_length;
+        if (expect_token(file, "annotation") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token, &annotation.id) || annotation.id == DOMAIN_ID_INVALID ||
+            project_contains_id(project, annotation.id) ||
+            expect_token(file, "note") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            expect_token(file, "storey") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token, &annotation.anchor.storey_id) ||
+            expect_token(file, "position") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &annotation.anchor.position.x) ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &annotation.anchor.position.y) ||
+            expect_token(file, "target") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token, &annotation.target_id) ||
+            expect_token(file, "text_hex") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_size_token(token, &text_length) || text_length == 0 || text_length == SIZE_MAX) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+
+        char *text = malloc(text_length + 1);
+        if (text == NULL) { return SITEHELPER_PERSISTENCE_ALLOCATION_FAILED; }
+        int malformed = 0;
+        for (size_t j = 0; j < text_length; j++) {
+            int high = hex_value(fgetc(file));
+            int low = hex_value(fgetc(file));
+            if (high < 0 || low < 0) {
+                malformed = 1;
+                break;
+            }
+            unsigned char byte = (unsigned char)((high << 4) | low);
+            if (byte == 0) {
+                malformed = 1;
+                break;
+            }
+            text[j] = (char)byte;
+        }
+        if (!malformed) { text[text_length] = '\0'; }
+        annotation.text = text;
+        if (malformed || expect_token(file, "end_annotation") != SITEHELPER_PERSISTENCE_SUCCESS) {
+            free(text);
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        if (!sitehelper_project_insert_annotation(project, &annotation)) {
+            free(text);
+            return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+        free(text);
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
+
+static SiteHelperPersistenceResult parse_dimension_reference(FILE *file,
+    DocumentDimensionReference *reference)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    if (read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS) {
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+    if (strcmp(token, "fixed") == 0) {
+        reference->kind = DOCUMENT_DIMENSION_FIXED_POINT;
+        if (read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &reference->position.x) ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &reference->position.y)) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        reference->target_id = DOMAIN_ID_INVALID;
+        return SITEHELPER_PERSISTENCE_SUCCESS;
+    }
+    if (strcmp(token, "wall_start") == 0) reference->kind = DOCUMENT_DIMENSION_WALL_START;
+    else if (strcmp(token, "wall_end") == 0) reference->kind = DOCUMENT_DIMENSION_WALL_END;
+    else return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    if (read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_domain_id_token(token, &reference->target_id) ||
+        reference->target_id == DOMAIN_ID_INVALID) {
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
+static SiteHelperPersistenceResult parse_dimensions(FILE *file, SiteHelperProject *project)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    size_t count;
+    if (expect_token(file, "dimensions") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token, &count) || count > SIZE_MAX / sizeof(DocumentPlanDimension)) {
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+    for (size_t i = 0; i < count; i++) {
+        DocumentPlanDimension dimension = {0};
+        if (expect_token(file, "dimension") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token, &dimension.id) || dimension.id == DOMAIN_ID_INVALID ||
+            project_contains_id(project, dimension.id) ||
+            expect_token(file, "storey") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token, &dimension.storey_id) ||
+            expect_token(file, "offset") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &dimension.offset_mm) ||
+            expect_token(file, "first") != SITEHELPER_PERSISTENCE_SUCCESS) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        SiteHelperPersistenceResult result = parse_dimension_reference(file, &dimension.first);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+        if (expect_token(file, "second") != SITEHELPER_PERSISTENCE_SUCCESS) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        result = parse_dimension_reference(file, &dimension.second);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS ||
+            expect_token(file, "end_dimension") != SITEHELPER_PERSISTENCE_SUCCESS) {
+            return result == SITEHELPER_PERSISTENCE_SUCCESS ? SITEHELPER_PERSISTENCE_MALFORMED_DATA : result;
+        }
+        if (!sitehelper_project_insert_dimension(project, &dimension)) {
+            return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
+
+static SiteHelperPersistenceResult parse_symbols(FILE *file, SiteHelperProject *project, int version)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    size_t count;
+    if (expect_token(file, "symbols") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token, &count) || count > SIZE_MAX / sizeof(DocumentPlanSymbol)) {
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+    for (size_t i = 0; i < count; i++) {
+        DocumentPlanSymbol symbol = {0};
+        if (expect_token(file, "symbol") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token, &symbol.id) || symbol.id == DOMAIN_ID_INVALID ||
+            project_contains_id(project, symbol.id) ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        if (strcmp(token, "point_marker") == 0) {
+            symbol.kind=DOCUMENT_PLAN_SYMBOL_POINT_MARKER;
+        } else if (version >= 20 && strcmp(token, "view_direction") == 0) {
+            symbol.kind=DOCUMENT_PLAN_SYMBOL_VIEW_DIRECTION;
+        } else {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        if (expect_token(file, "storey") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token, &symbol.storey_id) ||
+            expect_token(file, "position") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &symbol.anchor.x) ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token, &symbol.anchor.y)) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        if (symbol.kind == DOCUMENT_PLAN_SYMBOL_VIEW_DIRECTION) {
+            if (expect_token(file, "direction") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &symbol.direction.dx) ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &symbol.direction.dy)) {
+                return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+            }
+        }
+        if (expect_token(file, "end_symbol") != SITEHELPER_PERSISTENCE_SUCCESS) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        if (!sitehelper_project_insert_symbol(project, &symbol)) {
+            return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
+
+static SiteHelperPersistenceResult parse_callouts(FILE *file, SiteHelperProject *project)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    size_t count;
+    if (expect_token(file,"callouts") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token,&count) || count > SIZE_MAX/sizeof(DocumentPlanCallout)) {
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+    for (size_t i=0;i<count;i++) {
+        DocumentPlanCallout callout={0};
+        size_t text_length;
+        if (expect_token(file,"callout") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token,&callout.id) || callout.id == DOMAIN_ID_INVALID ||
+            project_contains_id(project,callout.id) ||
+            expect_token(file,"storey") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token,&callout.storey_id) ||
+            expect_token(file,"target") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token,&callout.target.x) ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token,&callout.target.y) ||
+            expect_token(file,"label") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token,&callout.label_anchor.x) ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token,&callout.label_anchor.y) ||
+            expect_token(file,"text_hex") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_size_token(token,&text_length) || text_length == 0 || text_length == SIZE_MAX) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        char *text=malloc(text_length+1);
+        if (text == NULL) { return SITEHELPER_PERSISTENCE_ALLOCATION_FAILED; }
+        int malformed=0;
+        for (size_t j=0;j<text_length;j++) {
+            int high=hex_value(fgetc(file));
+            int low=hex_value(fgetc(file));
+            if (high < 0 || low < 0) { malformed=1; break; }
+            unsigned char byte=(unsigned char)((high<<4)|low);
+            if (byte == 0) { malformed=1; break; }
+            text[j]=(char)byte;
+        }
+        if (!malformed) { text[text_length]='\0'; }
+        callout.text=text;
+        if (malformed || expect_token(file,"end_callout") != SITEHELPER_PERSISTENCE_SUCCESS) {
+            free(text); return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        if (!sitehelper_project_insert_callout(project,&callout)) {
+            free(text); return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+        free(text);
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
+
+static SiteHelperPersistenceResult parse_revisions(FILE *file, SiteHelperProject *project)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    size_t count;
+    if (expect_token(file, "revisions") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token, &count) || count > SIZE_MAX / sizeof(DocumentRevision)) {
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+    for (size_t i = 0; i < count; i++) {
+        DocumentRevision revision = {0};
+        size_t identifier_length, description_length;
+        if (expect_token(file, "revision") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token, &revision.id) || revision.id == DOMAIN_ID_INVALID ||
+            project_contains_id(project, revision.id) ||
+            expect_token(file, "identifier_hex") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_size_token(token, &identifier_length) || identifier_length == 0 ||
+            identifier_length == SIZE_MAX) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        revision.identifier = malloc(identifier_length + 1);
+        if (revision.identifier == NULL) { return SITEHELPER_PERSISTENCE_ALLOCATION_FAILED; }
+        int malformed = 0;
+        for (size_t j = 0; j < identifier_length; j++) {
+            int high = hex_value(fgetc(file));
+            int low = hex_value(fgetc(file));
+            if (high < 0 || low < 0) { malformed = 1; break; }
+            unsigned char byte = (unsigned char)((high << 4) | low);
+            if (byte == 0) { malformed = 1; break; }
+            revision.identifier[j] = (char)byte;
+        }
+        if (!malformed) { revision.identifier[identifier_length] = '\0'; }
+        if (malformed || expect_token(file, "description_hex") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_size_token(token, &description_length) || description_length == SIZE_MAX) {
+            document_revision_destroy(&revision);
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        revision.description = malloc(description_length + 1);
+        if (revision.description == NULL) {
+            document_revision_destroy(&revision);
+            return SITEHELPER_PERSISTENCE_ALLOCATION_FAILED;
+        }
+        for (size_t j = 0; j < description_length; j++) {
+            int high = hex_value(fgetc(file));
+            int low = hex_value(fgetc(file));
+            if (high < 0 || low < 0) { malformed = 1; break; }
+            unsigned char byte = (unsigned char)((high << 4) | low);
+            if (byte == 0) { malformed = 1; break; }
+            revision.description[j] = (char)byte;
+        }
+        if (!malformed) { revision.description[description_length] = '\0'; }
+        if (malformed || expect_token(file, "end_revision") != SITEHELPER_PERSISTENCE_SUCCESS) {
+            document_revision_destroy(&revision);
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        if (!sitehelper_project_insert_revision(project, &revision)) {
+            document_revision_destroy(&revision);
+            return SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+        document_revision_destroy(&revision);
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
+
+static SiteHelperPersistenceResult parse_revision_clouds(
+    FILE *file, SiteHelperProject *project, int version)
+{
+    char token[PERSISTENCE_TOKEN_CAPACITY];
+    size_t count;
+    if (expect_token(file, "revision_clouds") != SITEHELPER_PERSISTENCE_SUCCESS ||
+        read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+        !parse_size_token(token, &count) ||
+        count > SIZE_MAX / sizeof(DocumentPlanRevisionCloud)) {
+        return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+    }
+    for (size_t i = 0; i < count; i++) {
+        DocumentPlanRevisionCloud cloud = {0};
+        size_t vertex_count;
+        if (expect_token(file, "revision_cloud") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token, &cloud.id) ||
+            cloud.id == DOMAIN_ID_INVALID || project_contains_id(project, cloud.id) ||
+            expect_token(file, "storey") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_domain_id_token(token, &cloud.storey_id)) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        if (version >= 22) {
+            if (expect_token(file, "revision") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_domain_id_token(token, &cloud.revision_id)) {
+                return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+            }
+        }
+        if (expect_token(file, "vertices") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_size_token(token, &vertex_count) || vertex_count < 3 ||
+            vertex_count > SIZE_MAX / sizeof *cloud.vertices) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        cloud.vertices = malloc(vertex_count * sizeof *cloud.vertices);
+        if (cloud.vertices == NULL) { return SITEHELPER_PERSISTENCE_ALLOCATION_FAILED; }
+        cloud.vertex_count = vertex_count;
+        SiteHelperPersistenceResult result = SITEHELPER_PERSISTENCE_SUCCESS;
+        for (size_t v = 0; v < vertex_count; v++) {
+            if (expect_token(file, "vertex") != SITEHELPER_PERSISTENCE_SUCCESS ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &cloud.vertices[v].x) ||
+                read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+                !parse_int_token(token, &cloud.vertices[v].y)) {
+                result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+                break;
+            }
+        }
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS &&
+            expect_token(file, "end_revision_cloud") != SITEHELPER_PERSISTENCE_SUCCESS) {
+            result = SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+        if (result == SITEHELPER_PERSISTENCE_SUCCESS &&
+            !sitehelper_project_insert_revision_cloud(project, &cloud)) {
+            result = SITEHELPER_PERSISTENCE_INVALID_PROJECT;
+        }
+        free(cloud.vertices);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+    }
+    return SITEHELPER_PERSISTENCE_SUCCESS;
+}
+
 static SiteHelperPersistenceResult parse_project(
     FILE *file,
     SiteHelperProject *project
@@ -1306,6 +1699,30 @@ static SiteHelperPersistenceResult parse_project(
         if (version >= 8 && expect_token(file, "end_storey") != SITEHELPER_PERSISTENCE_SUCCESS) {
             return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
         }
+    }
+    if (version >= 16) {
+        result = parse_annotations(file, project);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+    }
+    if (version >= 17) {
+        result = parse_dimensions(file, project);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+    }
+    if (version >= 18) {
+        result = parse_symbols(file, project, version);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+    }
+    if (version >= 19) {
+        result = parse_callouts(file, project);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+    }
+    if (version >= 22) {
+        result = parse_revisions(file, project);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
+    }
+    if (version >= 21) {
+        result = parse_revision_clouds(file, project, version);
+        if (result != SITEHELPER_PERSISTENCE_SUCCESS) { return result; }
     }
     if (expect_token(file, "end_project") !=
         SITEHELPER_PERSISTENCE_SUCCESS) {
@@ -1573,6 +1990,123 @@ static int write_project(
             if (fputs("end_roof\n", file) == EOF) { return 0; }
         }
         if (fputs("end_storey\n", file) == EOF) { return 0; }
+    }
+    if (fprintf(file, "annotations %zu\n", project->document.annotation_count) < 0) {
+        return 0;
+    }
+    for (size_t i = 0; i < project->document.annotation_count; i++) {
+        const DocumentAnnotation *annotation = &project->document.annotations[i];
+        size_t text_length = strlen(annotation->text);
+        if (fprintf(file,
+                "annotation %" PRIu64 " note storey %" PRIu64
+                " position %d %d target %" PRIu64 " text_hex %zu\n",
+                (uint64_t)annotation->id, (uint64_t)annotation->anchor.storey_id,
+                annotation->anchor.position.x, annotation->anchor.position.y,
+                (uint64_t)annotation->target_id, text_length) < 0) {
+            return 0;
+        }
+        for (size_t j = 0; j < text_length; j++) {
+            if (fprintf(file, "%02x", (unsigned char)annotation->text[j]) < 0) {
+                return 0;
+            }
+        }
+        if (fputs("\nend_annotation\n", file) == EOF) { return 0; }
+    }
+    if (fprintf(file, "dimensions %zu\n", project->document.dimension_count) < 0) { return 0; }
+    for (size_t i = 0; i < project->document.dimension_count; i++) {
+        const DocumentPlanDimension *dimension = &project->document.dimensions[i];
+        if (fprintf(file, "dimension %" PRIu64 " storey %" PRIu64 " offset %d\n",
+                (uint64_t)dimension->id, (uint64_t)dimension->storey_id,
+                dimension->offset_mm) < 0) { return 0; }
+        const DocumentDimensionReference refs[2] = {dimension->first, dimension->second};
+        const char *labels[2] = {"first", "second"};
+        for (size_t r = 0; r < 2; r++) {
+            if (refs[r].kind == DOCUMENT_DIMENSION_FIXED_POINT) {
+                if (fprintf(file, "%s fixed %d %d\n", labels[r],
+                        refs[r].position.x, refs[r].position.y) < 0) { return 0; }
+            } else {
+                const char *kind = refs[r].kind == DOCUMENT_DIMENSION_WALL_START
+                    ? "wall_start" : refs[r].kind == DOCUMENT_DIMENSION_WALL_END
+                    ? "wall_end" : NULL;
+                if (kind == NULL || fprintf(file, "%s %s %" PRIu64 "\n", labels[r], kind,
+                        (uint64_t)refs[r].target_id) < 0) { return 0; }
+            }
+        }
+        if (fputs("end_dimension\n", file) == EOF) { return 0; }
+    }
+    if (fprintf(file, "symbols %zu\n", project->document.symbol_count) < 0) { return 0; }
+    for (size_t i = 0; i < project->document.symbol_count; i++) {
+        const DocumentPlanSymbol *symbol = &project->document.symbols[i];
+        if (symbol->kind == DOCUMENT_PLAN_SYMBOL_POINT_MARKER) {
+            if (fprintf(file, "symbol %" PRIu64 " point_marker storey %" PRIu64
+                    " position %d %d\nend_symbol\n",
+                    (uint64_t)symbol->id, (uint64_t)symbol->storey_id,
+                    symbol->anchor.x, symbol->anchor.y) < 0) { return 0; }
+        } else if (symbol->kind == DOCUMENT_PLAN_SYMBOL_VIEW_DIRECTION) {
+            if (fprintf(file, "symbol %" PRIu64 " view_direction storey %" PRIu64
+                    " position %d %d direction %d %d\nend_symbol\n",
+                    (uint64_t)symbol->id, (uint64_t)symbol->storey_id,
+                    symbol->anchor.x, symbol->anchor.y,
+                    symbol->direction.dx, symbol->direction.dy) < 0) { return 0; }
+        } else {
+            return 0;
+        }
+    }
+    if (fprintf(file,"callouts %zu\n",project->document.callout_count) < 0) { return 0; }
+    for (size_t i=0;i<project->document.callout_count;i++) {
+        const DocumentPlanCallout *callout=&project->document.callouts[i];
+        size_t text_length=strlen(callout->text);
+        if (fprintf(file,"callout %" PRIu64 " storey %" PRIu64
+                " target %d %d label %d %d text_hex %zu\n",
+                (uint64_t)callout->id,(uint64_t)callout->storey_id,
+                callout->target.x,callout->target.y,
+                callout->label_anchor.x,callout->label_anchor.y,text_length) < 0) { return 0; }
+        for (size_t j=0;j<text_length;j++) {
+            if (fprintf(file,"%02x",(unsigned char)callout->text[j]) < 0) { return 0; }
+        }
+        if (fputs("\nend_callout\n",file) == EOF) { return 0; }
+    }
+    if (fprintf(file, "revisions %zu\n", project->document.revision_count) < 0) {
+        return 0;
+    }
+    for (size_t i = 0; i < project->document.revision_count; i++) {
+        const DocumentRevision *revision = &project->document.revisions[i];
+        size_t identifier_length = strlen(revision->identifier);
+        size_t description_length = strlen(revision->description);
+        if (fprintf(file, "revision %" PRIu64 " identifier_hex %zu\n",
+                (uint64_t)revision->id, identifier_length) < 0) { return 0; }
+        for (size_t j = 0; j < identifier_length; j++) {
+            if (fprintf(file, "%02x", (unsigned char)revision->identifier[j]) < 0) {
+                return 0;
+            }
+        }
+        if (fprintf(file, "\ndescription_hex %zu\n", description_length) < 0) { return 0; }
+        for (size_t j = 0; j < description_length; j++) {
+            if (fprintf(file, "%02x", (unsigned char)revision->description[j]) < 0) {
+                return 0;
+            }
+        }
+        if (fputs("\nend_revision\n", file) == EOF) { return 0; }
+    }
+    if (fprintf(file, "revision_clouds %zu\n",
+            project->document.revision_cloud_count) < 0) {
+        return 0;
+    }
+    for (size_t i = 0; i < project->document.revision_cloud_count; i++) {
+        const DocumentPlanRevisionCloud *cloud = &project->document.revision_clouds[i];
+        if (fprintf(file, "revision_cloud %" PRIu64 " storey %" PRIu64
+                " revision %" PRIu64 " vertices %zu\n",
+                (uint64_t)cloud->id, (uint64_t)cloud->storey_id,
+                (uint64_t)cloud->revision_id, cloud->vertex_count) < 0) {
+            return 0;
+        }
+        for (size_t v = 0; v < cloud->vertex_count; v++) {
+            if (fprintf(file, "vertex %d %d\n",
+                    cloud->vertices[v].x, cloud->vertices[v].y) < 0) {
+                return 0;
+            }
+        }
+        if (fputs("end_revision_cloud\n", file) == EOF) { return 0; }
     }
     return fputs("end_project\n", file) != EOF;
 }

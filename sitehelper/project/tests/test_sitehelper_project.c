@@ -35,6 +35,9 @@ static void test_project_init_sets_defaults(void)
     assert(project.storeys == NULL);
     assert(project.storey_count == 0);
     assert(project.storey_capacity == 0);
+    assert(project.document.annotations == NULL);
+    assert(project.document.annotation_count == 0);
+    assert(project.document.annotation_capacity == 0);
 }
 
 static void test_project_init_initialises_domain_ids(void)

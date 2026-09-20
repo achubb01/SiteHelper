@@ -37,6 +37,14 @@ if(NOT MSVC)
     target_link_libraries(sitehelper_model PRIVATE m)
 endif()
 
+add_library(sitehelper_document document/document.c document/document_plan_query.c document/plan_dimension_geometry.c)
+target_include_directories(sitehelper_document PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/document)
+target_link_libraries(sitehelper_document PUBLIC sitehelper_model)
+
+add_executable(test_document document/tests/test_document.c)
+target_link_libraries(test_document PRIVATE sitehelper_document)
+add_test(NAME document_tests COMMAND test_document)
+
 # Priority 26D roof-intent/geometry prototype. This target remains isolated from
 # SiteHelperProject/persistence/editor ownership until compound fixtures prove
 # the source abstraction in 26E.
@@ -170,6 +178,7 @@ target_link_libraries(sitehelper_project
         sitehelper_model
         sitehelper_slab
         sitehelper_roof
+        sitehelper_document
     PRIVATE
         sitehelper_wall
 )
@@ -251,6 +260,12 @@ add_library(sitehelper_command
     command/create_roof_command.c
     command/delete_roof_command.c
     command/roof_source_edit_command.c
+    command/plan_note_command.c
+    command/plan_dimension_command.c
+    command/plan_symbol_command.c
+    command/plan_callout_command.c
+    command/plan_revision_cloud_command.c
+    command/document_revision_command.c
     command/sitehelper_command.c
     command/command_history.c
 )
@@ -299,6 +314,10 @@ add_library(sitehelper_editor
     editor/opening_placement.c
     editor/wall_tool.c
     editor/measurement_tool.c
+    editor/plan_dimension_tool.c
+    editor/plan_callout_tool.c
+    editor/plan_direction_symbol_tool.c
+    editor/plan_revision_cloud_tool.c
     editor/slab_tool.c
     editor/slab_feature_tool.c
     editor/slab_geometry_tool.c
@@ -857,6 +876,22 @@ target_link_libraries(test_sitehelper_project
 
 add_test(NAME sitehelper_project_tests COMMAND test_sitehelper_project)
 
+add_executable(test_project_document project/tests/test_project_document.c)
+target_link_libraries(test_project_document PRIVATE sitehelper_project sitehelper_persistence)
+add_test(NAME project_document_tests COMMAND test_project_document)
+
+add_executable(test_project_dimensions project/tests/test_project_dimensions.c)
+target_link_libraries(test_project_dimensions PRIVATE sitehelper_project sitehelper_persistence sitehelper_wall)
+add_test(NAME project_dimension_tests COMMAND test_project_dimensions)
+
+add_executable(test_project_symbols project/tests/test_project_symbols.c)
+target_link_libraries(test_project_symbols PRIVATE sitehelper_project sitehelper_persistence)
+add_test(NAME project_symbol_tests COMMAND test_project_symbols)
+
+add_executable(test_project_callouts project/tests/test_project_callouts.c)
+target_link_libraries(test_project_callouts PRIVATE sitehelper_project sitehelper_persistence)
+add_test(NAME project_callout_tests COMMAND test_project_callouts)
+
 add_executable(test_project_roofs project/tests/test_project_roofs.c)
 target_link_libraries(test_project_roofs PRIVATE sitehelper_project sitehelper_persistence sitehelper_roof)
 add_test(NAME project_roof_tests COMMAND test_project_roofs)
@@ -1067,6 +1102,87 @@ if(WIN32)
     )
 endif()
 
+add_executable(test_plan_note_command command/tests/test_plan_note_command.c)
+target_link_libraries(test_plan_note_command PRIVATE sitehelper_command)
+add_test(NAME plan_note_command_tests COMMAND test_plan_note_command)
+
+add_executable(test_plan_note_editor editor/tests/test_plan_note_editor.c)
+target_link_libraries(test_plan_note_editor PRIVATE sitehelper_editor)
+add_test(NAME plan_note_editor_tests COMMAND test_plan_note_editor)
+
+add_executable(test_plan_dimension_command command/tests/test_plan_dimension_command.c)
+target_link_libraries(test_plan_dimension_command PRIVATE sitehelper_command)
+add_test(NAME plan_dimension_command_tests COMMAND test_plan_dimension_command)
+
+add_executable(test_plan_symbol_command command/tests/test_plan_symbol_command.c)
+target_link_libraries(test_plan_symbol_command PRIVATE sitehelper_command)
+add_test(NAME plan_symbol_command_tests COMMAND test_plan_symbol_command)
+
+add_executable(test_plan_callout_command command/tests/test_plan_callout_command.c)
+target_link_libraries(test_plan_callout_command PRIVATE sitehelper_command)
+add_test(NAME plan_callout_command_tests COMMAND test_plan_callout_command)
+
+add_executable(test_plan_revision_cloud_command command/tests/test_plan_revision_cloud_command.c)
+target_link_libraries(test_plan_revision_cloud_command PRIVATE sitehelper_command)
+add_test(NAME plan_revision_cloud_command_tests COMMAND test_plan_revision_cloud_command)
+
+add_executable(test_document_revision_command command/tests/test_document_revision_command.c)
+target_link_libraries(test_document_revision_command PRIVATE sitehelper_command)
+add_test(NAME document_revision_command_tests COMMAND test_document_revision_command)
+
+add_executable(test_plan_dimension_editor editor/tests/test_plan_dimension_editor.c)
+target_link_libraries(test_plan_dimension_editor PRIVATE sitehelper_editor)
+add_test(NAME plan_dimension_editor_tests COMMAND test_plan_dimension_editor)
+
+add_executable(test_plan_symbol_editor editor/tests/test_plan_symbol_editor.c)
+target_link_libraries(test_plan_symbol_editor PRIVATE sitehelper_editor)
+add_test(NAME plan_symbol_editor_tests COMMAND test_plan_symbol_editor)
+
+add_executable(test_plan_direction_symbol_tool editor/tests/test_plan_direction_symbol_tool.c)
+target_link_libraries(test_plan_direction_symbol_tool PRIVATE sitehelper_editor)
+add_test(NAME plan_direction_symbol_tool_tests COMMAND test_plan_direction_symbol_tool)
+
+add_executable(test_plan_callout_editor editor/tests/test_plan_callout_editor.c)
+target_link_libraries(test_plan_callout_editor PRIVATE sitehelper_editor)
+add_test(NAME plan_callout_editor_tests COMMAND test_plan_callout_editor)
+
+add_executable(test_plan_callout_tool editor/tests/test_plan_callout_tool.c)
+target_link_libraries(test_plan_callout_tool PRIVATE sitehelper_editor)
+add_test(NAME plan_callout_tool_tests COMMAND test_plan_callout_tool)
+
+add_executable(test_plan_revision_cloud_editor editor/tests/test_plan_revision_cloud_editor.c)
+target_link_libraries(test_plan_revision_cloud_editor PRIVATE sitehelper_editor)
+add_test(NAME plan_revision_cloud_editor_tests COMMAND test_plan_revision_cloud_editor)
+
+add_executable(test_plan_revision_cloud_tool editor/tests/test_plan_revision_cloud_tool.c)
+target_link_libraries(test_plan_revision_cloud_tool PRIVATE sitehelper_editor)
+add_test(NAME plan_revision_cloud_tool_tests COMMAND test_plan_revision_cloud_tool)
+
+add_executable(test_plan_dimension_tool editor/tests/test_plan_dimension_tool.c)
+target_link_libraries(test_plan_dimension_tool PRIVATE sitehelper_editor)
+add_test(NAME plan_dimension_tool_tests COMMAND test_plan_dimension_tool)
+
+
+add_executable(test_plan_note_render app/tests/test_plan_note_render.c)
+target_link_libraries(test_plan_note_render PRIVATE sitehelper_app_core)
+add_test(NAME plan_note_render_tests COMMAND test_plan_note_render)
+
+add_executable(test_plan_dimension_render app/tests/test_plan_dimension_render.c)
+target_link_libraries(test_plan_dimension_render PRIVATE sitehelper_app_core)
+add_test(NAME plan_dimension_render_tests COMMAND test_plan_dimension_render)
+
+add_executable(test_plan_symbol_render app/tests/test_plan_symbol_render.c)
+target_link_libraries(test_plan_symbol_render PRIVATE sitehelper_app_core)
+add_test(NAME plan_symbol_render_tests COMMAND test_plan_symbol_render)
+
+add_executable(test_plan_callout_render app/tests/test_plan_callout_render.c)
+target_link_libraries(test_plan_callout_render PRIVATE sitehelper_app_core)
+add_test(NAME plan_callout_render_tests COMMAND test_plan_callout_render)
+
+add_executable(test_plan_revision_cloud_render app/tests/test_plan_revision_cloud_render.c)
+target_link_libraries(test_plan_revision_cloud_render PRIVATE sitehelper_app_core)
+add_test(NAME plan_revision_cloud_render_tests COMMAND test_plan_revision_cloud_render)
+
 add_executable(test_text_input gui/tests/test_text_input.c)
 target_link_libraries(test_text_input PRIVATE sitehelper_gui)
 add_test(NAME text_input_tests COMMAND test_text_input)
@@ -1202,3 +1318,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
     target_link_options(test_project_slab_edge_rebates PRIVATE
         "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
 endif()
+
+add_executable(test_project_revision_clouds project/tests/test_project_revision_clouds.c)
+target_link_libraries(test_project_revision_clouds PRIVATE sitehelper_project sitehelper_persistence)
+add_test(NAME project_revision_cloud_tests COMMAND test_project_revision_clouds)
+
+add_executable(test_project_revisions project/tests/test_project_revisions.c)
+target_link_libraries(test_project_revisions PRIVATE sitehelper_project sitehelper_persistence)
+add_test(NAME project_revision_tests COMMAND test_project_revisions)

@@ -13,7 +13,8 @@ Queries whose answer depends on those two facts belong at Project scope:
 - find a Storey by stable ID;
 - find a globally identified authoritative object by its concrete type and ID;
 - find the owning Storey for a globally identified object;
-- test whether a DomainId is already occupied anywhere in the project.
+- test whether a DomainId is already occupied anywhere in the project, including
+  project-owned document annotations.
 
 These are identity/ownership lookups, not a general-purpose query layer. The
 current typed functions in `sitehelper_project.h` are intentionally explicit.
@@ -23,6 +24,13 @@ repository, callback/predicate API, or central registry of borrowed pointers.
 Project-wide typed lookup is also the correct boundary for commands that receive
 only a stable object ID. Returned pointers are borrowed and must be reacquired
 after collection mutation or project replacement.
+
+Priority 28 adds one important distinction: a globally contained ID need not have
+an owning Storey. Document annotations are owned directly by `SiteHelperProject`;
+their explicit Storey-plan anchor is scope, not containment. Therefore
+`sitehelper_project_contains_domain_id()` includes annotations while
+`sitehelper_project_find_owning_storey*()` remains a physical ownership query and
+returns no owner for annotation IDs. Do not collapse those two meanings again.
 
 ## What stays subsystem-local
 
@@ -43,6 +51,7 @@ meaning:
 | Generated framing material totals | `framing_takeoff` |
 | Required generated pieces | `cut_list` |
 | Future stock optimisation | `optimisation`, consuming required pieces rather than Project internals |
+| Annotation lookup/content | `document`, with Project providing only global typed identity access |
 
 A feature may accept `SiteHelperProject` as a convenience input when it needs to
 resolve an owner or aggregate across Storeys. That does not make the feature a

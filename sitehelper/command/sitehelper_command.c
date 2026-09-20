@@ -99,6 +99,12 @@ struct SiteHelperCommandUndoState
         MovedSlabVertexSnapshot moved_slab_vertex;
         DeletedRoofSnapshot deleted_roof;
         EditedRoofSnapshot edited_roof;
+        DocumentAnnotation previous_annotation;
+        DocumentPlanDimension previous_dimension;
+        DocumentPlanSymbol previous_symbol;
+        DocumentPlanCallout previous_callout;
+        DocumentRevision previous_revision;
+        DocumentPlanRevisionCloud previous_revision_cloud;
     };
 };
 
@@ -144,6 +150,125 @@ static int rebate_equal(const SlabEdgeRebate *a, const SlabEdgeRebate *b)
         a->start_offset_mm == b->start_offset_mm &&
         a->end_offset_mm == b->end_offset_mm && a->width_mm == b->width_mm &&
         a->depth_mm == b->depth_mm;
+}
+
+static int annotations_equal(const DocumentAnnotation *a, const DocumentAnnotation *b)
+{
+    return a != NULL && b != NULL && a->id == b->id && a->kind == b->kind &&
+        a->anchor.storey_id == b->anchor.storey_id &&
+        a->anchor.position.x == b->anchor.position.x &&
+        a->anchor.position.y == b->anchor.position.y && a->target_id == b->target_id &&
+        a->text != NULL && b->text != NULL && strcmp(a->text, b->text) == 0;
+}
+
+static int dimension_refs_equal(DocumentDimensionReference a,
+    DocumentDimensionReference b)
+{
+    return a.kind == b.kind && a.target_id == b.target_id &&
+        a.position.x == b.position.x && a.position.y == b.position.y;
+}
+
+static int dimensions_equal(const DocumentPlanDimension *a,
+    const DocumentPlanDimension *b)
+{
+    return a != NULL && b != NULL && a->id == b->id &&
+        a->storey_id == b->storey_id && dimension_refs_equal(a->first,b->first) &&
+        dimension_refs_equal(a->second,b->second) && a->offset_mm == b->offset_mm;
+}
+
+static int dimension_matches_edit(const DocumentPlanDimension *dimension,
+    const EditPlanDimensionCommand *edit)
+{
+    if (edit == NULL) { return 0; }
+    DocumentPlanDimension expected={edit->dimension_id,edit->storey_id,
+        edit->first,edit->second,edit->offset_mm};
+    return dimensions_equal(dimension,&expected);
+}
+
+static int symbols_equal(const DocumentPlanSymbol *a, const DocumentPlanSymbol *b)
+{
+    return a != NULL && b != NULL && a->id == b->id &&
+        a->storey_id == b->storey_id && a->kind == b->kind &&
+        a->anchor.x == b->anchor.x && a->anchor.y == b->anchor.y &&
+        a->direction.dx == b->direction.dx && a->direction.dy == b->direction.dy;
+}
+
+static int symbol_matches_edit(const DocumentPlanSymbol *symbol,
+    const EditPlanSymbolCommand *edit)
+{
+    if (edit == NULL) { return 0; }
+    DocumentPlanSymbol expected={edit->symbol_id,edit->storey_id,edit->kind,edit->anchor,
+        edit->direction};
+    return symbols_equal(symbol,&expected);
+}
+
+static int callouts_equal(const DocumentPlanCallout *a, const DocumentPlanCallout *b)
+{
+    return a != NULL && b != NULL && a->id == b->id && a->storey_id == b->storey_id &&
+        a->target.x == b->target.x && a->target.y == b->target.y &&
+        a->label_anchor.x == b->label_anchor.x && a->label_anchor.y == b->label_anchor.y &&
+        a->text != NULL && b->text != NULL && strcmp(a->text,b->text) == 0;
+}
+
+static int callout_matches_edit(const DocumentPlanCallout *callout,
+    const EditPlanCalloutCommand *edit)
+{
+    if (edit == NULL) { return 0; }
+    DocumentPlanCallout expected={.id=edit->callout_id,.storey_id=edit->storey_id,
+        .target=edit->target,.label_anchor=edit->label_anchor,.text=edit->text};
+    return callouts_equal(callout,&expected);
+}
+
+
+static int revisions_equal(const DocumentRevision *a, const DocumentRevision *b)
+{
+    return a != NULL && b != NULL && a->id == b->id &&
+        strcmp(a->identifier, b->identifier) == 0 &&
+        strcmp(a->description, b->description) == 0;
+}
+
+static int revision_matches_edit(const DocumentRevision *revision,
+    const EditDocumentRevisionCommand *edit)
+{
+    if (edit == NULL) { return 0; }
+    DocumentRevision expected = {.id=edit->revision_id, .identifier=edit->identifier,
+        .description=edit->description};
+    return revisions_equal(revision, &expected);
+}
+
+static int revision_clouds_equal(const DocumentPlanRevisionCloud *a,
+    const DocumentPlanRevisionCloud *b)
+{
+    return a != NULL && b != NULL && a->id == b->id &&
+        a->storey_id == b->storey_id && a->revision_id == b->revision_id &&
+        a->vertex_count == b->vertex_count &&
+        a->vertices != NULL && b->vertices != NULL &&
+        a->vertex_count <= SIZE_MAX / sizeof *a->vertices &&
+        memcmp(a->vertices, b->vertices,
+            a->vertex_count * sizeof *a->vertices) == 0;
+}
+
+static int revision_cloud_matches_edit(const DocumentPlanRevisionCloud *cloud,
+    const EditPlanRevisionCloudCommand *edit)
+{
+    return cloud != NULL && edit != NULL && cloud->id == edit->revision_cloud_id &&
+        cloud->storey_id == edit->storey_id &&
+        cloud->vertex_count == edit->vertex_count && cloud->vertices != NULL &&
+        edit->vertices != NULL && edit->vertex_count <= SIZE_MAX / sizeof *edit->vertices &&
+        memcmp(cloud->vertices, edit->vertices,
+            edit->vertex_count * sizeof *edit->vertices) == 0;
+}
+
+static int annotation_matches_edit(const DocumentAnnotation *annotation,
+    const EditPlanNoteCommand *edit)
+{
+    if (edit == NULL) { return 0; }
+    DocumentAnnotation expected = {
+        .id = edit->annotation_id, .kind = DOCUMENT_ANNOTATION_NOTE,
+        .anchor = {.storey_id = edit->storey_id, .position = edit->position},
+        .target_id = edit->target_id, .text = edit->text
+    };
+    return annotations_equal(annotation, &expected);
 }
 
 static const SlabOutline *move_vertex_outline_const(const Slab *slab,
@@ -301,7 +426,20 @@ int sitehelper_command_capture_undo_state(
         command->type != SITEHELPER_COMMAND_EDIT_SLAB_EDGE_REBATE &&
         command->type != SITEHELPER_COMMAND_MOVE_SLAB_VERTEX &&
         command->type != SITEHELPER_COMMAND_DELETE_ROOF &&
-        command->type != SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
+        command->type != SITEHELPER_COMMAND_EDIT_ROOF_SOURCE &&
+        command->type != SITEHELPER_COMMAND_EDIT_PLAN_NOTE &&
+        command->type != SITEHELPER_COMMAND_DELETE_PLAN_NOTE &&
+        command->type != SITEHELPER_COMMAND_EDIT_PLAN_DIMENSION &&
+        command->type != SITEHELPER_COMMAND_DELETE_PLAN_DIMENSION &&
+        command->type != SITEHELPER_COMMAND_EDIT_PLAN_SYMBOL &&
+        command->type != SITEHELPER_COMMAND_DELETE_PLAN_SYMBOL &&
+        command->type != SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT &&
+        command->type != SITEHELPER_COMMAND_DELETE_PLAN_CALLOUT &&
+        command->type != SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION &&
+        command->type != SITEHELPER_COMMAND_DELETE_DOCUMENT_REVISION &&
+        command->type != SITEHELPER_COMMAND_SET_PLAN_REVISION_CLOUD_REVISION &&
+        command->type != SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD &&
+        command->type != SITEHELPER_COMMAND_DELETE_PLAN_REVISION_CLOUD) {
         return 1;
     }
     SiteHelperCommandUndoState *candidate = calloc(1, sizeof *candidate);
@@ -369,6 +507,77 @@ int sitehelper_command_capture_undo_state(
         candidate->moved_slab_vertex.vertex_index=move->vertex_index;
         candidate->moved_slab_vertex.region_top_level_offset_mm=region_top;
         candidate->moved_slab_vertex.region_thickness_mm=region_thickness;
+    }
+    else if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_DIMENSION ||
+        command->type == SITEHELPER_COMMAND_DELETE_PLAN_DIMENSION) {
+        DomainId id = command->type == SITEHELPER_COMMAND_EDIT_PLAN_DIMENSION
+            ? command->data.edit_plan_dimension.dimension_id
+            : command->data.delete_plan_dimension.dimension_id;
+        const DocumentPlanDimension *dimension = sitehelper_project_find_dimension_by_id_const(
+            project,id);
+        if (dimension == NULL) { sitehelper_command_destroy_undo_state(candidate); return 0; }
+        candidate->previous_dimension=*dimension;
+    }
+    else if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_SYMBOL ||
+        command->type == SITEHELPER_COMMAND_DELETE_PLAN_SYMBOL) {
+        DomainId id = command->type == SITEHELPER_COMMAND_EDIT_PLAN_SYMBOL
+            ? command->data.edit_plan_symbol.symbol_id
+            : command->data.delete_plan_symbol.symbol_id;
+        const DocumentPlanSymbol *symbol = sitehelper_project_find_symbol_by_id_const(project,id);
+        if (symbol == NULL) { sitehelper_command_destroy_undo_state(candidate); return 0; }
+        candidate->previous_symbol=*symbol;
+    }
+    else if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT ||
+        command->type == SITEHELPER_COMMAND_DELETE_PLAN_CALLOUT) {
+        DomainId id=command->type == SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT
+            ? command->data.edit_plan_callout.callout_id
+            : command->data.delete_plan_callout.callout_id;
+        const DocumentPlanCallout *callout=sitehelper_project_find_callout_by_id_const(project,id);
+        if (callout == NULL || document_plan_callout_clone(callout,&candidate->previous_callout)
+                != DOCUMENT_SUCCESS) {
+            sitehelper_command_destroy_undo_state(candidate); return 0;
+        }
+    }
+    else if (command->type == SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION ||
+        command->type == SITEHELPER_COMMAND_DELETE_DOCUMENT_REVISION) {
+        DomainId id = command->type == SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION
+            ? command->data.edit_document_revision.revision_id
+            : command->data.delete_document_revision.revision_id;
+        const DocumentRevision *revision = sitehelper_project_find_revision_by_id_const(
+            project, id);
+        if (revision == NULL || document_revision_clone(revision,
+                &candidate->previous_revision) != DOCUMENT_SUCCESS) {
+            sitehelper_command_destroy_undo_state(candidate); return 0;
+        }
+    }
+    else if (command->type == SITEHELPER_COMMAND_SET_PLAN_REVISION_CLOUD_REVISION ||
+        command->type == SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD ||
+        command->type == SITEHELPER_COMMAND_DELETE_PLAN_REVISION_CLOUD) {
+        DomainId id = command->type == SITEHELPER_COMMAND_SET_PLAN_REVISION_CLOUD_REVISION
+            ? command->data.set_plan_revision_cloud_revision.revision_cloud_id
+            : command->type == SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD
+                ? command->data.edit_plan_revision_cloud.revision_cloud_id
+                : command->data.delete_plan_revision_cloud.revision_cloud_id;
+        const DocumentPlanRevisionCloud *cloud =
+            sitehelper_project_find_revision_cloud_by_id_const(project, id);
+        if (cloud == NULL ||
+            document_plan_revision_cloud_clone(cloud,
+                &candidate->previous_revision_cloud) != DOCUMENT_SUCCESS) {
+            sitehelper_command_destroy_undo_state(candidate);
+            return 0;
+        }
+    }
+    else if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_NOTE ||
+        command->type == SITEHELPER_COMMAND_DELETE_PLAN_NOTE) {
+        DomainId id = command->type == SITEHELPER_COMMAND_EDIT_PLAN_NOTE
+            ? command->data.edit_plan_note.annotation_id
+            : command->data.delete_plan_note.annotation_id;
+        const DocumentAnnotation *annotation = sitehelper_project_find_annotation_by_id_const(
+            project, id);
+        if (annotation == NULL || document_annotation_clone(annotation,
+                &candidate->previous_annotation) != DOCUMENT_SUCCESS) {
+            sitehelper_command_destroy_undo_state(candidate); return 0;
+        }
     }
     else if (command->type == SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
         const Roof *roof = sitehelper_project_find_roof_by_id_const(project,
@@ -473,6 +682,19 @@ void sitehelper_command_destroy_undo_state(SiteHelperCommandUndoState *state)
         deleted_roof_snapshot_destroy(&state->deleted_roof);
     } else if (state->type == SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
         roof_destroy(&state->edited_roof.roof);
+    } else if (state->type == SITEHELPER_COMMAND_EDIT_PLAN_NOTE ||
+        state->type == SITEHELPER_COMMAND_DELETE_PLAN_NOTE) {
+        document_annotation_destroy(&state->previous_annotation);
+    } else if (state->type == SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT ||
+        state->type == SITEHELPER_COMMAND_DELETE_PLAN_CALLOUT) {
+        document_plan_callout_destroy(&state->previous_callout);
+    } else if (state->type == SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION ||
+        state->type == SITEHELPER_COMMAND_DELETE_DOCUMENT_REVISION) {
+        document_revision_destroy(&state->previous_revision);
+    } else if (state->type == SITEHELPER_COMMAND_SET_PLAN_REVISION_CLOUD_REVISION ||
+        state->type == SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD ||
+        state->type == SITEHELPER_COMMAND_DELETE_PLAN_REVISION_CLOUD) {
+        document_plan_revision_cloud_destroy(&state->previous_revision_cloud);
     }
     free(state);
 }
@@ -483,6 +705,115 @@ int sitehelper_command_undo_with_state(
 {
     if (project == NULL || command == NULL || result == NULL || command->type != result->type) {
         return 0;
+    }
+    if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT) {
+        const DocumentPlanCallout *current=sitehelper_project_find_callout_by_id_const(
+            project,command->data.edit_plan_callout.callout_id);
+        return state != NULL && state->type == command->type &&
+            result->data.callout.callout_id == command->data.edit_plan_callout.callout_id &&
+            callout_matches_edit(current,&command->data.edit_plan_callout) &&
+            sitehelper_project_replace_callout(project,&state->previous_callout);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_PLAN_CALLOUT) {
+        return state != NULL && state->type == command->type &&
+            result->data.callout.callout_id == command->data.delete_plan_callout.callout_id &&
+            sitehelper_project_find_callout_by_id_const(project,
+                command->data.delete_plan_callout.callout_id) == NULL &&
+            sitehelper_project_insert_callout(project,&state->previous_callout);
+    }
+    if (command->type == SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION) {
+        const DocumentRevision *current=sitehelper_project_find_revision_by_id_const(
+            project,command->data.edit_document_revision.revision_id);
+        return state != NULL && state->type == command->type &&
+            result->data.revision.revision_id == command->data.edit_document_revision.revision_id &&
+            revision_matches_edit(current,&command->data.edit_document_revision) &&
+            sitehelper_project_replace_revision(project,&state->previous_revision);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_DOCUMENT_REVISION) {
+        return state != NULL && state->type == command->type &&
+            result->data.revision.revision_id == command->data.delete_document_revision.revision_id &&
+            sitehelper_project_find_revision_by_id_const(project,
+                command->data.delete_document_revision.revision_id) == NULL &&
+            sitehelper_project_insert_revision(project,&state->previous_revision);
+    }
+    if (command->type == SITEHELPER_COMMAND_SET_PLAN_REVISION_CLOUD_REVISION) {
+        const DocumentPlanRevisionCloud *current =
+            sitehelper_project_find_revision_cloud_by_id_const(project,
+                command->data.set_plan_revision_cloud_revision.revision_cloud_id);
+        return state != NULL && state->type == command->type &&
+            result->data.revision_cloud.revision_cloud_id ==
+                command->data.set_plan_revision_cloud_revision.revision_cloud_id &&
+            current != NULL &&
+            current->revision_id == command->data.set_plan_revision_cloud_revision.revision_id &&
+            sitehelper_project_replace_revision_cloud(
+                project, &state->previous_revision_cloud);
+    }
+    if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD) {
+        const DocumentPlanRevisionCloud *current =
+            sitehelper_project_find_revision_cloud_by_id_const(
+                project, command->data.edit_plan_revision_cloud.revision_cloud_id);
+        return state != NULL && state->type == command->type &&
+            result->data.revision_cloud.revision_cloud_id ==
+                command->data.edit_plan_revision_cloud.revision_cloud_id &&
+            revision_cloud_matches_edit(current,
+                &command->data.edit_plan_revision_cloud) &&
+            current->revision_id == state->previous_revision_cloud.revision_id &&
+            sitehelper_project_replace_revision_cloud(
+                project, &state->previous_revision_cloud);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_PLAN_REVISION_CLOUD) {
+        return state != NULL && state->type == command->type &&
+            result->data.revision_cloud.revision_cloud_id ==
+                command->data.delete_plan_revision_cloud.revision_cloud_id &&
+            sitehelper_project_find_revision_cloud_by_id_const(project,
+                command->data.delete_plan_revision_cloud.revision_cloud_id) == NULL &&
+            sitehelper_project_insert_revision_cloud(
+                project, &state->previous_revision_cloud);
+    }
+    if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_SYMBOL) {
+        const DocumentPlanSymbol *current=sitehelper_project_find_symbol_by_id_const(
+            project,command->data.edit_plan_symbol.symbol_id);
+        return state != NULL && state->type == command->type &&
+            result->data.symbol.symbol_id == command->data.edit_plan_symbol.symbol_id &&
+            symbol_matches_edit(current,&command->data.edit_plan_symbol) &&
+            sitehelper_project_replace_symbol(project,&state->previous_symbol);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_PLAN_SYMBOL) {
+        return state != NULL && state->type == command->type &&
+            result->data.symbol.symbol_id == command->data.delete_plan_symbol.symbol_id &&
+            sitehelper_project_find_symbol_by_id_const(project,
+                command->data.delete_plan_symbol.symbol_id) == NULL &&
+            sitehelper_project_insert_symbol(project,&state->previous_symbol);
+    }
+    if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_DIMENSION) {
+        const DocumentPlanDimension *current=sitehelper_project_find_dimension_by_id_const(
+            project,command->data.edit_plan_dimension.dimension_id);
+        return state != NULL && state->type == command->type &&
+            result->data.dimension.dimension_id == command->data.edit_plan_dimension.dimension_id &&
+            dimension_matches_edit(current,&command->data.edit_plan_dimension) &&
+            sitehelper_project_replace_dimension(project,&state->previous_dimension);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_PLAN_DIMENSION) {
+        return state != NULL && state->type == command->type &&
+            result->data.dimension.dimension_id == command->data.delete_plan_dimension.dimension_id &&
+            sitehelper_project_find_dimension_by_id_const(project,
+                command->data.delete_plan_dimension.dimension_id) == NULL &&
+            sitehelper_project_insert_dimension(project,&state->previous_dimension);
+    }
+    if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_NOTE) {
+        const DocumentAnnotation *current = sitehelper_project_find_annotation_by_id_const(
+            project, command->data.edit_plan_note.annotation_id);
+        return state != NULL && state->type == command->type &&
+            result->data.annotation.annotation_id == command->data.edit_plan_note.annotation_id &&
+            annotation_matches_edit(current, &command->data.edit_plan_note) &&
+            sitehelper_project_replace_annotation(project, &state->previous_annotation);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_PLAN_NOTE) {
+        return state != NULL && state->type == command->type &&
+            result->data.annotation.annotation_id == command->data.delete_plan_note.annotation_id &&
+            sitehelper_project_find_annotation_by_id_const(project,
+                command->data.delete_plan_note.annotation_id) == NULL &&
+            sitehelper_project_insert_annotation(project, &state->previous_annotation);
     }
     if (command->type == SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
         if (state == NULL || state->type != command->type ||
@@ -674,6 +1005,119 @@ int sitehelper_command_redo_with_state(
 {
     if (project == NULL || command == NULL || result == NULL ||
         command->type != result->type) { return 0; }
+    if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT) {
+        const DocumentPlanCallout *current=sitehelper_project_find_callout_by_id_const(
+            project,command->data.edit_plan_callout.callout_id);
+        return state != NULL && state->type == command->type &&
+            result->data.callout.callout_id == command->data.edit_plan_callout.callout_id &&
+            callouts_equal(current,&state->previous_callout) &&
+            edit_plan_callout_command_execute(project,&command->data.edit_plan_callout);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_PLAN_CALLOUT) {
+        const DocumentPlanCallout *current=sitehelper_project_find_callout_by_id_const(
+            project,command->data.delete_plan_callout.callout_id);
+        return state != NULL && state->type == command->type &&
+            result->data.callout.callout_id == command->data.delete_plan_callout.callout_id &&
+            callouts_equal(current,&state->previous_callout) &&
+            delete_plan_callout_command_execute(project,&command->data.delete_plan_callout);
+    }
+    if (command->type == SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION) {
+        const DocumentRevision *current=sitehelper_project_find_revision_by_id_const(
+            project,command->data.edit_document_revision.revision_id);
+        return state != NULL && state->type == command->type &&
+            result->data.revision.revision_id == command->data.edit_document_revision.revision_id &&
+            revisions_equal(current,&state->previous_revision) &&
+            edit_document_revision_command_execute(project,&command->data.edit_document_revision);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_DOCUMENT_REVISION) {
+        const DocumentRevision *current=sitehelper_project_find_revision_by_id_const(
+            project,command->data.delete_document_revision.revision_id);
+        return state != NULL && state->type == command->type &&
+            result->data.revision.revision_id == command->data.delete_document_revision.revision_id &&
+            revisions_equal(current,&state->previous_revision) &&
+            delete_document_revision_command_execute(project,&command->data.delete_document_revision);
+    }
+    if (command->type == SITEHELPER_COMMAND_SET_PLAN_REVISION_CLOUD_REVISION) {
+        const DocumentPlanRevisionCloud *current =
+            sitehelper_project_find_revision_cloud_by_id_const(project,
+                command->data.set_plan_revision_cloud_revision.revision_cloud_id);
+        return state != NULL && state->type == command->type &&
+            result->data.revision_cloud.revision_cloud_id ==
+                command->data.set_plan_revision_cloud_revision.revision_cloud_id &&
+            revision_clouds_equal(current, &state->previous_revision_cloud) &&
+            set_plan_revision_cloud_revision_command_execute(
+                project, &command->data.set_plan_revision_cloud_revision);
+    }
+    if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD) {
+        const DocumentPlanRevisionCloud *current =
+            sitehelper_project_find_revision_cloud_by_id_const(
+                project, command->data.edit_plan_revision_cloud.revision_cloud_id);
+        return state != NULL && state->type == command->type &&
+            result->data.revision_cloud.revision_cloud_id ==
+                command->data.edit_plan_revision_cloud.revision_cloud_id &&
+            revision_clouds_equal(current, &state->previous_revision_cloud) &&
+            edit_plan_revision_cloud_command_execute(
+                project, &command->data.edit_plan_revision_cloud);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_PLAN_REVISION_CLOUD) {
+        const DocumentPlanRevisionCloud *current =
+            sitehelper_project_find_revision_cloud_by_id_const(
+                project, command->data.delete_plan_revision_cloud.revision_cloud_id);
+        return state != NULL && state->type == command->type &&
+            result->data.revision_cloud.revision_cloud_id ==
+                command->data.delete_plan_revision_cloud.revision_cloud_id &&
+            revision_clouds_equal(current, &state->previous_revision_cloud) &&
+            delete_plan_revision_cloud_command_execute(
+                project, &command->data.delete_plan_revision_cloud);
+    }
+    if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_SYMBOL) {
+        const DocumentPlanSymbol *current=sitehelper_project_find_symbol_by_id_const(
+            project,command->data.edit_plan_symbol.symbol_id);
+        return state != NULL && state->type == command->type &&
+            result->data.symbol.symbol_id == command->data.edit_plan_symbol.symbol_id &&
+            symbols_equal(current,&state->previous_symbol) &&
+            edit_plan_symbol_command_execute(project,&command->data.edit_plan_symbol);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_PLAN_SYMBOL) {
+        const DocumentPlanSymbol *current=sitehelper_project_find_symbol_by_id_const(
+            project,command->data.delete_plan_symbol.symbol_id);
+        return state != NULL && state->type == command->type &&
+            result->data.symbol.symbol_id == command->data.delete_plan_symbol.symbol_id &&
+            symbols_equal(current,&state->previous_symbol) &&
+            delete_plan_symbol_command_execute(project,&command->data.delete_plan_symbol);
+    }
+    if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_DIMENSION) {
+        const DocumentPlanDimension *current=sitehelper_project_find_dimension_by_id_const(
+            project,command->data.edit_plan_dimension.dimension_id);
+        return state != NULL && state->type == command->type &&
+            result->data.dimension.dimension_id == command->data.edit_plan_dimension.dimension_id &&
+            dimensions_equal(current,&state->previous_dimension) &&
+            edit_plan_dimension_command_execute(project,&command->data.edit_plan_dimension);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_PLAN_DIMENSION) {
+        const DocumentPlanDimension *current=sitehelper_project_find_dimension_by_id_const(
+            project,command->data.delete_plan_dimension.dimension_id);
+        return state != NULL && state->type == command->type &&
+            result->data.dimension.dimension_id == command->data.delete_plan_dimension.dimension_id &&
+            dimensions_equal(current,&state->previous_dimension) &&
+            delete_plan_dimension_command_execute(project,&command->data.delete_plan_dimension);
+    }
+    if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_NOTE) {
+        const DocumentAnnotation *current = sitehelper_project_find_annotation_by_id_const(
+            project, command->data.edit_plan_note.annotation_id);
+        return state != NULL && state->type == command->type &&
+            result->data.annotation.annotation_id == command->data.edit_plan_note.annotation_id &&
+            annotations_equal(current, &state->previous_annotation) &&
+            edit_plan_note_command_execute(project, &command->data.edit_plan_note);
+    }
+    if (command->type == SITEHELPER_COMMAND_DELETE_PLAN_NOTE) {
+        const DocumentAnnotation *current = sitehelper_project_find_annotation_by_id_const(
+            project, command->data.delete_plan_note.annotation_id);
+        return state != NULL && state->type == command->type &&
+            result->data.annotation.annotation_id == command->data.delete_plan_note.annotation_id &&
+            annotations_equal(current, &state->previous_annotation) &&
+            delete_plan_note_command_execute(project, &command->data.delete_plan_note);
+    }
     if (command->type == SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
         if (state == NULL || state->type != command->type ||
             state->edited_roof.roof.id != command->data.edit_roof_source.roof_id ||
@@ -929,6 +1373,198 @@ int sitehelper_command_from_roof_source_edit(const RoofSourceEditCommand *edit,
     return 1;
 }
 
+int sitehelper_command_from_create_plan_note(const CreatePlanNoteCommand *create,
+    SiteHelperCommand *command)
+{
+    if (create == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate = {.type = SITEHELPER_COMMAND_CREATE_PLAN_NOTE};
+    if (!create_plan_note_command_clone(create, &candidate.data.create_plan_note)) { return 0; }
+    *command = candidate;
+    return 1;
+}
+
+int sitehelper_command_from_edit_plan_note(const EditPlanNoteCommand *edit,
+    SiteHelperCommand *command)
+{
+    if (edit == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate = {.type = SITEHELPER_COMMAND_EDIT_PLAN_NOTE};
+    if (!edit_plan_note_command_clone(edit, &candidate.data.edit_plan_note)) { return 0; }
+    *command = candidate;
+    return 1;
+}
+
+int sitehelper_command_from_delete_plan_note(const DeletePlanNoteCommand *deletion,
+    SiteHelperCommand *command)
+{
+    if (deletion == NULL || command == NULL) { return 0; }
+    *command = (SiteHelperCommand){.type = SITEHELPER_COMMAND_DELETE_PLAN_NOTE,
+        .data.delete_plan_note = *deletion};
+    return 1;
+}
+
+int sitehelper_command_from_create_plan_dimension(const CreatePlanDimensionCommand *create,
+    SiteHelperCommand *command)
+{
+    if (create == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_CREATE_PLAN_DIMENSION,
+        .data.create_plan_dimension=*create};
+    return 1;
+}
+
+int sitehelper_command_from_edit_plan_dimension(const EditPlanDimensionCommand *edit,
+    SiteHelperCommand *command)
+{
+    if (edit == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_EDIT_PLAN_DIMENSION,
+        .data.edit_plan_dimension=*edit};
+    return 1;
+}
+
+int sitehelper_command_from_delete_plan_dimension(const DeletePlanDimensionCommand *deletion,
+    SiteHelperCommand *command)
+{
+    if (deletion == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_DELETE_PLAN_DIMENSION,
+        .data.delete_plan_dimension=*deletion};
+    return 1;
+}
+
+int sitehelper_command_from_create_plan_symbol(const CreatePlanSymbolCommand *create,
+    SiteHelperCommand *command)
+{
+    if (create == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_CREATE_PLAN_SYMBOL,
+        .data.create_plan_symbol=*create};
+    return 1;
+}
+
+int sitehelper_command_from_edit_plan_symbol(const EditPlanSymbolCommand *edit,
+    SiteHelperCommand *command)
+{
+    if (edit == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_EDIT_PLAN_SYMBOL,
+        .data.edit_plan_symbol=*edit};
+    return 1;
+}
+
+int sitehelper_command_from_delete_plan_symbol(const DeletePlanSymbolCommand *deletion,
+    SiteHelperCommand *command)
+{
+    if (deletion == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_DELETE_PLAN_SYMBOL,
+        .data.delete_plan_symbol=*deletion};
+    return 1;
+}
+
+int sitehelper_command_from_create_plan_callout(const CreatePlanCalloutCommand *create,
+    SiteHelperCommand *command)
+{
+    if (create == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate={.type=SITEHELPER_COMMAND_CREATE_PLAN_CALLOUT};
+    if (!create_plan_callout_command_clone(create,&candidate.data.create_plan_callout)) { return 0; }
+    *command=candidate;
+    return 1;
+}
+
+int sitehelper_command_from_edit_plan_callout(const EditPlanCalloutCommand *edit,
+    SiteHelperCommand *command)
+{
+    if (edit == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate={.type=SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT};
+    if (!edit_plan_callout_command_clone(edit,&candidate.data.edit_plan_callout)) { return 0; }
+    *command=candidate;
+    return 1;
+}
+
+int sitehelper_command_from_delete_plan_callout(const DeletePlanCalloutCommand *deletion,
+    SiteHelperCommand *command)
+{
+    if (deletion == NULL || command == NULL) { return 0; }
+    *command=(SiteHelperCommand){.type=SITEHELPER_COMMAND_DELETE_PLAN_CALLOUT,
+        .data.delete_plan_callout=*deletion};
+    return 1;
+}
+
+
+int sitehelper_command_from_create_document_revision(
+    const CreateDocumentRevisionCommand *create, SiteHelperCommand *command)
+{
+    if (create == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate={.type=SITEHELPER_COMMAND_CREATE_DOCUMENT_REVISION};
+    if (!create_document_revision_command_clone(create,&candidate.data.create_document_revision)) {
+        return 0;
+    }
+    sitehelper_command_destroy(command); *command=candidate; return 1;
+}
+
+int sitehelper_command_from_edit_document_revision(
+    const EditDocumentRevisionCommand *edit, SiteHelperCommand *command)
+{
+    if (edit == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate={.type=SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION};
+    if (!edit_document_revision_command_clone(edit,&candidate.data.edit_document_revision)) {
+        return 0;
+    }
+    sitehelper_command_destroy(command); *command=candidate; return 1;
+}
+
+int sitehelper_command_from_delete_document_revision(
+    const DeleteDocumentRevisionCommand *deletion, SiteHelperCommand *command)
+{
+    if (deletion == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate={.type=SITEHELPER_COMMAND_DELETE_DOCUMENT_REVISION,
+        .data.delete_document_revision=*deletion};
+    sitehelper_command_destroy(command); *command=candidate; return 1;
+}
+
+int sitehelper_command_from_set_plan_revision_cloud_revision(
+    const SetPlanRevisionCloudRevisionCommand *set, SiteHelperCommand *command)
+{
+    if (set == NULL || command == NULL) { return 0; }
+    *command = (SiteHelperCommand){
+        .type = SITEHELPER_COMMAND_SET_PLAN_REVISION_CLOUD_REVISION,
+        .data.set_plan_revision_cloud_revision = *set
+    };
+    return 1;
+}
+
+int sitehelper_command_from_create_plan_revision_cloud(
+    const CreatePlanRevisionCloudCommand *create, SiteHelperCommand *command)
+{
+    if (create == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate = {.type = SITEHELPER_COMMAND_CREATE_PLAN_REVISION_CLOUD};
+    if (!create_plan_revision_cloud_command_clone(create,
+            &candidate.data.create_plan_revision_cloud)) {
+        return 0;
+    }
+    *command = candidate;
+    return 1;
+}
+
+int sitehelper_command_from_edit_plan_revision_cloud(
+    const EditPlanRevisionCloudCommand *edit, SiteHelperCommand *command)
+{
+    if (edit == NULL || command == NULL) { return 0; }
+    SiteHelperCommand candidate = {.type = SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD};
+    if (!edit_plan_revision_cloud_command_clone(edit,
+            &candidate.data.edit_plan_revision_cloud)) {
+        return 0;
+    }
+    *command = candidate;
+    return 1;
+}
+
+int sitehelper_command_from_delete_plan_revision_cloud(
+    const DeletePlanRevisionCloudCommand *deletion, SiteHelperCommand *command)
+{
+    if (deletion == NULL || command == NULL) { return 0; }
+    *command = (SiteHelperCommand){
+        .type = SITEHELPER_COMMAND_DELETE_PLAN_REVISION_CLOUD,
+        .data.delete_plan_revision_cloud = *deletion
+    };
+    return 1;
+}
+
 int sitehelper_command_clone(const SiteHelperCommand *source, SiteHelperCommand *output)
 {
     if (source == NULL || output == NULL || source->type <= SITEHELPER_COMMAND_NONE ||
@@ -942,6 +1578,40 @@ int sitehelper_command_clone(const SiteHelperCommand *source, SiteHelperCommand 
         candidate.data.edit_roof_source = (RoofSourceEditCommand){0};
         if (!roof_source_edit_command_clone(&source->data.edit_roof_source,
             &candidate.data.edit_roof_source)) { return 0; }
+    } else if (source->type == SITEHELPER_COMMAND_CREATE_PLAN_NOTE) {
+        candidate.data.create_plan_note = (CreatePlanNoteCommand){0};
+        if (!create_plan_note_command_clone(&source->data.create_plan_note,
+            &candidate.data.create_plan_note)) { return 0; }
+    } else if (source->type == SITEHELPER_COMMAND_EDIT_PLAN_NOTE) {
+        candidate.data.edit_plan_note = (EditPlanNoteCommand){0};
+        if (!edit_plan_note_command_clone(&source->data.edit_plan_note,
+            &candidate.data.edit_plan_note)) { return 0; }
+    } else if (source->type == SITEHELPER_COMMAND_CREATE_PLAN_CALLOUT) {
+        candidate.data.create_plan_callout=(CreatePlanCalloutCommand){0};
+        if (!create_plan_callout_command_clone(&source->data.create_plan_callout,
+            &candidate.data.create_plan_callout)) { return 0; }
+    } else if (source->type == SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT) {
+        candidate.data.edit_plan_callout=(EditPlanCalloutCommand){0};
+        if (!edit_plan_callout_command_clone(&source->data.edit_plan_callout,
+            &candidate.data.edit_plan_callout)) { return 0; }
+    } else if (source->type == SITEHELPER_COMMAND_CREATE_DOCUMENT_REVISION) {
+        candidate.data.create_document_revision=(CreateDocumentRevisionCommand){0};
+        if (!create_document_revision_command_clone(&source->data.create_document_revision,
+                &candidate.data.create_document_revision)) { return 0; }
+    } else if (source->type == SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION) {
+        candidate.data.edit_document_revision=(EditDocumentRevisionCommand){0};
+        if (!edit_document_revision_command_clone(&source->data.edit_document_revision,
+                &candidate.data.edit_document_revision)) { return 0; }
+    } else if (source->type == SITEHELPER_COMMAND_CREATE_PLAN_REVISION_CLOUD) {
+        candidate.data.create_plan_revision_cloud=(CreatePlanRevisionCloudCommand){0};
+        if (!create_plan_revision_cloud_command_clone(
+                &source->data.create_plan_revision_cloud,
+                &candidate.data.create_plan_revision_cloud)) { return 0; }
+    } else if (source->type == SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD) {
+        candidate.data.edit_plan_revision_cloud=(EditPlanRevisionCloudCommand){0};
+        if (!edit_plan_revision_cloud_command_clone(
+                &source->data.edit_plan_revision_cloud,
+                &candidate.data.edit_plan_revision_cloud)) { return 0; }
     } else if (source->type == SITEHELPER_COMMAND_CREATE_SLAB) {
         candidate.data.create_slab=(CreateSlabCommand){0};
         if (!create_slab_command_clone(&source->data.create_slab,
@@ -965,6 +1635,24 @@ void sitehelper_command_destroy(SiteHelperCommand *command)
         create_roof_command_destroy(&command->data.create_roof);
     } else if (command->type == SITEHELPER_COMMAND_EDIT_ROOF_SOURCE) {
         roof_source_edit_command_destroy(&command->data.edit_roof_source);
+    } else if (command->type == SITEHELPER_COMMAND_CREATE_PLAN_NOTE) {
+        create_plan_note_command_destroy(&command->data.create_plan_note);
+    } else if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_NOTE) {
+        edit_plan_note_command_destroy(&command->data.edit_plan_note);
+    } else if (command->type == SITEHELPER_COMMAND_CREATE_PLAN_CALLOUT) {
+        create_plan_callout_command_destroy(&command->data.create_plan_callout);
+    } else if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT) {
+        edit_plan_callout_command_destroy(&command->data.edit_plan_callout);
+    } else if (command->type == SITEHELPER_COMMAND_CREATE_DOCUMENT_REVISION) {
+        create_document_revision_command_destroy(&command->data.create_document_revision);
+    } else if (command->type == SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION) {
+        edit_document_revision_command_destroy(&command->data.edit_document_revision);
+    } else if (command->type == SITEHELPER_COMMAND_CREATE_PLAN_REVISION_CLOUD) {
+        create_plan_revision_cloud_command_destroy(
+            &command->data.create_plan_revision_cloud);
+    } else if (command->type == SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD) {
+        edit_plan_revision_cloud_command_destroy(
+            &command->data.edit_plan_revision_cloud);
     } else if (command->type == SITEHELPER_COMMAND_CREATE_SLAB) {
         create_slab_command_destroy(&command->data.create_slab);
     } else if (command->type == SITEHELPER_COMMAND_ADD_SLAB_PENETRATION) {
@@ -1178,6 +1866,141 @@ int sitehelper_command_execute(
                     command->data.move_slab_vertex.vertex_index}};
             return 1;
 
+        case SITEHELPER_COMMAND_CREATE_PLAN_NOTE: {
+            DomainId id;
+            if (!create_plan_note_command_execute(project, &command->data.create_plan_note, &id)) {
+                return 0;
+            }
+            *result = (SiteHelperCommandResult){.type = command->type,
+                .data.annotation = {id}};
+            return 1;
+        }
+        case SITEHELPER_COMMAND_EDIT_PLAN_NOTE:
+            if (!edit_plan_note_command_execute(project, &command->data.edit_plan_note)) { return 0; }
+            *result = (SiteHelperCommandResult){.type = command->type,
+                .data.annotation = {command->data.edit_plan_note.annotation_id}};
+            return 1;
+        case SITEHELPER_COMMAND_DELETE_PLAN_NOTE:
+            if (!delete_plan_note_command_execute(project, &command->data.delete_plan_note)) { return 0; }
+            *result = (SiteHelperCommandResult){.type = command->type,
+                .data.annotation = {command->data.delete_plan_note.annotation_id}};
+            return 1;
+
+        case SITEHELPER_COMMAND_CREATE_PLAN_DIMENSION: {
+            DomainId id;
+            if (!create_plan_dimension_command_execute(project,
+                    &command->data.create_plan_dimension,&id)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,.data.dimension={id}};
+            return 1;
+        }
+        case SITEHELPER_COMMAND_EDIT_PLAN_DIMENSION:
+            if (!edit_plan_dimension_command_execute(project,
+                    &command->data.edit_plan_dimension)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.dimension={command->data.edit_plan_dimension.dimension_id}};
+            return 1;
+        case SITEHELPER_COMMAND_DELETE_PLAN_DIMENSION:
+            if (!delete_plan_dimension_command_execute(project,
+                    &command->data.delete_plan_dimension)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.dimension={command->data.delete_plan_dimension.dimension_id}};
+            return 1;
+
+        case SITEHELPER_COMMAND_CREATE_PLAN_SYMBOL: {
+            DomainId id;
+            if (!create_plan_symbol_command_execute(project,&command->data.create_plan_symbol,&id)) {
+                return 0;
+            }
+            *result=(SiteHelperCommandResult){.type=command->type,.data.symbol={id}};
+            return 1;
+        }
+        case SITEHELPER_COMMAND_EDIT_PLAN_SYMBOL:
+            if (!edit_plan_symbol_command_execute(project,&command->data.edit_plan_symbol)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.symbol={command->data.edit_plan_symbol.symbol_id}};
+            return 1;
+        case SITEHELPER_COMMAND_DELETE_PLAN_SYMBOL:
+            if (!delete_plan_symbol_command_execute(project,&command->data.delete_plan_symbol)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.symbol={command->data.delete_plan_symbol.symbol_id}};
+            return 1;
+
+        case SITEHELPER_COMMAND_CREATE_PLAN_CALLOUT: {
+            DomainId id;
+            if (!create_plan_callout_command_execute(project,&command->data.create_plan_callout,&id)) {
+                return 0;
+            }
+            *result=(SiteHelperCommandResult){.type=command->type,.data.callout={id}};
+            return 1;
+        }
+        case SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT:
+            if (!edit_plan_callout_command_execute(project,&command->data.edit_plan_callout)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.callout={command->data.edit_plan_callout.callout_id}};
+            return 1;
+        case SITEHELPER_COMMAND_DELETE_PLAN_CALLOUT:
+            if (!delete_plan_callout_command_execute(project,&command->data.delete_plan_callout)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.callout={command->data.delete_plan_callout.callout_id}};
+            return 1;
+
+        case SITEHELPER_COMMAND_CREATE_DOCUMENT_REVISION: {
+            DomainId id;
+            if (!create_document_revision_command_execute(project,
+                    &command->data.create_document_revision,&id)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,.data.revision={id}};
+            return 1;
+        }
+        case SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION:
+            if (!edit_document_revision_command_execute(project,
+                    &command->data.edit_document_revision)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.revision={command->data.edit_document_revision.revision_id}};
+            return 1;
+        case SITEHELPER_COMMAND_DELETE_DOCUMENT_REVISION:
+            if (!delete_document_revision_command_execute(project,
+                    &command->data.delete_document_revision)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.revision={command->data.delete_document_revision.revision_id}};
+            return 1;
+
+        case SITEHELPER_COMMAND_SET_PLAN_REVISION_CLOUD_REVISION:
+            if (!set_plan_revision_cloud_revision_command_execute(project,
+                    &command->data.set_plan_revision_cloud_revision)) { return 0; }
+            *result=(SiteHelperCommandResult){.type=command->type,
+                .data.revision_cloud={
+                    command->data.set_plan_revision_cloud_revision.revision_cloud_id}};
+            return 1;
+
+        case SITEHELPER_COMMAND_CREATE_PLAN_REVISION_CLOUD: {
+            DomainId id;
+            if (!create_plan_revision_cloud_command_execute(project,
+                    &command->data.create_plan_revision_cloud, &id)) {
+                return 0;
+            }
+            *result = (SiteHelperCommandResult){.type=command->type,
+                .data.revision_cloud={id}};
+            return 1;
+        }
+        case SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD:
+            if (!edit_plan_revision_cloud_command_execute(project,
+                    &command->data.edit_plan_revision_cloud)) {
+                return 0;
+            }
+            *result = (SiteHelperCommandResult){.type=command->type,
+                .data.revision_cloud={
+                    command->data.edit_plan_revision_cloud.revision_cloud_id}};
+            return 1;
+        case SITEHELPER_COMMAND_DELETE_PLAN_REVISION_CLOUD:
+            if (!delete_plan_revision_cloud_command_execute(project,
+                    &command->data.delete_plan_revision_cloud)) {
+                return 0;
+            }
+            *result = (SiteHelperCommandResult){.type=command->type,
+                .data.revision_cloud={
+                    command->data.delete_plan_revision_cloud.revision_cloud_id}};
+            return 1;
+
         case SITEHELPER_COMMAND_CREATE_ROOF: {
             DomainId roof_id, portion_id;
             if (!create_roof_command_execute(project, &command->data.create_roof,
@@ -1387,6 +2210,33 @@ int sitehelper_command_undo(
                 slab_remove_edge_rebate(slab,index) == SLAB_SUCCESS;
         }
 
+        case SITEHELPER_COMMAND_CREATE_PLAN_NOTE:
+            return result->data.annotation.annotation_id != DOMAIN_ID_INVALID &&
+                create_plan_note_command_undo(project, &command->data.create_plan_note,
+                    result->data.annotation.annotation_id);
+        case SITEHELPER_COMMAND_CREATE_PLAN_DIMENSION:
+            return result->data.dimension.dimension_id != DOMAIN_ID_INVALID &&
+                create_plan_dimension_command_undo(project,&command->data.create_plan_dimension,
+                    result->data.dimension.dimension_id);
+        case SITEHELPER_COMMAND_CREATE_PLAN_SYMBOL:
+            return result->data.symbol.symbol_id != DOMAIN_ID_INVALID &&
+                create_plan_symbol_command_undo(project,&command->data.create_plan_symbol,
+                    result->data.symbol.symbol_id);
+
+        case SITEHELPER_COMMAND_CREATE_PLAN_CALLOUT:
+            return result->data.callout.callout_id != DOMAIN_ID_INVALID &&
+                create_plan_callout_command_undo(project,&command->data.create_plan_callout,
+                    result->data.callout.callout_id);
+        case SITEHELPER_COMMAND_CREATE_DOCUMENT_REVISION:
+            return result->data.revision.revision_id != DOMAIN_ID_INVALID &&
+                create_document_revision_command_undo(project,
+                    &command->data.create_document_revision,result->data.revision.revision_id);
+        case SITEHELPER_COMMAND_CREATE_PLAN_REVISION_CLOUD:
+            return result->data.revision_cloud.revision_cloud_id != DOMAIN_ID_INVALID &&
+                create_plan_revision_cloud_command_undo(project,
+                    &command->data.create_plan_revision_cloud,
+                    result->data.revision_cloud.revision_cloud_id);
+
         case SITEHELPER_COMMAND_CREATE_ROOF:
             return result->data.roof.roof_id != DOMAIN_ID_INVALID &&
                 result->data.roof.portion_id != DOMAIN_ID_INVALID &&
@@ -1418,6 +2268,19 @@ int sitehelper_command_undo(
                 result->data.add_wall.wall_id
             );
 
+        case SITEHELPER_COMMAND_EDIT_PLAN_NOTE:
+        case SITEHELPER_COMMAND_DELETE_PLAN_NOTE:
+        case SITEHELPER_COMMAND_EDIT_PLAN_DIMENSION:
+        case SITEHELPER_COMMAND_DELETE_PLAN_DIMENSION:
+        case SITEHELPER_COMMAND_EDIT_PLAN_SYMBOL:
+        case SITEHELPER_COMMAND_DELETE_PLAN_SYMBOL:
+        case SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT:
+        case SITEHELPER_COMMAND_DELETE_PLAN_CALLOUT:
+        case SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION:
+        case SITEHELPER_COMMAND_DELETE_DOCUMENT_REVISION:
+        case SITEHELPER_COMMAND_SET_PLAN_REVISION_CLOUD_REVISION:
+        case SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD:
+        case SITEHELPER_COMMAND_DELETE_PLAN_REVISION_CLOUD:
         case SITEHELPER_COMMAND_DELETE_WALL:
         case SITEHELPER_COMMAND_DELETE_ROOF:
         case SITEHELPER_COMMAND_EDIT_ROOF_SOURCE:
@@ -1501,6 +2364,46 @@ int sitehelper_command_redo(
         case SITEHELPER_COMMAND_MOVE_SLAB_VERTEX:
         case SITEHELPER_COMMAND_EDIT_ROOF_SOURCE:
             return 0; /* History-owned snapshot is required for exact verification. */
+
+        case SITEHELPER_COMMAND_CREATE_PLAN_NOTE:
+            return result->data.annotation.annotation_id != DOMAIN_ID_INVALID &&
+                create_plan_note_command_redo(project, &command->data.create_plan_note,
+                    result->data.annotation.annotation_id);
+        case SITEHELPER_COMMAND_CREATE_PLAN_DIMENSION:
+            return result->data.dimension.dimension_id != DOMAIN_ID_INVALID &&
+                create_plan_dimension_command_redo(project,&command->data.create_plan_dimension,
+                    result->data.dimension.dimension_id);
+        case SITEHELPER_COMMAND_CREATE_PLAN_SYMBOL:
+            return result->data.symbol.symbol_id != DOMAIN_ID_INVALID &&
+                create_plan_symbol_command_redo(project,&command->data.create_plan_symbol,
+                    result->data.symbol.symbol_id);
+        case SITEHELPER_COMMAND_CREATE_PLAN_CALLOUT:
+            return result->data.callout.callout_id != DOMAIN_ID_INVALID &&
+                create_plan_callout_command_redo(project,&command->data.create_plan_callout,
+                    result->data.callout.callout_id);
+        case SITEHELPER_COMMAND_CREATE_DOCUMENT_REVISION:
+            return result->data.revision.revision_id != DOMAIN_ID_INVALID &&
+                create_document_revision_command_redo(project,
+                    &command->data.create_document_revision,result->data.revision.revision_id);
+        case SITEHELPER_COMMAND_CREATE_PLAN_REVISION_CLOUD:
+            return result->data.revision_cloud.revision_cloud_id != DOMAIN_ID_INVALID &&
+                create_plan_revision_cloud_command_redo(project,
+                    &command->data.create_plan_revision_cloud,
+                    result->data.revision_cloud.revision_cloud_id);
+        case SITEHELPER_COMMAND_EDIT_PLAN_NOTE:
+        case SITEHELPER_COMMAND_DELETE_PLAN_NOTE:
+        case SITEHELPER_COMMAND_EDIT_PLAN_DIMENSION:
+        case SITEHELPER_COMMAND_DELETE_PLAN_DIMENSION:
+        case SITEHELPER_COMMAND_EDIT_PLAN_SYMBOL:
+        case SITEHELPER_COMMAND_DELETE_PLAN_SYMBOL:
+        case SITEHELPER_COMMAND_EDIT_PLAN_CALLOUT:
+        case SITEHELPER_COMMAND_DELETE_PLAN_CALLOUT:
+        case SITEHELPER_COMMAND_EDIT_DOCUMENT_REVISION:
+        case SITEHELPER_COMMAND_DELETE_DOCUMENT_REVISION:
+        case SITEHELPER_COMMAND_SET_PLAN_REVISION_CLOUD_REVISION:
+        case SITEHELPER_COMMAND_EDIT_PLAN_REVISION_CLOUD:
+        case SITEHELPER_COMMAND_DELETE_PLAN_REVISION_CLOUD:
+            return 0; /* History snapshot required for exact verification/restoration. */
 
         case SITEHELPER_COMMAND_CREATE_ROOF:
             return create_roof_command_redo(project, &command->data.create_roof,

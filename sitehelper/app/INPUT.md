@@ -160,3 +160,42 @@ The slab properties panel and numeric HUD are presentation only. The panel reads
 fresh `EditorProperties`, hit-tests screen-space rows and starts the typed input
 session; it never mutates Slab data. Unfinished text, active property, cursor and
 focus are transient and are not persisted. Persistence remains v14.
+
+## Plan-note text focus — Priority 28C
+
+`APP_KEYBOARD_FOCUS_PLAN_NOTE` reuses the application's existing single keyboard
+focus owner rather than introducing a second SDL text-input path. The Note tool
+starts this focus after a Plan click. Existing notes seed the buffer and preserve
+their stable annotation ID and weak target ID; new notes start with an empty
+buffer at the snapped Plan position.
+
+While note focus is active, viewport clicks and global shortcuts do not mutate
+the project. `Enter` emits the existing create/edit note command, `Shift+Enter`
+adds a line break, editing/navigation keys modify only the transient buffer, and
+`Esc` cancels. Tool changes release the focus. Successful history execution also
+releases it; failed execution leaves it active.
+
+Ordinary platform text-input events still reject control characters. Multiline
+notes use an explicit newline insertion operation, and persisted multiline note
+text is loaded through a separate validated multiline insertion path. This keeps
+numeric-property and wall-length entry grammars isolated from note semantics.
+
+## Plan-callout text focus — Priority 28E2
+
+`APP_KEYBOARD_FOCUS_PLAN_CALLOUT` reuses the same single application keyboard
+focus owner as notes and numeric entry. The Callout tool first captures two fixed
+Plan positions (target and label anchor); only then does `AppInput` take ownership
+of the transient text buffer. No `DocumentPlanCallout *` is retained across
+events.
+
+New callouts start with an empty multiline buffer. Clicking an existing callout
+leader while the Callout tool is idle selects it and seeds the same buffer with
+its persisted text while copying its target/label geometry. `Enter` emits the
+normal create/edit command, `Shift+Enter` inserts a newline, and `Esc` cancels.
+Saving unchanged existing text closes the session without a no-op history entry.
+A rejected command leaves the session active for correction/retry.
+
+Cancelling callout text entry resets the transient two-point Callout tool to its
+first-pick state. Successful command completion does the same through normal
+editor completion/reconciliation. View/tool/Storey/project context changes also
+release focus through the existing `app_input_refresh_in_project()` rules.

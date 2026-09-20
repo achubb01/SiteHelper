@@ -38,6 +38,14 @@ static void test_edit(void)
         assert(text_edit_insert(&edit, bad[i]) == TEXT_EDIT_INVALID);
         assert(strcmp(edit.text, "az") == 0 && edit.cursor == 1);
     }
+    assert(text_edit_insert_multiline(&edit,"\nQ") == TEXT_EDIT_OK);
+    assert(strcmp(edit.text,"a\nQz")==0);
+    text_edit_apply(&edit,TEXT_EDIT_BACKSPACE);
+    text_edit_apply(&edit,TEXT_EDIT_BACKSPACE);
+    assert(text_edit_insert_newline(&edit) == TEXT_EDIT_OK);
+    assert(strcmp(edit.text, "a\nz") == 0 && edit.cursor == 2);
+    text_edit_apply(&edit, TEXT_EDIT_BACKSPACE);
+    assert(strcmp(edit.text, "az") == 0 && edit.cursor == 1);
     text_edit_clear(&edit);
     char full[TEXT_EDIT_CAPACITY];
     memset(full, '1', sizeof full - 1); full[sizeof full - 1] = 0;
