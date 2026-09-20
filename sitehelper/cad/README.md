@@ -329,8 +329,11 @@ interpretation remain independently testable:
    `cad_ir.[ch]` introduce exact source decimals, straight source paths, copied
    provenance, extensible diagnostics and transactional ownership. The target
    has no Project/domain/SDL/CAD-library dependency.
-3. **30C — DXF format adapter.** Decode the supported subset into the
-   IR. Test with fixtures; no Wall/Slab/Room creation in parser code.
+3. **30C — DXF format adapter. COMPLETE.**
+   [`DXF_ASCII_ADAPTER.md`](DXF_ASCII_ADAPTER.md) and `dxf_ascii.[ch]` decode the
+   30A ASCII subset into `CadIrDocument`, preserving exact source decimals,
+   provenance and partial-success diagnostics without any Project/domain or
+   Plan-mm dependency.
 4. **30D — Plan mapping/import proposal.** Resolve units/origin/rotation/layers,
    convert to checked integer millimetres and produce explicit candidate
    SiteHelper semantics plus ambiguity diagnostics.
