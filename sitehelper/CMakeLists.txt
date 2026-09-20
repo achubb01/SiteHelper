@@ -1,3 +1,15 @@
+add_library(sitehelper_cad_ir cad/cad_ir.c)
+target_include_directories(sitehelper_cad_ir PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/cad)
+
+add_executable(test_cad_ir cad/tests/test_cad_ir.c)
+target_link_libraries(test_cad_ir PRIVATE sitehelper_cad_ir)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(test_cad_ir PRIVATE SITEHELPER_TEST_WRAP_ALLOC)
+    target_link_options(test_cad_ir PRIVATE
+        "LINKER:--wrap=malloc" "LINKER:--wrap=calloc" "LINKER:--wrap=realloc")
+endif()
+add_test(NAME cad_ir_tests COMMAND test_cad_ir)
+
 add_library(sitehelper_optimisation optimisation/linear_cut_optimizer.c)
 target_include_directories(sitehelper_optimisation PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/optimisation)
 

@@ -324,10 +324,12 @@ interpretation remain independently testable:
    ASCII DXF model-space reference import, with an explicit version/entity/unit
    subset, exact Plan-mm mapping and diagnostics. It creates no construction
    semantics.
-2. **30B — Minimal intermediate representation.** Introduce only the geometry and
-   metadata required by 30A, with ownership/destruction and allocation-failure
-   tests. No Project dependency.
-3. **30C — DXF format adapter.** Decode/encode the supported subset into/from the
+2. **30B — Minimal intermediate representation. COMPLETE.**
+   [`CAD_INTERMEDIATE_REPRESENTATION.md`](CAD_INTERMEDIATE_REPRESENTATION.md) and
+   `cad_ir.[ch]` introduce exact source decimals, straight source paths, copied
+   provenance, extensible diagnostics and transactional ownership. The target
+   has no Project/domain/SDL/CAD-library dependency.
+3. **30C — DXF format adapter.** Decode the supported subset into the
    IR. Test with fixtures; no Wall/Slab/Room creation in parser code.
 4. **30D — Plan mapping/import proposal.** Resolve units/origin/rotation/layers,
    convert to checked integer millimetres and produce explicit candidate
