@@ -400,6 +400,7 @@ static void sitehelper_app_render(
     app_render_slabs(app->renderer, &app->project, &app->editor, &app->slab_style);
 
     app_render_walls(app->renderer, &app->project, &app->editor, &app->wall_style);
+    app_render_roofs(app->renderer, &app->project, &app->editor);
     app_render_plan_dimensions(app->renderer, &app->project, &app->editor);
     app_render_plan_symbols(app->renderer, &app->project, &app->editor);
     app_render_plan_callouts(app->renderer, &app->project, &app->editor);

@@ -5,7 +5,8 @@
 #include "geometry.h"
 #include "renderer2d.h"
 
-#define APP_PROPERTY_PANEL_MAX_FIELDS 4
+#define APP_PROPERTY_PANEL_MAX_FIELDS 8
+#define APP_PROPERTY_PANEL_MAX_INFO_ROWS 6
 
 typedef struct {
     EditorProperty property;
@@ -18,11 +19,12 @@ typedef struct {
     const char *note;
     size_t field_count;
     AppPropertyField fields[APP_PROPERTY_PANEL_MAX_FIELDS];
+    size_t info_count;
+    char info_rows[APP_PROPERTY_PANEL_MAX_INFO_ROWS][96];
 } AppPropertiesPanel;
 
-/* Builds only the slab-family inspector introduced by Priority 25E4. Wall and
- * opening typed property intents remain available but are not yet surfaced by
- * this minimal panel. */
+/* Contextual inspector. Editable integer-mm fields reuse the typed editor
+ * property boundary; read-only rows expose useful workspace-specific summaries. */
 int app_properties_panel_build(const SiteHelperEditor *editor,
     const SiteHelperProject *project, AppPropertiesPanel *panel);
 Rect2 app_properties_panel_field_bounds(Rect2 bounds, size_t field_index);

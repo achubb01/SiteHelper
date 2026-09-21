@@ -409,3 +409,36 @@ That keeps workspace relevance separate from view capability.
 No roof authoring tools are invented by 32C. The Roof command surface currently
 contains only Select, Measure and Dimension until real roof source-edit tools
 are introduced by roof/editor feature work.
+
+## Priority 32D implementation
+
+Workspace context now scopes three user-facing concerns without changing project
+or domain authority:
+
+1. **Selection routing.** Plan `SELECT` dispatches by workspace. Framing queries
+   walls, Slab queries slab features, Roof queries authoritative roof support
+   polygons, and Documentation queries document objects. `GENERAL` retains the
+   pre-workspace mixed precedence for compatibility. A focused workspace does
+   not discard remembered wall navigation merely because another domain object
+   is selected.
+
+2. **Properties context.** The properties panel only exposes a selection accepted
+   by the active workspace. Existing wall/opening scalar commands are available
+   through the numeric property-entry path, slab properties retain their prior
+   editing behavior, Roof exposes a read-only source-intent snapshot, and
+   Documentation reports the selected document-object kind. Roof source editing
+   remains deliberately outside Priority 32D; real roof tools should own that
+   interaction rather than turning the inspector into an ad-hoc authoring API.
+
+3. **Rendering emphasis.** Walls, slabs and persistent documentation objects are
+   visually de-emphasized when they are outside the active workspace. Shared
+   dimensions remain fully visible. The Roof workspace draws authoritative
+   portion support polygons as an editor/source overlay so roof selection has a
+   visible target; these outlines are explicitly not derived roof planes,
+   ridges, hips or valleys.
+
+This is contextual emphasis, not a generic presentation architecture. It does
+not introduce a scene graph, retained render tree, or general layer registry.
+A later presentation-composition boundary may decide which model layers are
+visible; workspace policy remains the statement of user intent that such a
+boundary can consume.

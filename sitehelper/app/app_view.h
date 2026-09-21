@@ -23,6 +23,10 @@ void app_render_slabs(
     Renderer2D *renderer, const SiteHelperProject *project,
     const SiteHelperEditor *editor, const SlabPlanRenderStyle *style
 );
+/* Roof-workspace source-intent overlay. Draws authoritative support polygons,
+ * not derived planes/ridges/hips/valleys. */
+void app_render_roofs(Renderer2D *renderer, const SiteHelperProject *project,
+    const SiteHelperEditor *editor);
 /* Project-owned persistent dimension overlay; Plan view only. */
 void app_render_plan_dimensions(Renderer2D *renderer, const SiteHelperProject *project,
     const SiteHelperEditor *editor);

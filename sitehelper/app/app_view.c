@@ -2,9 +2,29 @@
 #include "plan_position_conversion.h"
 #include "appstate.h"
 #include "plan_dimension_geometry.h"
+#include "roof.h"
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
+
+static Colour app_muted_colour(Colour colour)
+{
+    return (Colour){
+        .r=(unsigned char)((unsigned int)colour.r*45u/100u),
+        .g=(unsigned char)((unsigned int)colour.g*45u/100u),
+        .b=(unsigned char)((unsigned int)colour.b*45u/100u),
+        .a=colour.a
+    };
+}
+
+static Colour app_document_colour(const SiteHelperEditor *editor, Colour colour)
+{
+    if (editor == NULL || editor->active_workspace == EDITOR_WORKSPACE_GENERAL ||
+        editor->active_workspace == EDITOR_WORKSPACE_DOCUMENTATION) {
+        return colour;
+    }
+    return app_muted_colour(colour);
+}
 
 void app_views_init(AppViews *views, Camera2D initial_camera)
 {
@@ -65,7 +85,17 @@ void app_render_slabs(
         project, editor->current_storey_id);
     if (storey == NULL) { return; }
     SlabPlanHit selection = app_slab_selection(&editor->selection);
-    slab_plan_render_storey(renderer, storey, &selection, style);
+    SlabPlanRenderStyle contextual=*style;
+    if (editor->active_workspace != EDITOR_WORKSPACE_GENERAL &&
+        editor->active_workspace != EDITOR_WORKSPACE_SLAB) {
+        contextual.outline_colour=app_muted_colour(contextual.outline_colour);
+        contextual.penetration_colour=app_muted_colour(contextual.penetration_colour);
+        contextual.region_colour=app_muted_colour(contextual.region_colour);
+        contextual.rebate_colour=app_muted_colour(contextual.rebate_colour);
+        contextual.selected_colour=app_muted_colour(contextual.selected_colour);
+        contextual.selected_parent_colour=app_muted_colour(contextual.selected_parent_colour);
+    }
+    slab_plan_render_storey(renderer, storey, &selection, &contextual);
 }
 
 void app_render_walls(
@@ -89,10 +119,54 @@ void app_render_walls(
     }
     const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
     if (storey == NULL) { return; }
+    int framing_emphasis=editor->active_workspace == EDITOR_WORKSPACE_GENERAL ||
+        editor->active_workspace == EDITOR_WORKSPACE_FRAMING;
+    Colour normal=framing_emphasis ? style->timber_colour :
+        app_muted_colour(style->timber_colour);
+    Colour selected=framing_emphasis ? style->selected_colour :
+        app_muted_colour(style->selected_colour);
     for (size_t i = 0; i < storey->structure.wall_count; i++) {
         const Wall *wall = &storey->structure.walls[i];
-        wall_plan_render(renderer, wall, wall->id == editor->current_wall_id
-            ? style->selected_colour : style->timber_colour);
+        int current=framing_emphasis && wall->id == editor->current_wall_id;
+        wall_plan_render(renderer, wall, current ? selected : normal);
+    }
+}
+
+void app_render_roofs(Renderer2D *renderer, const SiteHelperProject *project,
+    const SiteHelperEditor *editor)
+{
+    if (renderer == NULL || project == NULL || editor == NULL ||
+        editor->active_view != EDITOR_VIEW_PLAN ||
+        editor->active_workspace != EDITOR_WORKSPACE_ROOF) {
+        return;
+    }
+    const Storey *storey=sitehelper_project_find_storey_by_id_const(project,
+        editor->current_storey_id);
+    if (storey == NULL) { return; }
+
+    for (size_t r=0;r<storey->roofs.count;r++) {
+        const Roof *roof=&storey->roofs.items[r];
+        if (roof_validate(roof) != ROOF_SUCCESS) { continue; }
+        int roof_selected=editor->selection.scope == EDITOR_SELECTION_SCOPE_PLAN &&
+            editor->selection.kind == EDITOR_SELECTION_ROOF &&
+            editor->selection.roof_id == roof->id;
+        for (size_t p=0;p<roof->definition.portion_count;p++) {
+            const RoofPortionDefinition *portion=&roof->definition.portions[p];
+            if (portion->support_vertices == NULL || portion->support_vertex_count < 2) {
+                continue;
+            }
+            int portion_selected=editor->selection.scope == EDITOR_SELECTION_SCOPE_PLAN &&
+                editor->selection.kind == EDITOR_SELECTION_ROOF_PORTION &&
+                editor->selection.roof_id == roof->id &&
+                editor->selection.roof_portion_id == portion->id;
+            Colour colour=portion_selected ? (Colour){255,220,40,255} :
+                roof_selected ? (Colour){210,180,230,255} : (Colour){180,130,220,255};
+            for (size_t i=0;i<portion->support_vertex_count;i++) {
+                PlanPosition a=portion->support_vertices[i];
+                PlanPosition b=portion->support_vertices[(i+1)%portion->support_vertex_count];
+                renderer2d_draw_line(renderer,(Vec2){a.x,a.y},(Vec2){b.x,b.y},colour);
+            }
+        }
     }
 }
 
@@ -256,6 +330,7 @@ void app_render_plan_symbols(Renderer2D *renderer, const SiteHelperProject *proj
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_SYMBOL,symbol->id);
         Colour colour=selected ? (Colour){255,220,40,255} : (Colour){120,210,255,255};
+        colour=app_document_colour(editor,colour);
         double x=symbol->anchor.x,y=symbol->anchor.y;
         if (symbol->kind == DOCUMENT_PLAN_SYMBOL_POINT_MARKER) {
             renderer2d_draw_line(renderer,(Vec2){x-inner,y-inner},(Vec2){x+inner,y-inner},colour);
@@ -311,6 +386,7 @@ void app_render_plan_callouts(Renderer2D *renderer, const SiteHelperProject *pro
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_CALLOUT,callout->id);
         Colour colour=selected ? (Colour){255,220,40,255} : (Colour){235,190,100,255};
+        colour=app_document_colour(editor,colour);
         renderer2d_draw_line(renderer,(Vec2){callout->target.x,callout->target.y},
             (Vec2){callout->label_anchor.x,callout->label_anchor.y},colour);
         draw_callout_arrow(renderer,callout->target,callout->label_anchor,colour);
@@ -358,6 +434,7 @@ void app_render_plan_notes(Renderer2D *renderer, const SiteHelperProject *projec
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_NOTE,note->id);
         Colour colour=selected ? (Colour){255,220,40,255} : (Colour){235,235,180,255};
+        colour=app_document_colour(editor,colour);
         double size=selected ? 8.0 : 6.0;
         renderer2d_fill_screen_rect(renderer,(Rect2){
             .position={screen.x-size*.5,screen.y-size*.5},.width=size,.height=size},colour);
@@ -430,6 +507,7 @@ void app_render_plan_revision_clouds(Renderer2D *renderer, const SiteHelperProje
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_REVISION_CLOUD,cloud->id);
         Colour colour=selected ? (Colour){255,220,40,255} : (Colour){235,95,180,255};
+        colour=app_document_colour(editor,colour);
         draw_revision_cloud_boundary(renderer,cloud->vertices,cloud->vertex_count,colour);
     }
 }

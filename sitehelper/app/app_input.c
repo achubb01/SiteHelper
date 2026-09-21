@@ -9,12 +9,22 @@ static int property_target_matches(const AppInput *input,
         input->focus != APP_KEYBOARD_FOCUS_PROPERTY_MM) { return 0; }
     const EditorSelection *s=&editor->selection;
     if (s->kind != input->property_target_kind ||
-        s->scope != EDITOR_SELECTION_SCOPE_PLAN ||
-        s->slab_id != input->property_slab_id) { return 0; }
-    if (s->kind == EDITOR_SELECTION_SLAB) { return 1; }
-    return (s->kind == EDITOR_SELECTION_SLAB_REGION ||
-        s->kind == EDITOR_SELECTION_SLAB_EDGE_REBATE) &&
-        s->slab_feature_index == input->property_feature_index;
+        s->scope != input->property_target_scope) { return 0; }
+    switch (s->kind) {
+        case EDITOR_SELECTION_WALL:
+            return s->wall_id == input->property_wall_id;
+        case EDITOR_SELECTION_OPENING:
+            return s->wall_id == input->property_wall_id &&
+                s->opening_id == input->property_opening_id;
+        case EDITOR_SELECTION_SLAB:
+            return s->slab_id == input->property_slab_id;
+        case EDITOR_SELECTION_SLAB_REGION:
+        case EDITOR_SELECTION_SLAB_EDGE_REBATE:
+            return s->slab_id == input->property_slab_id &&
+                s->slab_feature_index == input->property_feature_index;
+        default:
+            return 0;
+    }
 }
 
 void app_input_cancel(AppInput *input, SiteHelperEditor *editor)
@@ -36,16 +46,22 @@ int app_input_begin_property(AppInput *input, SiteHelperEditor *editor,
     int value;
     if (!sitehelper_editor_property_millimetres(editor,project,property,&value)) { return 0; }
     EditorSelection selection=editor->selection;
-    if (selection.kind != EDITOR_SELECTION_SLAB &&
+    if (selection.kind != EDITOR_SELECTION_WALL &&
+        selection.kind != EDITOR_SELECTION_OPENING &&
+        selection.kind != EDITOR_SELECTION_SLAB &&
         selection.kind != EDITOR_SELECTION_SLAB_REGION &&
         selection.kind != EDITOR_SELECTION_SLAB_EDGE_REBATE) { return 0; }
     app_input_cancel(input,editor);
     input->focus=APP_KEYBOARD_FOCUS_PROPERTY_MM;
     input->property=property;
     input->property_target_kind=selection.kind;
+    input->property_target_scope=selection.scope;
+    input->property_wall_id=selection.wall_id;
+    input->property_opening_id=selection.opening_id;
     input->property_slab_id=selection.slab_id;
-    input->property_feature_index=selection.kind == EDITOR_SELECTION_SLAB ? SIZE_MAX :
-        selection.slab_feature_index;
+    input->property_feature_index=(selection.kind == EDITOR_SELECTION_SLAB_REGION ||
+        selection.kind == EDITOR_SELECTION_SLAB_EDGE_REBATE) ?
+        selection.slab_feature_index : SIZE_MAX;
     input->replace_on_next_text_input=1;
     text_edit_begin(&input->text);
     char text[32];

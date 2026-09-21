@@ -1,6 +1,7 @@
 #include "editor_properties.h"
 #include "wall.h"
 #include "slab.h"
+#include "roof.h"
 
 static const Slab *selected_slab_in_storey(const SiteHelperEditor *editor,
     const SiteHelperProject *project, const Storey **storey_output)
@@ -25,8 +26,38 @@ int sitehelper_editor_inspect_properties(const SiteHelperEditor *editor,
     if (properties == NULL) { return 0; }
     *properties = (EditorProperties){0};
     if (editor == NULL || project == NULL ||
-        !sitehelper_editor_selection_matches_view(editor)) { return 0; }
+        !sitehelper_editor_selection_matches_view(editor) ||
+        !editor_workspace_accepts_selection(editor->active_workspace,
+            editor->selection.kind)) { return 0; }
     const EditorSelection *selection = &editor->selection;
+
+    if (selection->kind == EDITOR_SELECTION_ROOF ||
+        selection->kind == EDITOR_SELECTION_ROOF_PORTION) {
+        const Storey *storey=sitehelper_project_find_storey_by_id_const(project,
+            editor->current_storey_id);
+        if (storey == NULL) { return 0; }
+        const Roof *roof=roof_collection_find_by_id_const(&storey->roofs,
+            selection->roof_id);
+        if (roof == NULL || roof_validate(roof) != ROOF_SUCCESS) { return 0; }
+        if (selection->kind == EDITOR_SELECTION_ROOF) {
+            *properties=(EditorProperties){.kind=selection->kind,.data.roof={
+                .roof_id=roof->id,
+                .portion_count=roof->definition.portion_count,
+                .composition_count=roof->definition.composition_count,
+                .termination_count=roof->definition.termination_count}};
+            return 1;
+        }
+        const RoofPortionDefinition *portion=roof_find_portion_by_id_const(roof,
+            selection->roof_portion_id);
+        if (portion == NULL) { return 0; }
+        *properties=(EditorProperties){.kind=selection->kind,.data.roof_portion={
+            .roof_id=roof->id,.portion_id=portion->id,
+            .support_vertex_count=portion->support_vertex_count,
+            .generation=portion->generation,.slope_ppm=portion->slope_ppm,
+            .reference_z_mm=portion->reference_z_mm,.direction=portion->direction,
+            .single_slope_reference=portion->single_slope_reference}};
+        return 1;
+    }
 
     if (selection->kind == EDITOR_SELECTION_SLAB ||
         selection->kind == EDITOR_SELECTION_SLAB_PENETRATION ||

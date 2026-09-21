@@ -351,7 +351,9 @@ void sitehelper_editor_reconcile(
         return;
     }
 
-    if (!sitehelper_editor_selection_matches_view(editor)) {
+    if (!sitehelper_editor_selection_matches_view(editor) ||
+        !editor_workspace_accepts_selection(editor->active_workspace,
+            editor->selection.kind)) {
         sitehelper_editor_clear_selection(editor);
     }
 
@@ -444,7 +446,9 @@ void sitehelper_editor_reconcile(
 int sitehelper_editor_select_roof_at_position(SiteHelperEditor *editor,
     const Storey *storey, PlanPoint point, double tolerance_mm)
 {
-    if (editor == NULL || storey == NULL || editor->active_view != EDITOR_VIEW_PLAN) {
+    if (editor == NULL || storey == NULL || editor->active_view != EDITOR_VIEW_PLAN ||
+        !editor_workspace_accepts_selection(editor->active_workspace,
+            EDITOR_SELECTION_ROOF_PORTION)) {
         if (editor != NULL) { sitehelper_editor_clear_selection(editor); }
         return 0;
     }
@@ -1530,6 +1534,117 @@ static int editor_callout_click(SiteHelperEditor *editor, Vec2 view_position)
     return tool->stage == PLAN_CALLOUT_TOOL_READY_TEXT;
 }
 
+static int editor_select_document_at_position(SiteHelperEditor *editor,
+    const SiteHelperProject *project, const Storey *storey, Vec2 view_position,
+    double tolerance_mm)
+{
+    PlanPoint point={view_position.x,view_position.y};
+    DomainId id=document_plan_find_revision_cloud_at_position(&project->document,
+        storey->id,point,tolerance_mm);
+    if (id != DOMAIN_ID_INVALID) {
+        editor_selection_set_revision_cloud(&editor->selection,
+            EDITOR_SELECTION_SCOPE_PLAN,id);
+        return 1;
+    }
+    id=document_plan_find_note_at_position(&project->document,storey->id,point,
+        tolerance_mm);
+    if (id != DOMAIN_ID_INVALID) {
+        editor_selection_set_annotation(&editor->selection,
+            EDITOR_SELECTION_SCOPE_PLAN,id);
+        return 1;
+    }
+    id=document_plan_find_callout_at_position(&project->document,storey->id,point,
+        tolerance_mm);
+    if (id != DOMAIN_ID_INVALID) {
+        editor_selection_set_callout(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,id);
+        return 1;
+    }
+    id=document_plan_find_symbol_at_position(&project->document,storey->id,point,
+        tolerance_mm);
+    if (id != DOMAIN_ID_INVALID) {
+        editor_selection_set_symbol(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,id);
+        return 1;
+    }
+    id=editor_find_plan_dimension_at_position(project,storey->id,point,tolerance_mm);
+    if (id != DOMAIN_ID_INVALID) {
+        editor_selection_set_dimension(&editor->selection,
+            EDITOR_SELECTION_SCOPE_PLAN,id);
+        return 1;
+    }
+    return 0;
+}
+
+static int editor_select_wall_at_position(SiteHelperEditor *editor,
+    const BuildStructure *structure, Vec2 view_position, double tolerance_mm)
+{
+    DomainId best=DOMAIN_ID_INVALID;
+    double nearest=tolerance_mm;
+    for (size_t index=structure->wall_count;index>0;index--) {
+        const Wall *wall=&structure->walls[index-1];
+        double distance=plan_segment_distance(wall->definition.segment,view_position);
+        if (distance <= nearest &&
+            (best == DOMAIN_ID_INVALID || distance < nearest)) {
+            nearest=distance;
+            best=wall->id;
+        }
+    }
+    editor->current_wall_id=best;
+    if (best == DOMAIN_ID_INVALID) { return 0; }
+    editor_selection_set_wall(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,best);
+    return 1;
+}
+
+static void editor_select_plan_by_workspace(SiteHelperEditor *editor,
+    const SiteHelperProject *project, const Storey *storey,
+    const BuildStructure *structure, Vec2 view_position)
+{
+    const double tolerance=editor->snap.settings.object_snap_tolerance;
+    sitehelper_editor_clear_selection(editor);
+    sitehelper_editor_invalidate_transient_state(editor);
+
+    switch (editor->active_workspace) {
+        case EDITOR_WORKSPACE_FRAMING:
+            (void)editor_select_wall_at_position(editor,structure,view_position,tolerance);
+            break;
+
+        case EDITOR_WORKSPACE_SLAB: {
+            SlabPlanHit hit=slab_plan_hit_test_storey(storey,
+                (PlanPoint){view_position.x,view_position.y},tolerance);
+            editor_select_slab_hit(&editor->selection,hit);
+            break;
+        }
+
+        case EDITOR_WORKSPACE_ROOF:
+            (void)sitehelper_editor_select_roof_at_position(editor,storey,
+                (PlanPoint){view_position.x,view_position.y},tolerance);
+            break;
+
+        case EDITOR_WORKSPACE_DOCUMENTATION:
+            (void)editor_select_document_at_position(editor,project,storey,
+                view_position,tolerance);
+            break;
+
+        case EDITOR_WORKSPACE_GENERAL:
+            /* Compatibility path keeps the old overlay -> wall -> slab
+             * precedence until GENERAL can eventually disappear. */
+            editor->current_wall_id=DOMAIN_ID_INVALID;
+            if (editor_select_document_at_position(editor,project,storey,
+                    view_position,tolerance)) {
+                break;
+            }
+            if (editor_select_wall_at_position(editor,structure,view_position,tolerance)) {
+                break;
+            }
+            editor_select_slab_hit(&editor->selection,slab_plan_hit_test_storey(storey,
+                (PlanPoint){view_position.x,view_position.y},tolerance));
+            break;
+
+        case EDITOR_WORKSPACE_COUNT:
+        default:
+            break;
+    }
+}
+
 int sitehelper_editor_primary_action_in_project(
     SiteHelperEditor *editor,
     const SiteHelperProject *project,
@@ -1644,71 +1759,9 @@ int sitehelper_editor_primary_action_in_project(
 
     if (editor->active_view == EDITOR_VIEW_PLAN &&
         editor->active_tool == EDITOR_TOOL_SELECT) {
-        *action = (EditorAction){ .kind = EDITOR_ACTION_NONE };
-        sitehelper_editor_clear_selection(editor);
-        sitehelper_editor_invalidate_transient_state(editor);
-        editor->current_wall_id = DOMAIN_ID_INVALID;
-        double nearest = editor->snap.settings.object_snap_tolerance;
-        DomainId revision_cloud_id=document_plan_find_revision_cloud_at_position(
-            &project->document,storey->id,(PlanPoint){view_position.x,view_position.y},nearest);
-        if (revision_cloud_id != DOMAIN_ID_INVALID) {
-            editor_selection_set_revision_cloud(&editor->selection,
-                EDITOR_SELECTION_SCOPE_PLAN,revision_cloud_id);
-            sitehelper_editor_update_snap_in_project(editor,project,view_position);
-            return 1;
-        }
-        DomainId annotation_id = document_plan_find_note_at_position(&project->document,
-            storey->id, (PlanPoint){view_position.x, view_position.y}, nearest);
-        if (annotation_id != DOMAIN_ID_INVALID) {
-            editor_selection_set_annotation(&editor->selection,
-                EDITOR_SELECTION_SCOPE_PLAN, annotation_id);
-            sitehelper_editor_update_snap_in_project(editor, project, view_position);
-            return 1;
-        }
-        DomainId callout_id=document_plan_find_callout_at_position(&project->document,
-            storey->id,(PlanPoint){view_position.x,view_position.y},nearest);
-        if (callout_id != DOMAIN_ID_INVALID) {
-            editor_selection_set_callout(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,callout_id);
-            sitehelper_editor_update_snap_in_project(editor,project,view_position);
-            return 1;
-        }
-        DomainId symbol_id=document_plan_find_symbol_at_position(&project->document,
-            storey->id,(PlanPoint){view_position.x,view_position.y},nearest);
-        if (symbol_id != DOMAIN_ID_INVALID) {
-            editor_selection_set_symbol(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,symbol_id);
-            sitehelper_editor_update_snap_in_project(editor,project,view_position);
-            return 1;
-        }
-        DomainId dimension_id=editor_find_plan_dimension_at_position(project,storey->id,
-            (PlanPoint){view_position.x,view_position.y},nearest);
-        if (dimension_id != DOMAIN_ID_INVALID) {
-            editor_selection_set_dimension(&editor->selection,
-                EDITOR_SELECTION_SCOPE_PLAN,dimension_id);
-            sitehelper_editor_update_snap_in_project(editor,project,view_position);
-            return 1;
-        }
-
-        /* Document overlays have precedence over physical geometry. Nearest wall
-         * segment wins next; later appended walls win exact ties. */
-        for (size_t index = structure->wall_count; index > 0; index--) {
-            const Wall *wall = &structure->walls[index - 1];
-            double distance = plan_segment_distance(wall->definition.segment, view_position);
-            if (distance <= nearest &&
-                (editor->current_wall_id == DOMAIN_ID_INVALID || distance < nearest)) {
-                nearest = distance;
-                editor->current_wall_id = wall->id;
-            }
-        }
-        if (editor->current_wall_id != DOMAIN_ID_INVALID) {
-            editor_selection_set_wall(&editor->selection,
-                EDITOR_SELECTION_SCOPE_PLAN, editor->current_wall_id);
-        } else {
-            SlabPlanHit hit = slab_plan_hit_test_storey(storey,
-                (PlanPoint){view_position.x, view_position.y},
-                editor->snap.settings.object_snap_tolerance);
-            editor_select_slab_hit(&editor->selection, hit);
-        }
-        sitehelper_editor_update_snap_in_project(editor, project, view_position);
+        *action=(EditorAction){.kind=EDITOR_ACTION_NONE};
+        editor_select_plan_by_workspace(editor,project,storey,structure,view_position);
+        sitehelper_editor_update_snap_in_project(editor,project,view_position);
         return 1;
     }
 

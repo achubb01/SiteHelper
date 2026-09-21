@@ -1,5 +1,6 @@
 #include "app_properties_panel.h"
 #include <stdio.h>
+#include <stdarg.h>
 
 static void add_field(AppPropertiesPanel *panel, EditorProperty property,
     const char *label, int millimetres)
@@ -8,9 +9,31 @@ static void add_field(AppPropertiesPanel *panel, EditorProperty property,
     panel->fields[panel->field_count++]=(AppPropertyField){property,label,millimetres};
 }
 
+static void add_info(AppPropertiesPanel *panel, const char *format, ...)
+{
+    if (panel == NULL || format == NULL ||
+        panel->info_count >= APP_PROPERTY_PANEL_MAX_INFO_ROWS) { return; }
+    va_list args;
+    va_start(args,format);
+    (void)vsnprintf(panel->info_rows[panel->info_count],
+        sizeof panel->info_rows[panel->info_count],format,args);
+    va_end(args);
+    panel->info_count++;
+}
+
 const char *app_property_label(EditorProperty property)
 {
     switch (property) {
+        case EDITOR_PROPERTY_WALL_START_X: return "Start X";
+        case EDITOR_PROPERTY_WALL_START_Y: return "Start Y";
+        case EDITOR_PROPERTY_WALL_END_X: return "End X";
+        case EDITOR_PROPERTY_WALL_END_Y: return "End Y";
+        case EDITOR_PROPERTY_OPENING_FRAME_POSITION: return "Frame U";
+        case EDITOR_PROPERTY_OPENING_FRAME_BOTTOM: return "Frame bottom";
+        case EDITOR_PROPERTY_OPENING_WIDTH: return "Width";
+        case EDITOR_PROPERTY_OPENING_HEIGHT: return "Height";
+        case EDITOR_PROPERTY_OPENING_WIDTH_ALLOWANCE: return "Width allowance";
+        case EDITOR_PROPERTY_OPENING_HEIGHT_ALLOWANCE: return "Height allowance";
         case EDITOR_PROPERTY_SLAB_THICKNESS: return "Thickness";
         case EDITOR_PROPERTY_SLAB_TOP_LEVEL: return "Top level";
         case EDITOR_PROPERTY_SLAB_REGION_TOP_LEVEL: return "Top level";
@@ -19,7 +42,32 @@ const char *app_property_label(EditorProperty property)
         case EDITOR_PROPERTY_SLAB_REBATE_END: return "End U";
         case EDITOR_PROPERTY_SLAB_REBATE_WIDTH: return "Width";
         case EDITOR_PROPERTY_SLAB_REBATE_DEPTH: return "Depth";
+        case EDITOR_PROPERTY_OPENING_TYPE:
+        case EDITOR_PROPERTY_OPENING_CUSTOM_ALLOWANCE:
         default: return "Property";
+    }
+}
+
+static const char *roof_generation_label(RoofPortionGeneration generation)
+{
+    switch (generation) {
+        case ROOF_PORTION_OPPOSING_SLOPES: return "Opposing slopes";
+        case ROOF_PORTION_ALL_BOUNDARY_SLOPES: return "All boundary slopes";
+        case ROOF_PORTION_SINGLE_SLOPE: return "Single slope";
+        default: return "Unknown";
+    }
+}
+
+static const char *document_selection_title(DocumentObjectKind kind)
+{
+    switch (kind) {
+        case DOCUMENT_OBJECT_NOTE: return "Note";
+        case DOCUMENT_OBJECT_DIMENSION: return "Dimension";
+        case DOCUMENT_OBJECT_SYMBOL: return "Symbol";
+        case DOCUMENT_OBJECT_CALLOUT: return "Callout";
+        case DOCUMENT_OBJECT_REVISION_CLOUD: return "Revision cloud";
+        case DOCUMENT_OBJECT_NONE:
+        default: return "Documentation";
     }
 }
 
@@ -28,17 +76,56 @@ int app_properties_panel_build(const SiteHelperEditor *editor,
 {
     if (panel == NULL) { return 0; }
     *panel=(AppPropertiesPanel){0};
+    if (editor == NULL || project == NULL) { return 0; }
+
+    if (editor->selection.kind == EDITOR_SELECTION_DOCUMENT &&
+        editor_workspace_accepts_selection(editor->active_workspace,
+            EDITOR_SELECTION_DOCUMENT) &&
+        editor_selection_is_document_kind(&editor->selection,
+            editor->selection.document.kind)) {
+        panel->title=document_selection_title(editor->selection.document.kind);
+        panel->note="Edit with the active documentation tool";
+        return 1;
+    }
+
     EditorProperties p;
     if (!sitehelper_editor_inspect_properties(editor,project,&p)) { return 0; }
     switch (p.kind) {
+        case EDITOR_SELECTION_WALL:
+            panel->title="Wall";
+            add_field(panel,EDITOR_PROPERTY_WALL_START_X,"Start X",p.data.wall.segment.start.x);
+            add_field(panel,EDITOR_PROPERTY_WALL_START_Y,"Start Y",p.data.wall.segment.start.y);
+            add_field(panel,EDITOR_PROPERTY_WALL_END_X,"End X",p.data.wall.segment.end.x);
+            add_field(panel,EDITOR_PROPERTY_WALL_END_Y,"End Y",p.data.wall.segment.end.y);
+            add_info(panel,"Length: %d mm",p.data.wall.length_mm);
+            add_info(panel,"Stud height: %d mm",p.data.wall.resolved_stud_height);
+            add_info(panel,"Stud spacing: %d mm",p.data.wall.resolved_stud_spacing);
+            return 1;
+        case EDITOR_SELECTION_OPENING:
+            panel->title="Opening";
+            add_field(panel,EDITOR_PROPERTY_OPENING_FRAME_POSITION,"Frame U",
+                p.data.opening.definition.frame_position);
+            add_field(panel,EDITOR_PROPERTY_OPENING_FRAME_BOTTOM,"Frame bottom",
+                p.data.opening.definition.frame_bottom);
+            add_field(panel,EDITOR_PROPERTY_OPENING_WIDTH,"Width",
+                p.data.opening.definition.width);
+            add_field(panel,EDITOR_PROPERTY_OPENING_HEIGHT,"Height",
+                p.data.opening.definition.height);
+            add_field(panel,EDITOR_PROPERTY_OPENING_WIDTH_ALLOWANCE,"Width allowance",
+                p.data.opening.definition.width_allowance);
+            add_field(panel,EDITOR_PROPERTY_OPENING_HEIGHT_ALLOWANCE,"Height allowance",
+                p.data.opening.definition.height_allowance);
+            return 1;
         case EDITOR_SELECTION_SLAB:
             panel->title="Slab";
             add_field(panel,EDITOR_PROPERTY_SLAB_THICKNESS,"Thickness",p.data.slab.thickness_mm);
             add_field(panel,EDITOR_PROPERTY_SLAB_TOP_LEVEL,"Top level",p.data.slab.top_level_offset_mm);
+            add_info(panel,"Vertices: %zu",p.data.slab.vertex_count);
             return 1;
         case EDITOR_SELECTION_SLAB_PENETRATION:
             panel->title="Slab void";
-            panel->note="Polygon geometry editing deferred";
+            add_info(panel,"Vertices: %zu",p.data.slab_penetration.vertex_count);
+            panel->note="Use Geometry to edit the polygon";
             return 1;
         case EDITOR_SELECTION_SLAB_REGION:
             panel->title="Slab region";
@@ -46,6 +133,7 @@ int app_properties_panel_build(const SiteHelperEditor *editor,
                 p.data.slab_region.top_level_offset_mm);
             add_field(panel,EDITOR_PROPERTY_SLAB_REGION_THICKNESS,"Thickness",
                 p.data.slab_region.thickness_mm);
+            add_info(panel,"Vertices: %zu",p.data.slab_region.vertex_count);
             return 1;
         case EDITOR_SELECTION_SLAB_EDGE_REBATE:
             panel->title="Edge rebate";
@@ -57,6 +145,24 @@ int app_properties_panel_build(const SiteHelperEditor *editor,
                 p.data.slab_edge_rebate.definition.width_mm);
             add_field(panel,EDITOR_PROPERTY_SLAB_REBATE_DEPTH,"Depth",
                 p.data.slab_edge_rebate.definition.depth_mm);
+            add_info(panel,"Length: %d mm",p.data.slab_edge_rebate.length_mm);
+            return 1;
+        case EDITOR_SELECTION_ROOF:
+            panel->title="Roof";
+            add_info(panel,"Portions: %zu",p.data.roof.portion_count);
+            add_info(panel,"Compositions: %zu",p.data.roof.composition_count);
+            add_info(panel,"Terminations: %zu",p.data.roof.termination_count);
+            panel->note="Roof source editing is not surfaced yet";
+            return 1;
+        case EDITOR_SELECTION_ROOF_PORTION:
+            panel->title="Roof portion";
+            add_info(panel,"Type: %s",roof_generation_label(p.data.roof_portion.generation));
+            add_info(panel,"Slope: %.3f",(double)p.data.roof_portion.slope_ppm/1000000.0);
+            add_info(panel,"Reference Z: %d mm",p.data.roof_portion.reference_z_mm);
+            add_info(panel,"Direction: %d, %d",p.data.roof_portion.direction.x,
+                p.data.roof_portion.direction.y);
+            add_info(panel,"Support vertices: %zu",p.data.roof_portion.support_vertex_count);
+            panel->note="Roof source editing is not surfaced yet";
             return 1;
         default:
             return 0;
@@ -101,8 +207,14 @@ void app_properties_panel_draw(Renderer2D *renderer, const AppPropertiesPanel *p
         renderer2d_draw_screen_text(renderer,(Vec2){row.position.x+6,row.position.y+8},
             text,selected ? active : normal);
     }
-    if (panel->field_count == 0 && panel->note != NULL) {
-        renderer2d_draw_screen_text(renderer,(Vec2){bounds.position.x+12,bounds.position.y+46},
+    double info_y=bounds.position.y+46.0+panel->field_count*30.0;
+    for (size_t i=0;i<panel->info_count;i++) {
+        renderer2d_draw_screen_text(renderer,(Vec2){bounds.position.x+12,info_y},
+            panel->info_rows[i],muted);
+        info_y += 16.0;
+    }
+    if (panel->note != NULL) {
+        renderer2d_draw_screen_text(renderer,(Vec2){bounds.position.x+12,info_y+4.0},
             panel->note,muted);
     }
 }

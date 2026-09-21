@@ -32,6 +32,9 @@ typedef struct {
      * selection must continue to match this target until Enter commits. */
     EditorProperty property;
     EditorSelectionKind property_target_kind;
+    EditorSelectionScope property_target_scope;
+    DomainId property_wall_id;
+    DomainId property_opening_id;
     DomainId property_slab_id;
     size_t property_feature_index;
     /* A property field is seeded with its current value. The first committed

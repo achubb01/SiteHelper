@@ -106,10 +106,10 @@ void sitehelper_editor_select_wall_member_at_position(
  * current Storey, while elevation rendering also checks the viewed Wall. */
 int sitehelper_editor_selection_matches_view(const SiteHelperEditor *editor);
 
-/* Explicit roof-authoring selection hook. It queries authoritative support
- * polygons in Plan space and does not change the ordinary SELECT precedence
- * between walls/slabs. This lets a future roof workspace/tool opt into roof
- * selection without making overlapping floor/roof domains ambiguous today. */
+/* Explicit roof-source selection hook. It queries authoritative support
+ * polygons in Plan space. Workspace-aware SELECT routing calls this from the
+ * Roof workspace so overlapping slab/wall geometry does not determine roof
+ * selection precedence. */
 int sitehelper_editor_select_roof_at_position(SiteHelperEditor *editor,
     const Storey *storey, PlanPoint point, double tolerance_mm);
 

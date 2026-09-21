@@ -55,6 +55,26 @@ typedef struct
 
 typedef struct
 {
+    DomainId roof_id;
+    size_t portion_count;
+    size_t composition_count;
+    size_t termination_count;
+} EditorRoofProperties;
+
+typedef struct
+{
+    DomainId roof_id;
+    DomainId portion_id;
+    size_t support_vertex_count;
+    RoofPortionGeneration generation;
+    int64_t slope_ppm;
+    int reference_z_mm;
+    RoofDirection direction;
+    RoofSingleSlopeReference single_slope_reference;
+} EditorRoofPortionProperties;
+
+typedef struct
+{
     EditorSelectionKind kind;
     union
     {
@@ -64,6 +84,8 @@ typedef struct
         EditorSlabPenetrationProperties slab_penetration;
         EditorSlabRegionProperties slab_region;
         EditorSlabEdgeRebateProperties slab_edge_rebate;
+        EditorRoofProperties roof;
+        EditorRoofPortionProperties roof_portion;
     } data;
 } EditorProperties;
 
