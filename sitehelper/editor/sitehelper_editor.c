@@ -28,23 +28,42 @@ int sitehelper_editor_set_current_storey(SiteHelperEditor *editor,
     return 1;
 }
 
-int sitehelper_editor_tool_available(EditorView view, EditorTool tool)
+int sitehelper_editor_tool_available(const SiteHelperEditor *editor, EditorTool tool)
 {
-    return (view == EDITOR_VIEW_PLAN &&
-            (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_WALL || tool == EDITOR_TOOL_MEASURE ||
-             tool == EDITOR_TOOL_SLAB || tool == EDITOR_TOOL_SLAB_PENETRATION ||
-             tool == EDITOR_TOOL_SLAB_REGION || tool == EDITOR_TOOL_SLAB_EDGE_REBATE ||
-             tool == EDITOR_TOOL_SLAB_GEOMETRY || tool == EDITOR_TOOL_NOTE ||
-             tool == EDITOR_TOOL_DIMENSION || tool == EDITOR_TOOL_SYMBOL ||
-             tool == EDITOR_TOOL_VIEW_DIRECTION || tool == EDITOR_TOOL_CALLOUT ||
-             tool == EDITOR_TOOL_REVISION_CLOUD)) ||
-        (view == EDITOR_VIEW_WALL_ELEVATION &&
-            (tool == EDITOR_TOOL_SELECT || tool == EDITOR_TOOL_OPENING));
+    return editor != NULL && editor_context_tool_available(
+        editor->active_workspace, editor->active_view, tool);
+}
+
+EditorWorkspace sitehelper_editor_get_active_workspace(const SiteHelperEditor *editor)
+{
+    return editor != NULL ? editor->active_workspace : EDITOR_WORKSPACE_GENERAL;
+}
+
+int sitehelper_editor_set_active_workspace(SiteHelperEditor *editor,
+    EditorWorkspace workspace)
+{
+    if (editor == NULL ||
+        !editor_workspace_supports_view(workspace, editor->active_view)) {
+        return 0;
+    }
+    if (editor->active_workspace == workspace) {
+        return 1;
+    }
+
+    if (!editor_context_tool_available(workspace, editor->active_view,
+            editor->active_tool)) {
+        editor->active_tool = EDITOR_TOOL_SELECT;
+    }
+    editor->active_workspace = workspace;
+    sitehelper_editor_invalidate_transient_state(editor);
+    sitehelper_editor_clear_selection(editor);
+    return 1;
 }
 
 int sitehelper_editor_set_active_view(SiteHelperEditor *editor, EditorView view)
 {
-    if (editor == NULL || view < EDITOR_VIEW_PLAN || view >= EDITOR_VIEW_COUNT) {
+    if (editor == NULL ||
+        !editor_workspace_supports_view(editor->active_workspace, view)) {
         return 0;
     }
     if (editor->active_view == view) {
@@ -53,7 +72,7 @@ int sitehelper_editor_set_active_view(SiteHelperEditor *editor, EditorView view)
     editor->active_view = view;
     sitehelper_editor_invalidate_transient_state(editor);
     sitehelper_editor_clear_selection(editor);
-    if (!sitehelper_editor_tool_available(view, editor->active_tool)) {
+    if (!sitehelper_editor_tool_available(editor, editor->active_tool)) {
         sitehelper_editor_set_active_tool(editor, EDITOR_TOOL_SELECT);
     }
     return 1;
@@ -84,7 +103,7 @@ int sitehelper_editor_set_active_tool(
         editor == NULL
         || tool < EDITOR_TOOL_SELECT
         || tool >= EDITOR_TOOL_COUNT
-        || !sitehelper_editor_tool_available(editor->active_view, tool)
+        || !sitehelper_editor_tool_available(editor, tool)
     ) {
         return 0;
     }
@@ -164,6 +183,7 @@ void sitehelper_editor_init(
     *editor = (SiteHelperEditor){
         .current_room_id = DOMAIN_ID_INVALID,
         .current_wall_id = DOMAIN_ID_INVALID,
+        .active_workspace = EDITOR_WORKSPACE_GENERAL,
         .active_view = EDITOR_VIEW_PLAN,
         .active_tool = EDITOR_TOOL_SELECT
     };

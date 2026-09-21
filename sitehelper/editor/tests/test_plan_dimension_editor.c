@@ -84,8 +84,8 @@ static void test_dimension_authoring_creates_associative_wall_dimension(void)
         (WallPlanSegment){{0,0},{2000,0}}); assert(wall);
     SiteHelperEditor editor; sitehelper_editor_init(&editor);
     assert(sitehelper_editor_set_current_storey(&editor,&project,storey));
-    assert(sitehelper_editor_tool_available(EDITOR_VIEW_PLAN,EDITOR_TOOL_DIMENSION));
-    assert(!sitehelper_editor_tool_available(EDITOR_VIEW_WALL_ELEVATION,EDITOR_TOOL_DIMENSION));
+    assert(editor_view_supports_tool(EDITOR_VIEW_PLAN,EDITOR_TOOL_DIMENSION));
+    assert(!editor_view_supports_tool(EDITOR_VIEW_WALL_ELEVATION,EDITOR_TOOL_DIMENSION));
     assert(sitehelper_editor_set_active_tool(&editor,EDITOR_TOOL_DIMENSION));
 
     EditorAction action={0};

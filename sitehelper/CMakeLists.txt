@@ -409,6 +409,7 @@ endif()
 
 add_library(sitehelper_editor
     editor/sitehelper_editor.c
+    editor/editor_context.c
     editor/editor_selection.c
     editor/editor_properties.c
     editor/editor_snap_state.c
@@ -509,6 +510,7 @@ add_library(sitehelper_app_core
     app/app_properties_panel.c
     app/appstate.c
     app/app_view.c
+    app/app_workspace.c
 )
 
 target_include_directories(sitehelper_app_core
@@ -951,6 +953,10 @@ add_executable(test_app_view app/tests/test_app_view.c)
 target_link_libraries(test_app_view PRIVATE sitehelper_app_core sitehelper_persistence)
 add_test(NAME app_view_tests COMMAND test_app_view)
 
+add_executable(test_app_workspace app/tests/test_app_workspace.c)
+target_link_libraries(test_app_workspace PRIVATE sitehelper_app_core)
+add_test(NAME app_workspace_tests COMMAND test_app_workspace)
+
 add_executable(test_viewport_input
     app/tests/test_viewport_input.c
     app/viewport_input.c
@@ -1094,6 +1100,17 @@ target_link_libraries(test_sitehelper_editor
 )
 
 add_test(NAME sitehelper_editor_tests COMMAND test_sitehelper_editor)
+
+add_executable(test_editor_context
+    editor/tests/test_editor_context.c
+)
+
+target_link_libraries(test_editor_context
+    PRIVATE
+        sitehelper_editor
+)
+
+add_test(NAME editor_context_tests COMMAND test_editor_context)
 
 add_executable(test_editor_selection
     editor/tests/test_editor_selection.c

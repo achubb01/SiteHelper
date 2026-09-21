@@ -54,8 +54,8 @@ static void test_editor_lifecycle_and_ownership(void)
     char before[8192], after[8192]; save(&project, before, sizeof before);
     PlanMeasurementQuery query;
     assert(!sitehelper_editor_get_measurement(&editor, &query));
-    assert(sitehelper_editor_tool_available(EDITOR_VIEW_PLAN, EDITOR_TOOL_MEASURE));
-    assert(!sitehelper_editor_tool_available(EDITOR_VIEW_WALL_ELEVATION, EDITOR_TOOL_MEASURE));
+    assert(editor_view_supports_tool(EDITOR_VIEW_PLAN, EDITOR_TOOL_MEASURE));
+    assert(!editor_view_supports_tool(EDITOR_VIEW_WALL_ELEVATION, EDITOR_TOOL_MEASURE));
     assert(sitehelper_editor_set_active_tool(&editor, EDITOR_TOOL_MEASURE));
     sitehelper_editor_pointer_move_in_project(&editor, &project, (Vec2){999,999});
     assert(!sitehelper_editor_get_measurement(&editor, &query));

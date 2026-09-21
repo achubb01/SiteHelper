@@ -148,8 +148,8 @@ static void test_switching_views_clears_tools_and_retains_cameras(void)
     sitehelper_editor_init(&editor);
     editor.current_storey_id = 1;
     assert(editor.active_view == EDITOR_VIEW_PLAN);
-    assert(!sitehelper_editor_tool_available(EDITOR_VIEW_PLAN, EDITOR_TOOL_OPENING));
-    assert(!sitehelper_editor_tool_available(EDITOR_VIEW_WALL_ELEVATION, EDITOR_TOOL_WALL));
+    assert(!editor_view_supports_tool(EDITOR_VIEW_PLAN, EDITOR_TOOL_OPENING));
+    assert(!editor_view_supports_tool(EDITOR_VIEW_WALL_ELEVATION, EDITOR_TOOL_WALL));
     assert(!sitehelper_editor_set_active_tool(&editor, EDITOR_TOOL_OPENING));
     assert(!sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_COUNT));
     assert(sitehelper_editor_set_active_tool(&editor, EDITOR_TOOL_WALL));

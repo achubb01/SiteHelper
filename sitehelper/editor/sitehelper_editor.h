@@ -2,7 +2,7 @@
 #define SITEHELPER_EDITOR_H
 
 #include "domain_id.h"
-#include "editor_tool.h"
+#include "editor_context.h"
 #include "editor_selection.h"
 #include "editor_snap_state.h"
 #include "opening_tool.h"
@@ -21,14 +21,6 @@
 #include "sitehelper_project.h"
 #include "plan_dimension_geometry.h"
 
-/* Transient view state; never part of SiteHelperProject. */
-typedef enum
-{
-    EDITOR_VIEW_PLAN,
-    EDITOR_VIEW_WALL_ELEVATION,
-    EDITOR_VIEW_COUNT
-} EditorView;
-
 /* Owns SlabTool and polygon-feature vertex storage after a sketch begins.
  * Initialize/destroy; never shallow-copy an editor containing owned storage. */
 typedef struct
@@ -39,6 +31,7 @@ typedef struct
     DomainId current_room_id;
     DomainId current_wall_id;
 
+    EditorWorkspace active_workspace;
     EditorView active_view;
     EditorTool active_tool;
 
@@ -76,7 +69,16 @@ int sitehelper_editor_set_current_storey(SiteHelperEditor *editor,
 void sitehelper_editor_pointer_move_in_project(SiteHelperEditor *editor,
     const SiteHelperProject *project, Vec2 view_position);
 
-int sitehelper_editor_tool_available(EditorView view, EditorTool tool);
+/* Effective tool availability combines transient workspace exposure with
+ * mechanical view capability. */
+int sitehelper_editor_tool_available(const SiteHelperEditor *editor, EditorTool tool);
+
+EditorWorkspace sitehelper_editor_get_active_workspace(const SiteHelperEditor *editor);
+/* Does not change view/camera. Fails if the current view is unsupported by the
+ * destination workspace. Successful changes preserve navigation, clear selection
+ * and in-progress interactions, and fall back to SELECT if the tool is hidden. */
+int sitehelper_editor_set_active_workspace(SiteHelperEditor *editor,
+    EditorWorkspace workspace);
 int sitehelper_editor_set_active_view(SiteHelperEditor *editor, EditorView view);
 
 int sitehelper_editor_set_active_tool(

@@ -12,8 +12,8 @@ static void test_authoring_selection_edit_delete(void)
     assert(wall);
     SiteHelperEditor editor; sitehelper_editor_init(&editor);
     assert(sitehelper_editor_set_current_storey(&editor,&project,storey));
-    assert(sitehelper_editor_tool_available(EDITOR_VIEW_PLAN,EDITOR_TOOL_CALLOUT));
-    assert(!sitehelper_editor_tool_available(EDITOR_VIEW_WALL_ELEVATION,EDITOR_TOOL_CALLOUT));
+    assert(editor_view_supports_tool(EDITOR_VIEW_PLAN,EDITOR_TOOL_CALLOUT));
+    assert(!editor_view_supports_tool(EDITOR_VIEW_WALL_ELEVATION,EDITOR_TOOL_CALLOUT));
     assert(sitehelper_editor_set_active_tool(&editor,EDITOR_TOOL_CALLOUT));
     EditorAction action={0};
 
