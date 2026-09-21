@@ -253,3 +253,49 @@ Priority 33B now supplies the explicit presentation-style contract that makes
 The next composition pressure is transient authoring/edit overlays: their
 visibility belongs here, but their tool-specific drawing bodies should not make
 this composer become a replacement monolithic render loop.
+
+## Priority 33C — Overlay composition boundary
+
+Priority 33C keeps **overlay ordering and visibility** in
+`app_presentation_render_viewport()` while removing the remaining tool-specific
+geometry from that composer.
+
+The transient path is now:
+
+```text
+AppPresentationPolicy
+        |
+        v
+presentation composition
+  - decide whether overlay group is visible
+  - decide ordering relative to model layers/other overlays
+        |
+        +--> framing_overlay_render.c
+        +--> slab_overlay_render.c
+        +--> snap_overlay_render.c
+        +--> existing dimension/document/measurement adapters
+        |
+        v
+Renderer2D
+```
+
+The three extracted adapters are deliberately narrow:
+
+- `app_render_framing_overlay()` owns Wall/Opening authoring preview geometry;
+- `app_render_slab_overlay()` owns Slab sketch, feature, rebate and geometry-edit
+  handles; and
+- `app_render_snap_overlay()` owns the snap marker geometry/palette.
+
+They do **not** inspect `EditorWorkspace`, decide whether they should be visible,
+own viewport clipping, reorder themselves, or mutate editor/project state.
+`presentation_composition.c` therefore remains the single sequencing point but
+no longer needs to understand the geometry of these tools.
+
+Dimension, callout, revision-cloud and measurement drawing bodies were already
+outside the composer in existing app render adapters, so 33C does not move them
+merely for naming symmetry. Roof overlay remains a reserved composition slot
+until real roof editing feedback exists.
+
+This preserves the intended boundary: adding a future domain overlay normally
+requires a small render adapter plus one ordered dispatch point, not another
+large drawing implementation inside the application composer.

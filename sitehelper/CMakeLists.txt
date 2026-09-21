@@ -513,6 +513,9 @@ add_library(sitehelper_app_core
     app/app_workspace.c
     app/presentation_style.c
     app/presentation_composition.c
+    app/framing_overlay_render.c
+    app/slab_overlay_render.c
+    app/snap_overlay_render.c
 )
 
 target_include_directories(sitehelper_app_core
@@ -966,6 +969,10 @@ add_test(NAME workspace_presentation_tests COMMAND test_workspace_presentation)
 add_executable(test_presentation_composition app/tests/test_presentation_composition.c)
 target_link_libraries(test_presentation_composition PRIVATE sitehelper_app_core)
 add_test(NAME presentation_composition_tests COMMAND test_presentation_composition)
+
+add_executable(test_presentation_overlay_render app/tests/test_presentation_overlay_render.c)
+target_link_libraries(test_presentation_overlay_render PRIVATE sitehelper_app_core)
+add_test(NAME presentation_overlay_render_tests COMMAND test_presentation_overlay_render)
 
 add_executable(test_presentation_style app/tests/test_presentation_style.c)
 target_link_libraries(test_presentation_style PRIVATE sitehelper_app_core)
