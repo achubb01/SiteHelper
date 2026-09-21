@@ -134,7 +134,7 @@ int main(void)
      * presentation composition, not app_view.c. */
     assert(sitehelper_editor_set_active_workspace(&editor,EDITOR_WORKSPACE_DOCUMENTATION));
     drawing=(Drawing){0};
-    app_render_roofs(renderer,&project,&editor,NULL);
+    app_render_roofs(renderer,&project,&editor,NULL,NULL);
     assert(drawing.line_count == 4);
 
     editor_selection_set_annotation(&editor.selection,EDITOR_SELECTION_SCOPE_PLAN,note_id);

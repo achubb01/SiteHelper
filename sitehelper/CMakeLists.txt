@@ -512,6 +512,7 @@ add_library(sitehelper_app_core
     app/app_view.c
     app/app_workspace.c
     app/presentation_style.c
+    app/presentation_interaction_style.c
     app/presentation_composition.c
     app/framing_overlay_render.c
     app/slab_overlay_render.c
@@ -977,6 +978,14 @@ add_test(NAME presentation_overlay_render_tests COMMAND test_presentation_overla
 add_executable(test_presentation_style app/tests/test_presentation_style.c)
 target_link_libraries(test_presentation_style PRIVATE sitehelper_app_core)
 add_test(NAME presentation_style_tests COMMAND test_presentation_style)
+
+add_executable(test_presentation_interaction_style app/tests/test_presentation_interaction_style.c)
+target_link_libraries(test_presentation_interaction_style PRIVATE sitehelper_app_core)
+add_test(NAME presentation_interaction_style_tests COMMAND test_presentation_interaction_style)
+
+add_executable(test_presentation_interaction app/tests/test_presentation_interaction.c)
+target_link_libraries(test_presentation_interaction PRIVATE sitehelper_app_core)
+add_test(NAME presentation_interaction_tests COMMAND test_presentation_interaction)
 
 add_executable(test_viewport_input
     app/tests/test_viewport_input.c

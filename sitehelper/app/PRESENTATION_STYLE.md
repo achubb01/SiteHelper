@@ -91,19 +91,20 @@ invent their own definition of contextual/primary colour treatment.
 
 Selection highlight is intentionally not treated as ordinary layer colour.
 
-The established selected-object colours remain full strength for active layers.
-A remembered `current_wall_id` is still suppressed when walls are only context,
-as established in 33A. Workspace transition rules from Priority 32 should clear
-incompatible semantic selections.
+Priority 33D now owns this concern through `AppInteractionStyle`. Exact selection,
+selection-owner context and navigation/current context are separate visual roles.
+A remembered `current_wall_id` is suppressed when walls are only context, while
+`EditorSelection` remains the authority for actual selection. Workspace transition
+rules from Priority 32 clear incompatible semantic selections.
 
 Transient authoring previews, edit handles, measurement feedback and snap
 markers also remain at their established full-strength colours in 33B. They are
 interaction feedback and need to remain legible even when the persistent model
 layer underneath them is subdued.
 
-A later Priority 33 step can introduce a dedicated overlay style contract if
-preview/handle visual hierarchy becomes complex enough to justify it. It should
-not be folded into persistent layer tone merely because both are colours.
+Priority 33C extracted the remaining tool-specific overlay drawing bodies. Their
+interaction colours are still intentionally local to the overlay adapters; a
+separate overlay theme is unnecessary until those visuals need shared semantics.
 
 ## Invariants
 

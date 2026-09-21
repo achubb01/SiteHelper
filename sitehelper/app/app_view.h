@@ -5,6 +5,7 @@
 #include "wall_render.h"
 #include "slab_plan_render.h"
 #include "presentation_style.h"
+#include "presentation_interaction_style.h"
 
 /* Saved cameras are application state. The renderer holds the live camera. */
 typedef struct
@@ -18,7 +19,8 @@ int app_views_set_active(
 );
 void app_render_walls(
     Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const WallRenderStyle *style
+    const SiteHelperEditor *editor, const WallRenderStyle *style,
+    const AppInteractionStyle *interaction_style
 );
 void app_render_slabs(
     Renderer2D *renderer, const SiteHelperProject *project,
@@ -27,29 +29,35 @@ void app_render_slabs(
 /* Roof source-intent layer. Draws authoritative support polygons, not derived
  * planes/ridges/hips/valleys. Presentation policy owns workspace visibility. */
 void app_render_roofs(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const AppRenderTone *tone);
+    const SiteHelperEditor *editor, const AppRenderTone *tone,
+    const AppInteractionStyle *interaction_style);
 /* Project-owned persistent dimension overlay; Plan view only. */
 void app_render_plan_dimensions(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const AppRenderTone *tone);
+    const SiteHelperEditor *editor, const AppRenderTone *tone,
+    const AppInteractionStyle *interaction_style);
 /* Transient three-click dimension authoring overlay; Plan view only. */
 void app_render_plan_dimension_preview(Renderer2D *renderer, const SiteHelperEditor *editor);
 
 /* Project-owned point-marker symbol overlay; fixed-pixel target, Plan view only. */
 void app_render_plan_symbols(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const AppRenderTone *style);
+    const SiteHelperEditor *editor, const AppRenderTone *style,
+    const AppInteractionStyle *interaction_style);
 
 /* Project-owned leader/callout overlay and transient two-point authoring preview. */
 void app_render_plan_callouts(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const AppRenderTone *style);
+    const SiteHelperEditor *editor, const AppRenderTone *style,
+    const AppInteractionStyle *interaction_style);
 void app_render_plan_callout_preview(Renderer2D *renderer, const SiteHelperEditor *editor);
 
 /* Project-owned note overlay; fixed-pixel marker/text, Plan view only. */
 void app_render_plan_notes(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const AppRenderTone *style);
+    const SiteHelperEditor *editor, const AppRenderTone *style,
+    const AppInteractionStyle *interaction_style);
 
 /* Project-owned revision markup. Boundary is authoritative; scallops are derived. */
 void app_render_plan_revision_clouds(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const AppRenderTone *style);
+    const SiteHelperEditor *editor, const AppRenderTone *style,
+    const AppInteractionStyle *interaction_style);
 void app_render_plan_revision_cloud_preview(Renderer2D *renderer,
     const SiteHelperEditor *editor);
 

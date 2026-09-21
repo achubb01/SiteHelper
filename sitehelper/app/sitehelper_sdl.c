@@ -76,6 +76,7 @@ typedef struct
     SlabPlanRenderStyle slab_style;
     GridRenderStyle grid_style;
     AppPresentationStyle presentation_style;
+    AppInteractionStyle interaction_style;
 
     Colour background;
 
@@ -199,6 +200,7 @@ static int sitehelper_app_init(
     };
 
     app->presentation_style = app_presentation_style_default();
+    app->interaction_style = app_interaction_style_default();
 
     app->grid_style = (GridRenderStyle){
         .minor_colour = {
@@ -334,12 +336,6 @@ static int sitehelper_app_init(
             .a = 255
         },
 
-        .selected_colour = {
-            .r = 255,
-            .g = 220,
-            .b = 40,
-            .a = 255
-        }
     };
 
     app->slab_style = (SlabPlanRenderStyle){
@@ -347,8 +343,6 @@ static int sitehelper_app_init(
         .penetration_colour = {210, 105, 105, 255},
         .region_colour = {100, 175, 210, 255},
         .rebate_colour = {205, 145, 80, 255},
-        .selected_colour = {255, 220, 40, 255},
-        .selected_parent_colour = {150, 150, 105, 255},
         .marker_size_pixels = 6.0
     };
 
@@ -386,7 +380,8 @@ static void sitehelper_app_render(
         .grid_style = &app->grid_style,
         .wall_style = &app->wall_style,
         .slab_style = &app->slab_style,
-        .presentation_style = &app->presentation_style
+        .presentation_style = &app->presentation_style,
+        .interaction_style = &app->interaction_style
     };
 
     app_presentation_render_viewport(

@@ -28,13 +28,13 @@ int main(void)
     renderer2d_set_camera(renderer,(Camera2D){.scale=1});
     renderer2d_set_viewport(renderer,(Vec2){0,0},800,600);
 
-    app_render_plan_dimensions(renderer,&project,&editor,NULL);
+    app_render_plan_dimensions(renderer,&project,&editor,NULL,NULL);
     assert(drawing.lines==5&&drawing.texts==1&&strcmp(drawing.last_text,"5000 mm")==0);
     editor_selection_set_dimension(&editor.selection,EDITOR_SELECTION_SCOPE_PLAN,dimension);
-    drawing=(Drawing){0}; app_render_plan_dimensions(renderer,&project,&editor,NULL);
+    drawing=(Drawing){0}; app_render_plan_dimensions(renderer,&project,&editor,NULL,NULL);
     assert(drawing.lines==5&&drawing.texts==1&&drawing.last.r==255&&drawing.last.g==220);
     assert(sitehelper_editor_set_active_view(&editor,EDITOR_VIEW_WALL_ELEVATION));
-    drawing=(Drawing){0}; app_render_plan_dimensions(renderer,&project,&editor,NULL);
+    drawing=(Drawing){0}; app_render_plan_dimensions(renderer,&project,&editor,NULL,NULL);
     assert(drawing.lines==0&&drawing.texts==0);
 
     assert(sitehelper_editor_set_active_view(&editor,EDITOR_VIEW_PLAN));

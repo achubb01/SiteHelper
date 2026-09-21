@@ -3,6 +3,7 @@
 
 #include "app_view.h"
 #include "grid_render.h"
+#include "presentation_interaction_style.h"
 
 /* Presentation policy is transient UI/rendering policy. It consumes the active
  * workspace/view but never owns or mutates editor or Project state. */
@@ -50,6 +51,7 @@ typedef struct
     const WallRenderStyle *wall_style;
     const SlabPlanRenderStyle *slab_style;
     const AppPresentationStyle *presentation_style;
+    const AppInteractionStyle *interaction_style;
 } AppPresentationRenderContext;
 
 /* Pure workspace/view -> presentation policy mapping. GENERAL is the legacy

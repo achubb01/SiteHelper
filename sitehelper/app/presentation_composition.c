@@ -164,25 +164,27 @@ static GridRenderStyle app_presentation_grid_style(
     return result;
 }
 
+static AppInteractionStyle app_presentation_interaction_style(
+    const AppInteractionStyle *style
+)
+{
+    return style != NULL ? *style : app_interaction_style_default();
+}
+
 static WallRenderStyle app_presentation_wall_style(
     const WallRenderStyle *style,
-    AppPresentationEmphasis emphasis,
     const AppRenderTone *tone
 )
 {
     WallRenderStyle result = *style;
     result.timber_colour = app_render_tone_apply(result.timber_colour, tone);
-    if (emphasis == APP_PRESENTATION_CONTEXT) {
-        /* current_wall_id is navigation state, not a focused-workspace selection.
-         * Context walls therefore suppress the remembered-current highlight. */
-        result.selected_colour = result.timber_colour;
-    }
     return result;
 }
 
 static SlabPlanRenderStyle app_presentation_slab_style(
     const SlabPlanRenderStyle *style,
-    const AppRenderTone *tone
+    const AppRenderTone *tone,
+    const AppInteractionStyle *interaction_style
 )
 {
     SlabPlanRenderStyle result = *style;
@@ -190,8 +192,8 @@ static SlabPlanRenderStyle app_presentation_slab_style(
     result.penetration_colour = app_render_tone_apply(result.penetration_colour, tone);
     result.region_colour = app_render_tone_apply(result.region_colour, tone);
     result.rebate_colour = app_render_tone_apply(result.rebate_colour, tone);
-    /* Selection is interaction feedback, not layer hierarchy. Preserve its
-     * established highlight when this is the active/normal layer. */
+    result.selected_colour = interaction_style->selected_colour;
+    result.selected_parent_colour = interaction_style->selection_owner_colour;
     return result;
 }
 
@@ -204,6 +206,9 @@ void app_presentation_render_viewport(
         context->editor == NULL) {
         return;
     }
+
+    AppInteractionStyle interaction = app_presentation_interaction_style(
+        context->interaction_style);
 
     renderer2d_begin_viewport_clip(context->renderer);
 
@@ -222,7 +227,7 @@ void app_presentation_render_viewport(
         AppRenderTone tone = app_presentation_tone(
             context->presentation_style, policy->slabs);
         SlabPlanRenderStyle style = app_presentation_slab_style(
-            context->slab_style, &tone);
+            context->slab_style, &tone, &interaction);
         app_render_slabs(
             context->renderer,
             context->project,
@@ -237,12 +242,20 @@ void app_presentation_render_viewport(
         AppRenderTone tone = app_presentation_tone(
             context->presentation_style, policy->walls);
         WallRenderStyle style = app_presentation_wall_style(
-            context->wall_style, policy->walls, &tone);
+            context->wall_style, &tone);
+        AppInteractionStyle wall_interaction = interaction;
+        if (policy->walls == APP_PRESENTATION_CONTEXT) {
+            /* Priority 32 preserves current_wall_id as navigation across
+             * workspace changes. Context geometry must not promote that
+             * remembered navigation target into active-looking feedback. */
+            wall_interaction.navigation_colour = style.timber_colour;
+        }
         app_render_walls(
             context->renderer,
             context->project,
             context->editor,
-            &style
+            &style,
+            &wall_interaction
         );
     }
 
@@ -254,7 +267,8 @@ void app_presentation_render_viewport(
             context->renderer,
             context->project,
             context->editor,
-            &tone
+            &tone,
+            &interaction
         );
     }
 
@@ -270,7 +284,8 @@ void app_presentation_render_viewport(
             context->renderer,
             context->project,
             context->editor,
-            &tone
+            &tone,
+            &interaction
         );
     }
     if (context->project != NULL &&
@@ -281,7 +296,8 @@ void app_presentation_render_viewport(
             context->renderer,
             context->project,
             context->editor,
-            &style
+            &style,
+            &interaction
         );
     }
     if (context->project != NULL &&
@@ -292,7 +308,8 @@ void app_presentation_render_viewport(
             context->renderer,
             context->project,
             context->editor,
-            &style
+            &style,
+            &interaction
         );
     }
     if (context->project != NULL &&
@@ -303,7 +320,8 @@ void app_presentation_render_viewport(
             context->renderer,
             context->project,
             context->editor,
-            &style
+            &style,
+            &interaction
         );
     }
     if (context->project != NULL &&
@@ -314,7 +332,8 @@ void app_presentation_render_viewport(
             context->renderer,
             context->project,
             context->editor,
-            &style
+            &style,
+            &interaction
         );
     }
 

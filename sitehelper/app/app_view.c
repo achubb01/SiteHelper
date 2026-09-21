@@ -7,6 +7,31 @@
 #include <math.h>
 #include <stdio.h>
 
+static AppInteractionStyle app_interaction_style_or_default(
+    const AppInteractionStyle *style
+)
+{
+    return style != NULL ? *style : app_interaction_style_default();
+}
+
+static int app_plan_wall_selected(const EditorSelection *selection, DomainId wall_id)
+{
+    return selection != NULL && selection->scope == EDITOR_SELECTION_SCOPE_PLAN &&
+        selection->kind == EDITOR_SELECTION_WALL && selection->wall_id == wall_id;
+}
+
+static int app_plan_wall_is_selection_owner(
+    const EditorSelection *selection, DomainId wall_id
+)
+{
+    if (selection == NULL || selection->scope != EDITOR_SELECTION_SCOPE_PLAN ||
+        selection->wall_id != wall_id) {
+        return 0;
+    }
+    return selection->kind == EDITOR_SELECTION_OPENING ||
+        selection->kind == EDITOR_SELECTION_WALL_MEMBER;
+}
+
 
 void app_views_init(AppViews *views, Camera2D initial_camera)
 {
@@ -72,20 +97,25 @@ void app_render_slabs(
 
 void app_render_walls(
     Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const WallRenderStyle *style
+    const SiteHelperEditor *editor, const WallRenderStyle *style,
+    const AppInteractionStyle *interaction_style
 )
 {
     if (renderer == NULL || project == NULL || editor == NULL || style == NULL) {
         return;
     }
+    AppInteractionStyle interaction =
+        app_interaction_style_or_default(interaction_style);
     if (editor->active_view == EDITOR_VIEW_WALL_ELEVATION) {
         const Wall *wall = app_current_wall_const(project, editor);
         if (wall != NULL) {
             const WallSelection *selection = editor_selection_get_wall_member(
                 &editor->selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, wall->id
             );
+            WallRenderStyle render_style = *style;
+            render_style.selected_colour = interaction.selected_colour;
             wall_elevation_render(renderer, wall,
-                wall_selection_resolve(selection, wall), style);
+                wall_selection_resolve(selection, wall), &render_style);
         }
         return;
     }
@@ -93,14 +123,21 @@ void app_render_walls(
     if (storey == NULL) { return; }
     for (size_t i = 0; i < storey->structure.wall_count; i++) {
         const Wall *wall = &storey->structure.walls[i];
-        int current=wall->id == editor->current_wall_id;
-        wall_plan_render(renderer, wall,
-            current ? style->selected_colour : style->timber_colour);
+        Colour colour = style->timber_colour;
+        if (app_plan_wall_selected(&editor->selection, wall->id)) {
+            colour = interaction.selected_colour;
+        } else if (app_plan_wall_is_selection_owner(&editor->selection, wall->id)) {
+            colour = interaction.selection_owner_colour;
+        } else if (wall->id == editor->current_wall_id) {
+            colour = interaction.navigation_colour;
+        }
+        wall_plan_render(renderer, wall, colour);
     }
 }
 
 void app_render_roofs(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const AppRenderTone *tone)
+    const SiteHelperEditor *editor, const AppRenderTone *tone,
+    const AppInteractionStyle *interaction_style)
 {
     if (renderer == NULL || project == NULL || editor == NULL ||
         editor->active_view != EDITOR_VIEW_PLAN) {
@@ -109,6 +146,8 @@ void app_render_roofs(Renderer2D *renderer, const SiteHelperProject *project,
     const Storey *storey=sitehelper_project_find_storey_by_id_const(project,
         editor->current_storey_id);
     if (storey == NULL) { return; }
+    AppInteractionStyle interaction =
+        app_interaction_style_or_default(interaction_style);
 
     for (size_t r=0;r<storey->roofs.count;r++) {
         const Roof *roof=&storey->roofs.items[r];
@@ -125,9 +164,16 @@ void app_render_roofs(Renderer2D *renderer, const SiteHelperProject *project,
                 editor->selection.kind == EDITOR_SELECTION_ROOF_PORTION &&
                 editor->selection.roof_id == roof->id &&
                 editor->selection.roof_portion_id == portion->id;
-            Colour colour=portion_selected ? (Colour){255,220,40,255} :
-                roof_selected ? (Colour){210,180,230,255} : (Colour){180,130,220,255};
-            if (!portion_selected && !roof_selected) {
+            int selected_portion_owner=editor->selection.scope ==
+                    EDITOR_SELECTION_SCOPE_PLAN &&
+                editor->selection.kind == EDITOR_SELECTION_ROOF_PORTION &&
+                editor->selection.roof_id == roof->id;
+            Colour colour=(Colour){180,130,220,255};
+            if (portion_selected || roof_selected) {
+                colour=interaction.selected_colour;
+            } else if (selected_portion_owner) {
+                colour=interaction.selection_owner_colour;
+            } else {
                 colour=app_render_tone_apply(colour,tone);
             }
             for (size_t i=0;i<portion->support_vertex_count;i++) {
@@ -161,12 +207,15 @@ static void draw_note_text(Renderer2D *renderer, Vec2 origin, const char *text, 
 
 
 void app_render_plan_dimensions(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const AppRenderTone *tone)
+    const SiteHelperEditor *editor, const AppRenderTone *tone,
+    const AppInteractionStyle *interaction_style)
 {
     if (renderer == NULL || project == NULL || editor == NULL ||
         editor->active_view != EDITOR_VIEW_PLAN || editor->current_storey_id == DOMAIN_ID_INVALID) {
         return;
     }
+    AppInteractionStyle interaction =
+        app_interaction_style_or_default(interaction_style);
     Camera2D camera=renderer2d_get_camera(renderer);
     Viewport2D viewport=renderer2d_get_viewport(renderer);
     if (!(camera.scale > 0.0) || !isfinite(camera.scale)) return;
@@ -179,7 +228,7 @@ void app_render_plan_dimensions(Renderer2D *renderer, const SiteHelperProject *p
         if (!document_plan_dimension_geometry(a,b,dimension->offset_mm,&geometry)) continue;
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_DIMENSION,dimension->id);
-        Colour colour=selected ? (Colour){255,220,40,255} : (Colour){210,210,210,255};
+        Colour colour=selected ? interaction.selected_colour : (Colour){210,210,210,255};
         if (!selected) { colour=app_render_tone_apply(colour,tone); }
         renderer2d_draw_line(renderer,(Vec2){geometry.source_first.x,geometry.source_first.y},
             (Vec2){geometry.line_first.x,geometry.line_first.y},colour);
@@ -284,12 +333,15 @@ static void draw_view_direction_marker(Renderer2D *renderer, PlanPosition anchor
 }
 
 void app_render_plan_symbols(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const AppRenderTone *style)
+    const SiteHelperEditor *editor, const AppRenderTone *style,
+    const AppInteractionStyle *interaction_style)
 {
     if (renderer == NULL || project == NULL || editor == NULL ||
         editor->active_view != EDITOR_VIEW_PLAN || editor->current_storey_id == DOMAIN_ID_INVALID) {
         return;
     }
+    AppInteractionStyle interaction =
+        app_interaction_style_or_default(interaction_style);
     Camera2D camera=renderer2d_get_camera(renderer);
     if (!(camera.scale > 0.0) || !isfinite(camera.scale)) { return; }
     const double inner=4.0/camera.scale;
@@ -299,7 +351,7 @@ void app_render_plan_symbols(Renderer2D *renderer, const SiteHelperProject *proj
         if (symbol->storey_id != editor->current_storey_id) { continue; }
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_SYMBOL,symbol->id);
-        Colour colour=selected ? (Colour){255,220,40,255} : (Colour){120,210,255,255};
+        Colour colour=selected ? interaction.selected_colour : (Colour){120,210,255,255};
         if (!selected) { colour=app_render_tone_apply(colour,style); }
         double x=symbol->anchor.x,y=symbol->anchor.y;
         if (symbol->kind == DOCUMENT_PLAN_SYMBOL_POINT_MARKER) {
@@ -342,12 +394,15 @@ static void draw_callout_arrow(Renderer2D *renderer, PlanPosition target,
 }
 
 void app_render_plan_callouts(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const AppRenderTone *style)
+    const SiteHelperEditor *editor, const AppRenderTone *style,
+    const AppInteractionStyle *interaction_style)
 {
     if (renderer == NULL || project == NULL || editor == NULL ||
         editor->active_view != EDITOR_VIEW_PLAN || editor->current_storey_id == DOMAIN_ID_INVALID) {
         return;
     }
+    AppInteractionStyle interaction =
+        app_interaction_style_or_default(interaction_style);
     Camera2D camera=renderer2d_get_camera(renderer);
     Viewport2D viewport=renderer2d_get_viewport(renderer);
     for (size_t i=0;i<project->document.callout_count;i++) {
@@ -355,7 +410,7 @@ void app_render_plan_callouts(Renderer2D *renderer, const SiteHelperProject *pro
         if (callout->storey_id != editor->current_storey_id) { continue; }
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_CALLOUT,callout->id);
-        Colour colour=selected ? (Colour){255,220,40,255} : (Colour){235,190,100,255};
+        Colour colour=selected ? interaction.selected_colour : (Colour){235,190,100,255};
         if (!selected) { colour=app_render_tone_apply(colour,style); }
         renderer2d_draw_line(renderer,(Vec2){callout->target.x,callout->target.y},
             (Vec2){callout->label_anchor.x,callout->label_anchor.y},colour);
@@ -386,12 +441,15 @@ void app_render_plan_callout_preview(Renderer2D *renderer, const SiteHelperEdito
 }
 
 void app_render_plan_notes(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const AppRenderTone *style)
+    const SiteHelperEditor *editor, const AppRenderTone *style,
+    const AppInteractionStyle *interaction_style)
 {
     if (renderer == NULL || project == NULL || editor == NULL ||
         editor->active_view != EDITOR_VIEW_PLAN || editor->current_storey_id == DOMAIN_ID_INVALID) {
         return;
     }
+    AppInteractionStyle interaction =
+        app_interaction_style_or_default(interaction_style);
     Camera2D camera=renderer2d_get_camera(renderer);
     Viewport2D viewport=renderer2d_get_viewport(renderer);
     for (size_t i=0;i<project->document.annotation_count;i++) {
@@ -403,7 +461,7 @@ void app_render_plan_notes(Renderer2D *renderer, const SiteHelperProject *projec
         if (!isfinite(screen.x)||!isfinite(screen.y)) { continue; }
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_NOTE,note->id);
-        Colour colour=selected ? (Colour){255,220,40,255} : (Colour){235,235,180,255};
+        Colour colour=selected ? interaction.selected_colour : (Colour){235,235,180,255};
         if (!selected) { colour=app_render_tone_apply(colour,style); }
         double size=selected ? 8.0 : 6.0;
         renderer2d_fill_screen_rect(renderer,(Rect2){
@@ -464,19 +522,22 @@ static void draw_revision_cloud_boundary(Renderer2D *renderer,
 }
 
 void app_render_plan_revision_clouds(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor, const AppRenderTone *style)
+    const SiteHelperEditor *editor, const AppRenderTone *style,
+    const AppInteractionStyle *interaction_style)
 {
     if (renderer == NULL || project == NULL || editor == NULL ||
         editor->active_view != EDITOR_VIEW_PLAN || editor->current_storey_id == DOMAIN_ID_INVALID) {
         return;
     }
+    AppInteractionStyle interaction =
+        app_interaction_style_or_default(interaction_style);
     for (size_t i=0;i<project->document.revision_cloud_count;i++) {
         const DocumentPlanRevisionCloud *cloud=&project->document.revision_clouds[i];
         if (cloud->storey_id != editor->current_storey_id ||
             !document_plan_revision_cloud_is_locally_valid(cloud)) { continue; }
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_REVISION_CLOUD,cloud->id);
-        Colour colour=selected ? (Colour){255,220,40,255} : (Colour){235,95,180,255};
+        Colour colour=selected ? interaction.selected_colour : (Colour){235,95,180,255};
         if (!selected) { colour=app_render_tone_apply(colour,style); }
         draw_revision_cloud_boundary(renderer,cloud->vertices,cloud->vertex_count,colour);
     }
