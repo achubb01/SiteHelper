@@ -10,6 +10,7 @@ typedef struct
     DomainId storey_id;
     DomainId wall_id;
     WallPlanSegment segment;
+    WallPlanSpecification plan_specification;
     Opening *openings;
     size_t opening_count;
 } DeletedWallSnapshot;

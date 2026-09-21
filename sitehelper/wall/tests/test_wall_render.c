@@ -8,9 +8,11 @@
 typedef struct FakeBackendState {
     int fill_rect_called;
     int line_count;
+    int triangle_count;
     Vec2 starts[16], ends[16];
     Rect2 rects[16];
     Colour colours[16];
+    Vec2 triangle_points[32][3];
 } FakeBackendState;
 
 static void fake_fill_rect(
@@ -38,6 +40,17 @@ static void fake_draw_line(void *context, Vec2 start, Vec2 end, Colour colour)
     assert(state->line_count < 16);
     state->starts[state->line_count] = start;
     state->ends[state->line_count++] = end;
+}
+
+static void fake_fill_triangle(void *context, Vec2 a, Vec2 b, Vec2 c, Colour colour)
+{
+    (void)colour;
+    FakeBackendState *state=context;
+    assert(state->triangle_count < 32);
+    state->triangle_points[state->triangle_count][0]=a;
+    state->triangle_points[state->triangle_count][1]=b;
+    state->triangle_points[state->triangle_count][2]=c;
+    state->triangle_count++;
 }
 
 static int nearly_equal(double a, double b)
@@ -526,42 +539,39 @@ static void test_elevation_ignores_plan_placement(void)
     renderer2d_destroy(renderer);
 }
 
-static void test_plan_renders_exact_ordered_endpoints(void)
+static void test_plan_renders_physical_body_and_optional_datum(void)
 {
     Renderer2D *renderer = renderer2d_create();
     assert(renderer != NULL);
     FakeBackendState state = {0};
     renderer2d_set_backend(renderer, (RendererBackend){
-        .context = &state, .draw_line = fake_draw_line, .fill_rect = fake_fill_rect
+        .context=&state,.draw_line=fake_draw_line,.fill_rect=fake_fill_rect,
+        .fill_triangle=fake_fill_triangle
     });
-    Camera2D camera = {.position = {-250, 125}, .scale = 0.25};
-    renderer2d_set_camera(renderer, camera);
-    renderer2d_set_viewport(renderer, (Vec2){40, 20}, 800, 600);
-    Viewport2D viewport = renderer2d_get_viewport(renderer);
-    WallPlanSegment segments[] = {
-        {{1000, 2000}, {5000, 5000}},
-        {{5000, 5000}, {1000, 2000}},
-        {{-700, 900}, {-700, -500}},
-        {{800, -400}, {2400, -400}}
-    };
-    for (size_t i = 0; i < sizeof segments / sizeof segments[0]; i++) {
-        Wall wall = {.definition.segment = segments[i]};
-        wall_plan_render(renderer, &wall, (Colour){1, 2, 3, 255});
-        Vec2 start = camera_screen_to_world(&camera, viewport, state.starts[i]);
-        Vec2 end = camera_screen_to_world(&camera, viewport, state.ends[i]);
-        assert(nearly_equal(start.x, segments[i].start.x));
-        assert(nearly_equal(start.y, segments[i].start.y));
-        assert(nearly_equal(end.x, segments[i].end.x));
-        assert(nearly_equal(end.y, segments[i].end.y));
-    }
-    assert(state.line_count == 4);
-    assert(state.fill_rect_called == 0);
+    Camera2D camera={.position={0,0},.scale=1.0};
+    renderer2d_set_camera(renderer,camera);
+    renderer2d_set_viewport(renderer,(Vec2){0,0},1000,1000);
+    Wall wall={0};
+    assert(wall_set_plan_segment(&wall,(WallPlanSegment){{100,200},{500,200}}));
+    wall_plan_render(renderer,&wall,&(WallPlanRenderStyle){
+        .body_colour={1,2,3,255},.datum_colour={4,5,6,255},.show_datum=true});
+    assert(state.triangle_count == 2);
+    assert(state.line_count == 1);
+    Viewport2D viewport=renderer2d_get_viewport(renderer);
+    Vec2 a=camera_screen_to_world(&camera,viewport,state.triangle_points[0][0]);
+    Vec2 b=camera_screen_to_world(&camera,viewport,state.triangle_points[0][1]);
+    assert(nearly_equal(a.y,245.0));
+    assert(nearly_equal(b.y,155.0));
+    Vec2 datum_a=camera_screen_to_world(&camera,viewport,state.starts[0]);
+    Vec2 datum_b=camera_screen_to_world(&camera,viewport,state.ends[0]);
+    assert(nearly_equal(datum_a.x,100.0) && nearly_equal(datum_a.y,200.0));
+    assert(nearly_equal(datum_b.x,500.0) && nearly_equal(datum_b.y,200.0));
     renderer2d_destroy(renderer);
 }
 
 int main(void)
 {
-    test_plan_renders_exact_ordered_endpoints();
+    test_plan_renders_physical_body_and_optional_datum();
     test_wall_render_draws_bottom_and_top_plate_and_studs();
     test_wall_render_uses_selected_colour_for_selected_timber();
     test_elevation_ignores_plan_placement();

@@ -167,6 +167,18 @@ static void sdl_draw_line(
     );
 }
 
+static void sdl_fill_triangle(void *context, Vec2 a, Vec2 b, Vec2 c, Colour colour)
+{
+    if (context == NULL) return;
+    SDLBackendState *state = context;
+    SDL_Vertex vertices[3] = {
+        {{(float)a.x,(float)a.y},{colour.r/255.0f,colour.g/255.0f,colour.b/255.0f,colour.a/255.0f},{0,0}},
+        {{(float)b.x,(float)b.y},{colour.r/255.0f,colour.g/255.0f,colour.b/255.0f,colour.a/255.0f},{0,0}},
+        {{(float)c.x,(float)c.y},{colour.r/255.0f,colour.g/255.0f,colour.b/255.0f,colour.a/255.0f},{0,0}}
+    };
+    SDL_RenderGeometry(state->renderer, NULL, vertices, 3, NULL, 0);
+}
+
 static void sdl_clear(
     void *context,
     Colour colour
@@ -241,6 +253,7 @@ RendererBackend renderer2d_sdl_create_backend(
     backend.draw_rect = sdl_draw_rect;
     backend.fill_rect = sdl_fill_rect;
     backend.draw_line = sdl_draw_line;
+    backend.fill_triangle = sdl_fill_triangle;
     backend.set_clip_rect = sdl_set_clip_rect;
     backend.clear_clip_rect = sdl_clear_clip_rect;
     backend.present = sdl_present;

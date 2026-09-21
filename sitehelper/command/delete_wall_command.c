@@ -44,6 +44,7 @@ int deleted_wall_snapshot_capture(const SiteHelperProject *project,
         .storey_id = sitehelper_project_find_owning_storey_const(project, wall->id)->id,
         .wall_id = wall->id,
         .segment = wall->definition.segment,
+        .plan_specification = wall->definition.plan_specification,
         .opening_count = wall->definition.opening_count
     };
     if (candidate.opening_count > SIZE_MAX / sizeof *candidate.openings) {
@@ -83,7 +84,8 @@ int deleted_wall_snapshot_restore(SiteHelperProject *project,
         }
     }
     Wall candidate = { .id = snapshot->wall_id };
-    if (!wall_set_plan_segment(&candidate, snapshot->segment)) {
+    if (!wall_set_plan_segment(&candidate, snapshot->segment) ||
+        !wall_set_plan_specification(&candidate, snapshot->plan_specification)) {
         return 0;
     }
     for (size_t i = 0; i < snapshot->opening_count; i++) {

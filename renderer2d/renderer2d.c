@@ -219,6 +219,16 @@ void renderer2d_draw_line(
     );
 }
 
+void renderer2d_fill_triangle(
+    Renderer2D *renderer, Vec2 a, Vec2 b, Vec2 c, Colour colour)
+{
+    if (renderer == NULL || renderer->backend.fill_triangle == NULL) return;
+    a = camera_world_to_screen(&renderer->camera, renderer->viewport, a);
+    b = camera_world_to_screen(&renderer->camera, renderer->viewport, b);
+    c = camera_world_to_screen(&renderer->camera, renderer->viewport, c);
+    renderer->backend.fill_triangle(renderer->backend.context, a, b, c, colour);
+}
+
 void renderer2d_clear(
     Renderer2D *renderer,
     Colour colour

@@ -11,6 +11,16 @@ int wall_set_plan_segment(Wall *wall, WallPlanSegment segment)
         return 0;
     }
     wall->definition.segment = segment;
+    if (!wall_plan_specification_valid(wall->definition.plan_specification)) {
+        wall->definition.plan_specification = wall_plan_specification_default();
+    }
+    return 1;
+}
+
+int wall_set_plan_specification(Wall *wall, WallPlanSpecification specification)
+{
+    if (wall == NULL || !wall_plan_specification_valid(specification)) return 0;
+    wall->definition.plan_specification = specification;
     return 1;
 }
 

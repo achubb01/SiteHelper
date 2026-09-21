@@ -69,7 +69,7 @@ static void test_symbol_persistence_round_trip(void)
     assert(sitehelper_project_save_file(&project,path)==SITEHELPER_PERSISTENCE_SUCCESS);
     FILE *file=fopen(path,"r"); assert(file);
     char header[64]; assert(fgets(header,sizeof header,file));
-    assert(strcmp(header,"sitehelper_project 22\n")==0);
+    assert(strcmp(header,"sitehelper_project 23\n")==0);
     fclose(file);
 
     assert(sitehelper_project_load_file(&loaded,path)==SITEHELPER_PERSISTENCE_SUCCESS);
@@ -106,7 +106,7 @@ static void test_version_seventeen_loads_with_no_symbols(void)
     int first_line = 1;
     while (fgets(line, sizeof line, input) != NULL) {
         if (first_line) {
-            assert(strcmp(line, "sitehelper_project 22\n") == 0);
+            assert(strcmp(line, "sitehelper_project 23\n") == 0);
             assert(fputs("sitehelper_project 17\n", output) >= 0);
             first_line = 0;
             continue;
@@ -147,7 +147,7 @@ static void test_version_nineteen_loads_point_symbols(void)
     char line[512]; int first=1;
     while (fgets(line,sizeof line,input)) {
         if (first) {
-            assert(strcmp(line,"sitehelper_project 22\n")==0);
+            assert(strcmp(line,"sitehelper_project 23\n")==0);
             assert(fputs("sitehelper_project 20\n",output)>=0);
             first=0;
         } else if (strcmp(line,"revisions 0\n")!=0 && strcmp(line,"revision_clouds 0\n")!=0) {

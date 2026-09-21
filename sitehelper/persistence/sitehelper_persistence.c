@@ -16,7 +16,7 @@
 
 enum
 {
-    SITEHELPER_PROJECT_FORMAT_VERSION = 22,
+    SITEHELPER_PROJECT_FORMAT_VERSION = 23,
     PERSISTENCE_TOKEN_CAPACITY = 64
 };
 
@@ -59,6 +59,7 @@ static int parse_roof_generation(const char *token, RoofPortionGeneration *gener
 static int parse_roof_single_slope_reference(const char *token, RoofSingleSlopeReference *reference);
 static int parse_roof_composition_kind(const char *token, RoofCompositionKind *kind);
 static int parse_roof_end(const char *token, RoofEnd *end);
+static int parse_wall_plan_alignment(const char *token, WallPlanAlignment *alignment);
 
 static const char *stud_spacing_mode_token(StudSpacingMode mode);
 static const char *opening_type_token(OpeningType type);
@@ -66,6 +67,7 @@ static const char *roof_generation_token(RoofPortionGeneration generation);
 static const char *roof_single_slope_reference_token(RoofSingleSlopeReference reference);
 static const char *roof_composition_kind_token(RoofCompositionKind kind);
 static const char *roof_end_token(RoofEnd end);
+static const char *wall_plan_alignment_token(WallPlanAlignment alignment);
 
 static int project_contains_id(const SiteHelperProject *project, DomainId id)
 {
@@ -312,6 +314,15 @@ static int parse_roof_end(const char *token, RoofEnd *end)
     return 0;
 }
 
+static int parse_wall_plan_alignment(const char *token, WallPlanAlignment *alignment)
+{
+    if (token == NULL || alignment == NULL) return 0;
+    if (strcmp(token,"center") == 0) { *alignment=WALL_PLAN_ALIGNMENT_CENTER; return 1; }
+    if (strcmp(token,"left_face") == 0) { *alignment=WALL_PLAN_ALIGNMENT_LEFT_FACE; return 1; }
+    if (strcmp(token,"right_face") == 0) { *alignment=WALL_PLAN_ALIGNMENT_RIGHT_FACE; return 1; }
+    return 0;
+}
+
 static const char *stud_spacing_mode_token(StudSpacingMode mode)
 {
     switch (mode) {
@@ -375,6 +386,16 @@ static const char *roof_end_token(RoofEnd end)
     switch (end) {
         case ROOF_END_NEGATIVE_AXIS: return "negative_axis";
         case ROOF_END_POSITIVE_AXIS: return "positive_axis";
+        default: return NULL;
+    }
+}
+
+static const char *wall_plan_alignment_token(WallPlanAlignment alignment)
+{
+    switch (alignment) {
+        case WALL_PLAN_ALIGNMENT_CENTER: return "center";
+        case WALL_PLAN_ALIGNMENT_LEFT_FACE: return "left_face";
+        case WALL_PLAN_ALIGNMENT_RIGHT_FACE: return "right_face";
         default: return NULL;
     }
 }
@@ -605,6 +626,18 @@ static SiteHelperPersistenceResult parse_wall(
         };
     }
 
+    WallPlanSpecification plan_specification=wall_plan_specification_default();
+    if (version >= 23) {
+        if (expect_token(file,"plan_spec") != SITEHELPER_PERSISTENCE_SUCCESS ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_int_token(token,&plan_specification.thickness_mm) ||
+            read_required_token(file,token) != SITEHELPER_PERSISTENCE_SUCCESS ||
+            !parse_wall_plan_alignment(token,&plan_specification.alignment) ||
+            !wall_plan_specification_valid(plan_specification)) {
+            return SITEHELPER_PERSISTENCE_MALFORMED_DATA;
+        }
+    }
+
     if (
         expect_token(file, "openings") != SITEHELPER_PERSISTENCE_SUCCESS ||
         read_required_token(file, token) != SITEHELPER_PERSISTENCE_SUCCESS ||
@@ -615,6 +648,7 @@ static SiteHelperPersistenceResult parse_wall(
 
     Wall candidate = { .id = wall_id };
     if (!wall_set_plan_segment(&candidate, segment) ||
+        !wall_set_plan_specification(&candidate, plan_specification) ||
         !build_append_wall(structure, &candidate)) {
 
         wall_destroy(&candidate);
@@ -1829,12 +1863,14 @@ static int write_project(
                 const Wall *wall = &structure->walls[wall_index];
 
                 if (fprintf(file,
-                        "wall %" PRIu64 " segment %d %d %d %d openings %zu\n",
+                        "wall %" PRIu64 " segment %d %d %d %d plan_spec %d %s openings %zu\n",
                         (uint64_t)wall->id,
                         wall->definition.segment.start.x,
                         wall->definition.segment.start.y,
                         wall->definition.segment.end.x,
                         wall->definition.segment.end.y,
+                        wall->definition.plan_specification.thickness_mm,
+                        wall_plan_alignment_token(wall->definition.plan_specification.alignment),
                         wall->definition.opening_count) < 0) {
 
                     return 0;

@@ -7,11 +7,16 @@
 #include "opening.h"
 #include "timber.h"
 #include "wall_plan_segment.h"
+#include "wall_plan_specification.h"
 #include "room_separator.h"
 
 typedef struct WallDefinition {
     /* Ordered endpoints are the sole physical longitudinal geometry. */
     WallPlanSegment segment;
+
+    /* Authoritative physical Plan specification. The segment remains the
+     * placement datum; changing this specification never moves that datum. */
+    WallPlanSpecification plan_specification;
 
     Opening *openings;
     size_t opening_count;

@@ -1577,17 +1577,8 @@ static int editor_select_document_at_position(SiteHelperEditor *editor,
 static int editor_select_wall_at_position(SiteHelperEditor *editor,
     const BuildStructure *structure, Vec2 view_position, double tolerance_mm)
 {
-    DomainId best=DOMAIN_ID_INVALID;
-    double nearest=tolerance_mm;
-    for (size_t index=structure->wall_count;index>0;index--) {
-        const Wall *wall=&structure->walls[index-1];
-        double distance=plan_segment_distance(wall->definition.segment,view_position);
-        if (distance <= nearest &&
-            (best == DOMAIN_ID_INVALID || distance < nearest)) {
-            nearest=distance;
-            best=wall->id;
-        }
-    }
+    DomainId best=wall_plan_find_wall_at_position(structure,
+        (PlanPoint){view_position.x,view_position.y},tolerance_mm);
     editor->current_wall_id=best;
     if (best == DOMAIN_ID_INVALID) { return 0; }
     editor_selection_set_wall(&editor->selection,EDITOR_SELECTION_SCOPE_PLAN,best);

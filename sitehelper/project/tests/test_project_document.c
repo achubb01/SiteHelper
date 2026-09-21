@@ -131,7 +131,7 @@ static void test_persistence_round_trip(void)
     assert(file);
     char header[64];
     assert(fgets(header, sizeof header, file));
-    assert(strcmp(header, "sitehelper_project 22\n") == 0);
+    assert(strcmp(header, "sitehelper_project 23\n") == 0);
     fclose(file);
     remove(path);
     sitehelper_project_destroy(&loaded);

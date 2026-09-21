@@ -36,6 +36,12 @@ typedef void (*BackendDrawLineFn)(
     Colour colour
 );
 
+typedef void (*BackendFillTriangleFn)(
+    void *context,
+    Vec2 a, Vec2 b, Vec2 c,
+    Colour colour
+);
+
 typedef void (*BackendPresentFn)(
     void *context
 );
@@ -56,6 +62,7 @@ typedef struct RendererBackend {
     BackendDrawRectFn draw_rect;
     BackendFillRectFn fill_rect;
     BackendDrawLineFn draw_line;
+    BackendFillTriangleFn fill_triangle;
 
     BackendSetClipRectFn set_clip_rect;
     BackendClearClipRectFn clear_clip_rect;

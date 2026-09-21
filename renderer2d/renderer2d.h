@@ -17,6 +17,12 @@ void renderer2d_draw_line(
     Colour colour
 );
 
+void renderer2d_fill_triangle(
+    Renderer2D *renderer,
+    Vec2 a, Vec2 b, Vec2 c,
+    Colour colour
+);
+
 void renderer2d_draw_rect(
     Renderer2D *renderer,
     Rect2 rect,

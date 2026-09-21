@@ -1,4 +1,5 @@
 #include "wall_render.h"
+#include "wall_plan_geometry.h"
 
 static Colour timber_render_colour(
     const Timber *timber,
@@ -180,16 +181,22 @@ void wall_elevation_render(
 }
 
 void wall_plan_render(
-    Renderer2D *renderer,
-    const Wall *wall,
-    Colour colour
-)
+    Renderer2D *renderer, const Wall *wall, const WallPlanRenderStyle *style)
 {
-    if (renderer == NULL || wall == NULL) {
-        return;
+    if (renderer == NULL || wall == NULL || style == NULL) return;
+    WallPlanGeometry geometry;
+    if (!wall_plan_geometry_build(&wall->definition, &geometry)) return;
+    renderer2d_fill_triangle(renderer,
+        (Vec2){geometry.corners[0].x,geometry.corners[0].y},
+        (Vec2){geometry.corners[1].x,geometry.corners[1].y},
+        (Vec2){geometry.corners[2].x,geometry.corners[2].y}, style->body_colour);
+    renderer2d_fill_triangle(renderer,
+        (Vec2){geometry.corners[0].x,geometry.corners[0].y},
+        (Vec2){geometry.corners[2].x,geometry.corners[2].y},
+        (Vec2){geometry.corners[3].x,geometry.corners[3].y}, style->body_colour);
+    if (style->show_datum) {
+        WallPlanSegment segment=wall->definition.segment;
+        renderer2d_draw_line(renderer, (Vec2){segment.start.x,segment.start.y},
+            (Vec2){segment.end.x,segment.end.y}, style->datum_colour);
     }
-    WallPlanSegment segment = wall->definition.segment;
-    renderer2d_draw_line(renderer,
-        (Vec2){segment.start.x, segment.start.y},
-        (Vec2){segment.end.x, segment.end.y}, colour);
 }

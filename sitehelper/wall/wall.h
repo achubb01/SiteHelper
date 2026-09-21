@@ -83,6 +83,7 @@ int build_set_stud_spacing(BuildSettings *settings, int spacing);
 /* Invalid geometry returns 0; mutation commits both ordered endpoints at once. */
 int wall_length_mm(const Wall *wall);
 int wall_set_plan_segment(Wall *wall, WallPlanSegment segment);
+int wall_set_plan_specification(Wall *wall, WallPlanSpecification specification);
 /* Validate geometry and all existing openings, then regenerate and commit the
  * complete segment/framing together. Failure leaves the wall unchanged.
  * Borrows openings without changing their local definitions or identities. */

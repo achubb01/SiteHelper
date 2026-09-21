@@ -90,6 +90,7 @@ add_library(sitehelper_model
     domain/domain_id.c
     model/build_settings.c
     model/wall_plan_segment.c
+    model/wall_plan_specification.c
     model/wall_plan_transform.c
 )
 
@@ -176,6 +177,7 @@ add_test(NAME roof_structural_layout_prototype_tests
 
 add_library(sitehelper_wall
     wall/wall_plan.c
+    wall/wall_plan_geometry.c
     wall/wall_generation.c
     wall/wall_lifecycle.c
     wall/build_structure.c
@@ -563,6 +565,10 @@ add_test(NAME sitehelper_tests COMMAND test_sitehelper)
 add_executable(test_wall_plan wall/tests/test_wall_plan.c)
 target_link_libraries(test_wall_plan PRIVATE sitehelper_wall)
 add_test(NAME wall_plan_tests COMMAND test_wall_plan)
+
+add_executable(test_wall_plan_geometry wall/tests/test_wall_plan_geometry.c)
+target_link_libraries(test_wall_plan_geometry PRIVATE sitehelper_wall)
+add_test(NAME wall_plan_geometry_tests COMMAND test_wall_plan_geometry)
 
 add_executable(test_wall_plan_transform model/tests/test_wall_plan_transform.c)
 target_link_libraries(test_wall_plan_transform PRIVATE sitehelper_model)

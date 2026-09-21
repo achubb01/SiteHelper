@@ -131,7 +131,13 @@ void app_render_walls(
         } else if (wall->id == editor->current_wall_id) {
             colour = interaction.navigation_colour;
         }
-        wall_plan_render(renderer, wall, colour);
+        wall_plan_render(renderer, wall, &(WallPlanRenderStyle){
+            .body_colour = colour,
+            .datum_colour = interaction.navigation_colour,
+            .show_datum = app_plan_wall_selected(&editor->selection, wall->id) ||
+                app_plan_wall_is_selection_owner(&editor->selection, wall->id) ||
+                wall->id == editor->current_wall_id
+        });
     }
 }
 

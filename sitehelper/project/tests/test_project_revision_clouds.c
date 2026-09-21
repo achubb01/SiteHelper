@@ -46,7 +46,7 @@ static void test_persistence_and_v20_compatibility(void)
     DomainId next=project.domain_ids.next;
     assert(sitehelper_project_save_file(&project,path)==SITEHELPER_PERSISTENCE_SUCCESS);
     FILE *f=fopen(path,"r"); assert(f); char header[64]; assert(fgets(header,sizeof header,f));
-    assert(strcmp(header,"sitehelper_project 22\n")==0); fclose(f);
+    assert(strcmp(header,"sitehelper_project 23\n")==0); fclose(f);
     assert(sitehelper_project_load_file(&loaded,path)==SITEHELPER_PERSISTENCE_SUCCESS);
     const DocumentPlanRevisionCloud *cloud=sitehelper_project_find_revision_cloud_by_id_const(&loaded,id);
     assert(cloud&&cloud->vertex_count==4&&cloud->vertices[3].y==700&&loaded.domain_ids.next==next);
@@ -59,7 +59,7 @@ static void test_persistence_and_v20_compatibility(void)
     FILE *in=fopen(path,"r"),*out=fopen(legacy,"w"); assert(in&&out);
     char line[512]; int first=1;
     while (fgets(line,sizeof line,in)) {
-        if (first) { assert(strcmp(line,"sitehelper_project 22\n")==0);
+        if (first) { assert(strcmp(line,"sitehelper_project 23\n")==0);
             assert(fputs("sitehelper_project 20\n",out)>=0); first=0; continue; }
         if (strcmp(line,"revisions 0\n")==0 || strcmp(line,"revision_clouds 0\n")==0) continue;
         assert(fputs(line,out)>=0);

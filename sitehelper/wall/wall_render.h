@@ -10,8 +10,15 @@ typedef struct {
     Colour selected_colour;
 } WallRenderStyle;
 
-/* Physical ordered Plan X/Y endpoints. */
-void wall_plan_render(Renderer2D *renderer, const Wall *wall, Colour colour);
+typedef struct {
+    Colour body_colour;
+    Colour datum_colour;
+    bool show_datum;
+} WallPlanRenderStyle;
+
+/* Derived physical Plan body; datum is shown only as an editor affordance. */
+void wall_plan_render(Renderer2D *renderer, const Wall *wall,
+    const WallPlanRenderStyle *style);
 
 /* Generated framing in local U/Z; placement is exclusively the camera's job. */
 void wall_elevation_render(

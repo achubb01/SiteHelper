@@ -57,7 +57,7 @@ int main(void)
     assert(sitehelper_project_save_file(&p,path)==SITEHELPER_PERSISTENCE_SUCCESS);
     FILE *f=fopen(path,"r"); assert(f);
     char header[64]={0}; assert(fgets(header,sizeof header,f)); assert(fclose(f)==0);
-    assert(strcmp(header,"sitehelper_project 22\n")==0);
+    assert(strcmp(header,"sitehelper_project 23\n")==0);
     SiteHelperProject loaded; sitehelper_project_init(&loaded);
     assert(sitehelper_project_load_file(&loaded,path)==SITEHELPER_PERSISTENCE_SUCCESS);
     assert(loaded.storey_count==2);

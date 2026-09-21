@@ -185,6 +185,8 @@ static inline void test_assert_wall_definition_equal(
     assert(expected->definition.segment.start.y == actual->definition.segment.start.y);
     assert(expected->definition.segment.end.x == actual->definition.segment.end.x);
     assert(expected->definition.segment.end.y == actual->definition.segment.end.y);
+    assert(expected->definition.plan_specification.thickness_mm == actual->definition.plan_specification.thickness_mm);
+    assert(expected->definition.plan_specification.alignment == actual->definition.plan_specification.alignment);
     assert(expected->definition.opening_count == actual->definition.opening_count);
 
     for (size_t i = 0; i < expected->definition.opening_count; i++) {
@@ -404,7 +406,8 @@ static inline void test_clone_wall_definition(
     *destination = (Wall){
         .id = source->id,
         .definition = {
-            .segment = source->definition.segment
+            .segment = source->definition.segment,
+            .plan_specification = source->definition.plan_specification
         }
     };
 

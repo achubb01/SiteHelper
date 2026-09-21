@@ -58,7 +58,7 @@ static void test_callout_persistence_round_trip(void)
     assert(sitehelper_project_save_file(&project,path)==SITEHELPER_PERSISTENCE_SUCCESS);
     FILE *file=fopen(path,"r"); assert(file);
     char header[64]; assert(fgets(header,sizeof header,file));
-    assert(strcmp(header,"sitehelper_project 22\n")==0); fclose(file);
+    assert(strcmp(header,"sitehelper_project 23\n")==0); fclose(file);
     assert(sitehelper_project_load_file(&loaded,path)==SITEHELPER_PERSISTENCE_SUCCESS);
     assert(loaded.domain_ids.next==next&&loaded.document.callout_count==1);
     const DocumentPlanCallout *callout=sitehelper_project_find_callout_by_id_const(&loaded,id);
@@ -83,7 +83,7 @@ static void test_version_eighteen_loads_with_no_callouts(void)
     char line[512]; int first=1;
     while (fgets(line,sizeof line,input)) {
         if (first) {
-            assert(strcmp(line,"sitehelper_project 22\n")==0);
+            assert(strcmp(line,"sitehelper_project 23\n")==0);
             assert(fputs("sitehelper_project 18\n",output)>=0);
             first=0; continue;
         }

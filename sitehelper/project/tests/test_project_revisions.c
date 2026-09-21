@@ -83,7 +83,7 @@ static void rewrite_v22_as_v21(const char *source, const char *destination)
     char line[1024]; int first=1;
     while (fgets(line,sizeof line,in)) {
         if (first) {
-            assert(strcmp(line,"sitehelper_project 22\n")==0);
+            assert(strcmp(line,"sitehelper_project 23\n")==0);
             assert(fputs("sitehelper_project 21\n",out)>=0);
             first=0; continue;
         }
@@ -120,7 +120,7 @@ static void test_v22_persistence_and_v21_compatibility(void)
     DomainId next=project.domain_ids.next;
     assert(sitehelper_project_save_file(&project,path)==SITEHELPER_PERSISTENCE_SUCCESS);
     FILE *f=fopen(path,"r"); assert(f); char header[64]; assert(fgets(header,sizeof header,f));
-    assert(strcmp(header,"sitehelper_project 22\n")==0); fclose(f);
+    assert(strcmp(header,"sitehelper_project 23\n")==0); fclose(f);
     assert(sitehelper_project_load_file(&loaded,path)==SITEHELPER_PERSISTENCE_SUCCESS);
     const DocumentRevision *loaded_revision=sitehelper_project_find_revision_by_id_const(&loaded,revision);
     const DocumentPlanRevisionCloud *loaded_cloud=sitehelper_project_find_revision_cloud_by_id_const(&loaded,cloud);

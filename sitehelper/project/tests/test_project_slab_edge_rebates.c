@@ -75,7 +75,7 @@ static void test_round_trip_copy_and_legacy(void)
     assert(sitehelper_project_load_file(&loaded,path)==SITEHELPER_PERSISTENCE_SUCCESS);
     test_assert_project_authoritative_equal(&p,&loaded);assert(loaded.domain_ids.next==6);
     FILE *f=fopen(path,"r");assert(f);char text[8192];size_t n=fread(text,1,sizeof text-1,f);text[n]='\0';
-    assert(feof(f)&&!ferror(f)&&fclose(f)==0);assert(strstr(text,"sitehelper_project 22\n")==text);
+    assert(feof(f)&&!ferror(f)&&fclose(f)==0);assert(strstr(text,"sitehelper_project 23\n")==text);
     assert(strstr(text,"edge_rebates 0\n")&&strstr(text,"edge_rebates 1\n")&&strstr(text,"edge_rebates 3\n"));
     assert(!strstr(text,"rebate_bottom")&&!strstr(text,"rebate_volume")&&!strstr(text,"compliance"));
     sitehelper_project_destroy(&p);test_assert_project_authoritative_equal(&clone,&loaded);
