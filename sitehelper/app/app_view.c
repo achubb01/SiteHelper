@@ -7,23 +7,16 @@
 #include <math.h>
 #include <stdio.h>
 
-static Colour app_muted_colour(Colour colour)
-{
-    return (Colour){
-        .r=(unsigned char)((unsigned int)colour.r*45u/100u),
-        .g=(unsigned char)((unsigned int)colour.g*45u/100u),
-        .b=(unsigned char)((unsigned int)colour.b*45u/100u),
-        .a=colour.a
-    };
-}
 
-static Colour app_document_colour(const SiteHelperEditor *editor, Colour colour)
+static Colour app_annotation_render_colour(Colour colour,
+    const AppAnnotationRenderStyle *style)
 {
-    if (editor == NULL || editor->active_workspace == EDITOR_WORKSPACE_GENERAL ||
-        editor->active_workspace == EDITOR_WORKSPACE_DOCUMENTATION) {
-        return colour;
-    }
-    return app_muted_colour(colour);
+    unsigned int percent=style != NULL ? style->colour_scale_percent : 100u;
+    if (percent > 100u) { percent=100u; }
+    colour.r=(unsigned char)((unsigned int)colour.r*percent/100u);
+    colour.g=(unsigned char)((unsigned int)colour.g*percent/100u);
+    colour.b=(unsigned char)((unsigned int)colour.b*percent/100u);
+    return colour;
 }
 
 void app_views_init(AppViews *views, Camera2D initial_camera)
@@ -85,17 +78,7 @@ void app_render_slabs(
         project, editor->current_storey_id);
     if (storey == NULL) { return; }
     SlabPlanHit selection = app_slab_selection(&editor->selection);
-    SlabPlanRenderStyle contextual=*style;
-    if (editor->active_workspace != EDITOR_WORKSPACE_GENERAL &&
-        editor->active_workspace != EDITOR_WORKSPACE_SLAB) {
-        contextual.outline_colour=app_muted_colour(contextual.outline_colour);
-        contextual.penetration_colour=app_muted_colour(contextual.penetration_colour);
-        contextual.region_colour=app_muted_colour(contextual.region_colour);
-        contextual.rebate_colour=app_muted_colour(contextual.rebate_colour);
-        contextual.selected_colour=app_muted_colour(contextual.selected_colour);
-        contextual.selected_parent_colour=app_muted_colour(contextual.selected_parent_colour);
-    }
-    slab_plan_render_storey(renderer, storey, &selection, &contextual);
+    slab_plan_render_storey(renderer, storey, &selection, style);
 }
 
 void app_render_walls(
@@ -119,16 +102,11 @@ void app_render_walls(
     }
     const Storey *storey = sitehelper_project_find_storey_by_id_const(project, editor->current_storey_id);
     if (storey == NULL) { return; }
-    int framing_emphasis=editor->active_workspace == EDITOR_WORKSPACE_GENERAL ||
-        editor->active_workspace == EDITOR_WORKSPACE_FRAMING;
-    Colour normal=framing_emphasis ? style->timber_colour :
-        app_muted_colour(style->timber_colour);
-    Colour selected=framing_emphasis ? style->selected_colour :
-        app_muted_colour(style->selected_colour);
     for (size_t i = 0; i < storey->structure.wall_count; i++) {
         const Wall *wall = &storey->structure.walls[i];
-        int current=framing_emphasis && wall->id == editor->current_wall_id;
-        wall_plan_render(renderer, wall, current ? selected : normal);
+        int current=wall->id == editor->current_wall_id;
+        wall_plan_render(renderer, wall,
+            current ? style->selected_colour : style->timber_colour);
     }
 }
 
@@ -136,8 +114,7 @@ void app_render_roofs(Renderer2D *renderer, const SiteHelperProject *project,
     const SiteHelperEditor *editor)
 {
     if (renderer == NULL || project == NULL || editor == NULL ||
-        editor->active_view != EDITOR_VIEW_PLAN ||
-        editor->active_workspace != EDITOR_WORKSPACE_ROOF) {
+        editor->active_view != EDITOR_VIEW_PLAN) {
         return;
     }
     const Storey *storey=sitehelper_project_find_storey_by_id_const(project,
@@ -314,7 +291,7 @@ static void draw_view_direction_marker(Renderer2D *renderer, PlanPosition anchor
 }
 
 void app_render_plan_symbols(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor)
+    const SiteHelperEditor *editor, const AppAnnotationRenderStyle *style)
 {
     if (renderer == NULL || project == NULL || editor == NULL ||
         editor->active_view != EDITOR_VIEW_PLAN || editor->current_storey_id == DOMAIN_ID_INVALID) {
@@ -330,7 +307,7 @@ void app_render_plan_symbols(Renderer2D *renderer, const SiteHelperProject *proj
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_SYMBOL,symbol->id);
         Colour colour=selected ? (Colour){255,220,40,255} : (Colour){120,210,255,255};
-        colour=app_document_colour(editor,colour);
+        colour=app_annotation_render_colour(colour,style);
         double x=symbol->anchor.x,y=symbol->anchor.y;
         if (symbol->kind == DOCUMENT_PLAN_SYMBOL_POINT_MARKER) {
             renderer2d_draw_line(renderer,(Vec2){x-inner,y-inner},(Vec2){x+inner,y-inner},colour);
@@ -372,7 +349,7 @@ static void draw_callout_arrow(Renderer2D *renderer, PlanPosition target,
 }
 
 void app_render_plan_callouts(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor)
+    const SiteHelperEditor *editor, const AppAnnotationRenderStyle *style)
 {
     if (renderer == NULL || project == NULL || editor == NULL ||
         editor->active_view != EDITOR_VIEW_PLAN || editor->current_storey_id == DOMAIN_ID_INVALID) {
@@ -386,7 +363,7 @@ void app_render_plan_callouts(Renderer2D *renderer, const SiteHelperProject *pro
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_CALLOUT,callout->id);
         Colour colour=selected ? (Colour){255,220,40,255} : (Colour){235,190,100,255};
-        colour=app_document_colour(editor,colour);
+        colour=app_annotation_render_colour(colour,style);
         renderer2d_draw_line(renderer,(Vec2){callout->target.x,callout->target.y},
             (Vec2){callout->label_anchor.x,callout->label_anchor.y},colour);
         draw_callout_arrow(renderer,callout->target,callout->label_anchor,colour);
@@ -416,7 +393,7 @@ void app_render_plan_callout_preview(Renderer2D *renderer, const SiteHelperEdito
 }
 
 void app_render_plan_notes(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor)
+    const SiteHelperEditor *editor, const AppAnnotationRenderStyle *style)
 {
     if (renderer == NULL || project == NULL || editor == NULL ||
         editor->active_view != EDITOR_VIEW_PLAN || editor->current_storey_id == DOMAIN_ID_INVALID) {
@@ -434,7 +411,7 @@ void app_render_plan_notes(Renderer2D *renderer, const SiteHelperProject *projec
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_NOTE,note->id);
         Colour colour=selected ? (Colour){255,220,40,255} : (Colour){235,235,180,255};
-        colour=app_document_colour(editor,colour);
+        colour=app_annotation_render_colour(colour,style);
         double size=selected ? 8.0 : 6.0;
         renderer2d_fill_screen_rect(renderer,(Rect2){
             .position={screen.x-size*.5,screen.y-size*.5},.width=size,.height=size},colour);
@@ -494,7 +471,7 @@ static void draw_revision_cloud_boundary(Renderer2D *renderer,
 }
 
 void app_render_plan_revision_clouds(Renderer2D *renderer, const SiteHelperProject *project,
-    const SiteHelperEditor *editor)
+    const SiteHelperEditor *editor, const AppAnnotationRenderStyle *style)
 {
     if (renderer == NULL || project == NULL || editor == NULL ||
         editor->active_view != EDITOR_VIEW_PLAN || editor->current_storey_id == DOMAIN_ID_INVALID) {
@@ -507,7 +484,7 @@ void app_render_plan_revision_clouds(Renderer2D *renderer, const SiteHelperProje
         int selected=editor_selection_matches_document(&editor->selection,
             DOCUMENT_OBJECT_REVISION_CLOUD,cloud->id);
         Colour colour=selected ? (Colour){255,220,40,255} : (Colour){235,95,180,255};
-        colour=app_document_colour(editor,colour);
+        colour=app_annotation_render_colour(colour,style);
         draw_revision_cloud_boundary(renderer,cloud->vertices,cloud->vertex_count,colour);
     }
 }

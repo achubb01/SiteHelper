@@ -150,7 +150,14 @@ static void test_plan_snapping(SiteHelperApp *app)
     assert(query.end.x == 1800 && query.end.y == 1000 && query.distance_mm == 800);
     assert(sitehelper_editor_get_snap_result(&app->editor)->type == SNAP_WALL_CENTRELINE);
     record_snap = 1; snap_lines = 0;
-    sitehelper_app_render_snap_cursor(app);
+    AppPresentationPolicy snap_policy = {0};
+    snap_policy.snap_overlay = APP_PRESENTATION_NORMAL;
+    AppPresentationRenderContext snap_presentation = {
+        .renderer = app->renderer,
+        .project = &app->project,
+        .editor = &app->editor
+    };
+    app_presentation_render_viewport(&snap_presentation, &snap_policy);
     record_snap = 0;
     assert(snap_lines == 2 && snap_colour.r == 220 && snap_colour.g == 120 && snap_colour.b == 255);
     assert(fabs(snap_a.x - 244) < 1e-9 && fabs(snap_b.x - 244) < 1e-9);

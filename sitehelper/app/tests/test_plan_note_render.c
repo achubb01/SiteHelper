@@ -28,13 +28,13 @@ int main(void)
     renderer2d_set_camera(renderer,(Camera2D){.scale=1});
     renderer2d_set_viewport(renderer,(Vec2){0,0},800,600);
 
-    app_render_plan_notes(renderer,&project,&editor);
+    app_render_plan_notes(renderer,&project,&editor,NULL);
     assert(drawing.markers==1&&drawing.texts==2&&strcmp(drawing.last_text,"Second line")==0);
     editor_selection_set_annotation(&editor.selection,EDITOR_SELECTION_SCOPE_PLAN,note);
-    drawing=(Drawing){0}; app_render_plan_notes(renderer,&project,&editor);
+    drawing=(Drawing){0}; app_render_plan_notes(renderer,&project,&editor,NULL);
     assert(drawing.markers==1&&drawing.last.r==255&&drawing.last.g==220);
     assert(sitehelper_editor_set_active_view(&editor,EDITOR_VIEW_WALL_ELEVATION));
-    drawing=(Drawing){0}; app_render_plan_notes(renderer,&project,&editor);
+    drawing=(Drawing){0}; app_render_plan_notes(renderer,&project,&editor,NULL);
     assert(drawing.markers==0&&drawing.texts==0);
 
     renderer2d_destroy(renderer);

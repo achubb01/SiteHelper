@@ -5,6 +5,7 @@
 #include "app_input.h"
 #include "app_properties_panel.h"
 #include "app_view.h"
+#include "presentation_composition.h"
 
 #define MAX_LINES 64
 
@@ -36,6 +37,18 @@ static RoofPortionSpec roof_rectangle(PlanPosition *vertices)
         .reference_z_mm=2700,
         .direction={1,0},
         .single_slope_reference=ROOF_SINGLE_SLOPE_REFERENCE_LOW_EDGE
+    };
+}
+
+static AppPresentationRenderContext render_context(Renderer2D *renderer,
+    const SiteHelperProject *project, const SiteHelperEditor *editor,
+    const WallRenderStyle *wall_style)
+{
+    return (AppPresentationRenderContext){
+        .renderer=renderer,
+        .project=project,
+        .editor=editor,
+        .wall_style=wall_style
     };
 }
 
@@ -96,38 +109,48 @@ int main(void)
         .draw_line=record_line
     });
 
-    /* Roof source intent is an authoring overlay, visible in Roof workspace and
-     * highlighted from the workspace-scoped roof selection. */
-    app_render_roofs(renderer,&project,&editor);
-    assert(drawing.line_count == 4);
-    for (size_t i=0;i<drawing.line_count;i++) {
-        assert(drawing.line_colours[i].r == 255);
-        assert(drawing.line_colours[i].g == 220);
-        assert(drawing.line_colours[i].b == 40);
-    }
-
-    /* Non-active physical domains remain context, but are visually muted. */
-    drawing=(Drawing){0};
-    editor.current_wall_id=wall_id;
     WallRenderStyle wall_style={
         .timber_colour={100,120,140,255},
         .selected_colour={240,200,80,255}
     };
-    app_render_walls(renderer,&project,&editor,&wall_style);
-    assert(drawing.line_count == 1);
+    editor.current_wall_id=wall_id;
+
+    /* Priority 33 consumes Priority 32 workspace intent. Roof presentation is
+     * primary while supporting walls remain subdued context. */
+    AppPresentationPolicy policy=app_presentation_policy_for_workspace(
+        editor.active_workspace,editor.active_view);
+    AppPresentationRenderContext context=render_context(renderer,&project,&editor,
+        &wall_style);
+    app_presentation_render_viewport(&context,&policy);
+    assert(drawing.line_count == 5);
     assert(drawing.line_colours[0].r == 45);
     assert(drawing.line_colours[0].g == 54);
     assert(drawing.line_colours[0].b == 63);
+    assert(drawing.line_colours[4].r == 255);
+    assert(drawing.line_colours[4].g == 220);
+    assert(drawing.line_colours[4].b == 40);
 
+    /* The render adapter itself is now workspace-neutral: visibility belongs to
+     * presentation composition, not app_view.c. */
     assert(sitehelper_editor_set_active_workspace(&editor,EDITOR_WORKSPACE_DOCUMENTATION));
+    drawing=(Drawing){0};
+    app_render_roofs(renderer,&project,&editor);
+    assert(drawing.line_count == 4);
+
     editor_selection_set_annotation(&editor.selection,EDITOR_SELECTION_SCOPE_PLAN,note_id);
     assert(app_properties_panel_build(&editor,&project,&panel));
     assert(strcmp(panel.title,"Note") == 0);
     assert(panel.field_count == 0 && panel.note != NULL);
 
     drawing=(Drawing){0};
-    app_render_roofs(renderer,&project,&editor);
-    assert(drawing.line_count == 0);
+    policy=app_presentation_policy_for_workspace(editor.active_workspace,
+        editor.active_view);
+    app_presentation_render_viewport(&context,&policy);
+    /* Documentation hides roof source intent and keeps the building as context. */
+    assert(drawing.line_count == 1);
+    assert(drawing.line_colours[0].r == 45);
+    assert(drawing.line_colours[0].g == 54);
+    assert(drawing.line_colours[0].b == 63);
 
     renderer2d_destroy(renderer);
     sitehelper_editor_destroy(&editor);

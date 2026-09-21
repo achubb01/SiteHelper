@@ -20,10 +20,10 @@ int main(void)
     renderer2d_set_backend(renderer,(RendererBackend){.context=&drawing,.draw_line=line});
     renderer2d_set_camera(renderer,(Camera2D){.scale=2.0});
     renderer2d_set_viewport(renderer,(Vec2){0,0},800,600);
-    app_render_plan_revision_clouds(renderer,&project,&editor);
+    app_render_plan_revision_clouds(renderer,&project,&editor,NULL);
     assert(drawing.lines>20);
     editor_selection_set_revision_cloud(&editor.selection,EDITOR_SELECTION_SCOPE_PLAN,id);
-    drawing=(Drawing){0}; app_render_plan_revision_clouds(renderer,&project,&editor);
+    drawing=(Drawing){0}; app_render_plan_revision_clouds(renderer,&project,&editor,NULL);
     assert(drawing.lines>20&&drawing.last.r==255&&drawing.last.g==220);
 
     assert(sitehelper_editor_set_active_tool(&editor,EDITOR_TOOL_REVISION_CLOUD));
@@ -35,7 +35,7 @@ int main(void)
     drawing=(Drawing){0}; app_render_plan_revision_cloud_preview(renderer,&editor);
     assert(drawing.lines>=4);
     assert(sitehelper_editor_set_active_view(&editor,EDITOR_VIEW_WALL_ELEVATION));
-    drawing=(Drawing){0}; app_render_plan_revision_clouds(renderer,&project,&editor);
+    drawing=(Drawing){0}; app_render_plan_revision_clouds(renderer,&project,&editor,NULL);
     assert(drawing.lines==0);
     renderer2d_destroy(renderer); sitehelper_editor_destroy(&editor); sitehelper_project_destroy(&project);
     puts("All plan revision cloud render tests passed.");

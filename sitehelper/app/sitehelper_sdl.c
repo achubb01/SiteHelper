@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <math.h>
 #include "app_input_hud.h"
 #include "app_input.h"
 #include "app_properties_panel.h"
@@ -9,6 +8,7 @@
 #include "appstate.h"
 #include "app_view.h"
 #include "app_workspace.h"
+#include "presentation_composition.h"
 #include "viewport_input.h"
 
 #include "domain_id.h"
@@ -114,10 +114,6 @@ static void sitehelper_app_update_editor_pointer(
     Vec2 screen_position
 );
 
-static void sitehelper_app_render_snap_cursor(
-    const SiteHelperApp *app
-);
-
 static void sitehelper_app_layout_gui(
     SiteHelperApp *app
 );
@@ -154,20 +150,6 @@ static int sitehelper_app_toolbar_workspace_action(
     EditorWorkspace workspace,
     GuiButtonId *action
 );
-
-static void sitehelper_app_draw_plan_marker(Renderer2D *renderer,
-    PlanPoint point, double size_pixels, Colour colour)
-{
-    if (renderer == NULL || size_pixels <= 0.0) { return; }
-    Camera2D camera=renderer2d_get_camera(renderer);
-    Viewport2D viewport=renderer2d_get_viewport(renderer);
-    Vec2 screen=camera_world_to_screen(&camera,viewport,(Vec2){point.x,point.y});
-    if (!isfinite(screen.x) || !isfinite(screen.y)) { return; }
-    renderer2d_fill_screen_rect(renderer,(Rect2){
-        .position={screen.x-size_pixels*0.5,screen.y-size_pixels*0.5},
-        .width=size_pixels,.height=size_pixels
-    },colour);
-}
 
 static int sitehelper_app_init(
     SiteHelperApp *app
@@ -388,156 +370,24 @@ static void sitehelper_app_render(
         app->background
     );
 
-    renderer2d_begin_viewport_clip(
-        app->renderer
-    );
-
-    grid_render(
-        app->renderer,
-        &app->grid_style
-    );
-
-    app_render_slabs(app->renderer, &app->project, &app->editor, &app->slab_style);
-
-    app_render_walls(app->renderer, &app->project, &app->editor, &app->wall_style);
-    app_render_roofs(app->renderer, &app->project, &app->editor);
-    app_render_plan_dimensions(app->renderer, &app->project, &app->editor);
-    app_render_plan_symbols(app->renderer, &app->project, &app->editor);
-    app_render_plan_callouts(app->renderer, &app->project, &app->editor);
-    app_render_plan_notes(app->renderer, &app->project, &app->editor);
-    app_render_plan_revision_clouds(app->renderer, &app->project, &app->editor);
-    app_render_plan_dimension_preview(app->renderer, &app->editor);
-    app_render_plan_callout_preview(app->renderer, &app->editor);
-    app_render_plan_revision_cloud_preview(app->renderer, &app->editor);
-
-    Rect2 preview_rect;
-
-    if (
-        sitehelper_editor_get_opening_preview_rect(
-            &app->editor,
-            &preview_rect
-        )
-    ) {
-        renderer2d_draw_rect(
-            app->renderer,
-            preview_rect,
-            (Colour){
-                .r = 100,
-                .g = 180,
-                .b = 255,
-                .a = 255
-            }
+    AppPresentationPolicy presentation_policy =
+        app_presentation_policy_for_workspace(
+            app->editor.active_workspace,
+            app->editor.active_view
         );
-    }
 
-    WallPlanSegment preview_segment;
-    if (sitehelper_editor_get_wall_preview_segment(&app->editor, &preview_segment)) {
-        renderer2d_draw_line(
-            app->renderer,
-            (Vec2){ .x = preview_segment.start.x, .y = preview_segment.start.y },
-            (Vec2){ .x = preview_segment.end.x, .y = preview_segment.end.y },
-            (Colour){ .r = 100, .g = 220, .b = 150, .a = 255 }
-        );
-    }
+    AppPresentationRenderContext presentation = {
+        .renderer = app->renderer,
+        .project = &app->project,
+        .editor = &app->editor,
+        .grid_style = &app->grid_style,
+        .wall_style = &app->wall_style,
+        .slab_style = &app->slab_style
+    };
 
-    app_render_measurement(app->renderer, &app->editor);
-
-    const PlanPosition *slab_vertices;
-    size_t slab_vertex_count;
-    PlanPoint slab_cursor;
-    int slab_has_cursor;
-    if (sitehelper_editor_get_slab_preview(&app->editor,&slab_vertices,
-            &slab_vertex_count,&slab_cursor,&slab_has_cursor)) {
-        Colour colour={100,220,150,255};
-        for (size_t i=1; i<slab_vertex_count; i++) {
-            renderer2d_draw_line(app->renderer,
-                (Vec2){slab_vertices[i-1].x,slab_vertices[i-1].y},
-                (Vec2){slab_vertices[i].x,slab_vertices[i].y},colour);
-        }
-        if (slab_has_cursor) {
-            PlanPosition last=slab_vertices[slab_vertex_count-1];
-            renderer2d_draw_line(app->renderer,(Vec2){last.x,last.y},
-                (Vec2){slab_cursor.x,slab_cursor.y},colour);
-            if (slab_vertex_count >= 2) {
-                renderer2d_draw_line(app->renderer,(Vec2){slab_cursor.x,slab_cursor.y},
-                    (Vec2){slab_vertices[0].x,slab_vertices[0].y},
-                    (Colour){80,150,115,255});
-            }
-        }
-    }
-
-    EditorSlabPolygonPreviewKind feature_kind;
-    DomainId feature_slab_id;
-    if (sitehelper_editor_get_slab_feature_polygon_preview(&app->editor,
-            &feature_kind,&feature_slab_id,&slab_vertices,&slab_vertex_count,
-            &slab_cursor,&slab_has_cursor)) {
-        (void)feature_slab_id;
-        Colour colour=feature_kind == EDITOR_SLAB_POLYGON_PREVIEW_PENETRATION ?
-            (Colour){230,120,120,255} : (Colour){100,190,230,255};
-        for (size_t i=1;i<slab_vertex_count;i++) {
-            renderer2d_draw_line(app->renderer,
-                (Vec2){slab_vertices[i-1].x,slab_vertices[i-1].y},
-                (Vec2){slab_vertices[i].x,slab_vertices[i].y},colour);
-        }
-        if (slab_has_cursor) {
-            PlanPosition last=slab_vertices[slab_vertex_count-1];
-            renderer2d_draw_line(app->renderer,(Vec2){last.x,last.y},
-                (Vec2){slab_cursor.x,slab_cursor.y},colour);
-            if (slab_vertex_count >= 2) {
-                renderer2d_draw_line(app->renderer,(Vec2){slab_cursor.x,slab_cursor.y},
-                    (Vec2){slab_vertices[0].x,slab_vertices[0].y},
-                    (Colour){colour.r/2,colour.g/2,colour.b/2,255});
-            }
-        }
-    }
-
-    DomainId rebate_slab_id;
-    size_t rebate_edge_index;
-    PlanPoint rebate_start,rebate_end;
-    int rebate_has_end;
-    if (sitehelper_editor_get_slab_rebate_preview(&app->editor,&rebate_slab_id,
-            &rebate_edge_index,&rebate_start,&rebate_end,&rebate_has_end)) {
-        (void)rebate_slab_id; (void)rebate_edge_index;
-        Colour colour={235,165,85,255};
-        if (rebate_has_end) {
-            renderer2d_draw_line(app->renderer,(Vec2){rebate_start.x,rebate_start.y},
-                (Vec2){rebate_end.x,rebate_end.y},colour);
-        }
-        renderer2d_draw_rect(app->renderer,(Rect2){
-            .position={rebate_start.x-12.0,rebate_start.y-12.0},.width=24.0,.height=24.0},colour);
-    }
-
-    EditorSlabGeometryOverlay geometry;
-    if (sitehelper_editor_get_slab_geometry_overlay(&app->editor,&app->project,&geometry)) {
-        Colour handle_colour={255,205,80,255};
-        Colour active_colour={255,245,150,255};
-        if (geometry.active_vertex_index != SIZE_MAX && geometry.has_preview) {
-            for (size_t i=0;i<geometry.vertex_count;i++) {
-                size_t next=i+1 == geometry.vertex_count ? 0 : i+1;
-                PlanPoint a=i == geometry.active_vertex_index ? geometry.preview :
-                    (PlanPoint){geometry.vertices[i].x,geometry.vertices[i].y};
-                PlanPoint b=next == geometry.active_vertex_index ? geometry.preview :
-                    (PlanPoint){geometry.vertices[next].x,geometry.vertices[next].y};
-                renderer2d_draw_line(app->renderer,(Vec2){a.x,a.y},(Vec2){b.x,b.y},
-                    active_colour);
-            }
-        }
-        for (size_t i=0;i<geometry.vertex_count;i++) {
-            PlanPoint point={geometry.vertices[i].x,geometry.vertices[i].y};
-            Colour colour=geometry.active_vertex_index == i ? active_colour : handle_colour;
-            sitehelper_app_draw_plan_marker(app->renderer,point,8.0,colour);
-        }
-        if (geometry.active_vertex_index != SIZE_MAX && geometry.has_preview) {
-            sitehelper_app_draw_plan_marker(app->renderer,geometry.preview,10.0,active_colour);
-        }
-    }
-
-    sitehelper_app_render_snap_cursor(
-        app
-    );
-
-    renderer2d_end_viewport_clip(
-        app->renderer
+    app_presentation_render_viewport(
+        &presentation,
+        &presentation_policy
     );
 
     gui_render(
@@ -979,100 +829,6 @@ static void sitehelper_app_update_editor_pointer(
         &app->editor,
         &app->project,
         view_position
-    );
-}
-
-static void sitehelper_app_render_snap_cursor(
-    const SiteHelperApp *app
-)
-{
-    if (
-        app == NULL
-        || app->renderer == NULL
-        || !sitehelper_editor_has_snap(
-            &app->editor
-        )
-    ) {
-        return;
-    }
-
-    const SnapResult *snap_result =
-        sitehelper_editor_get_snap_result(
-            &app->editor
-        );
-
-    if (snap_result == NULL) {
-        return;
-    }
-
-    const double marker_radius =
-        40.0;
-
-    Colour marker_colour;
-
-    switch (snap_result->type) {
-        case SNAP_ENDPOINT:
-            marker_colour = (Colour){
-                .r = 255,
-                .g = 180,
-                .b = 60,
-                .a = 255
-            };
-            break;
-
-        case SNAP_GRID:
-            marker_colour = (Colour){
-                .r = 80,
-                .g = 200,
-                .b = 255,
-                .a = 255
-            };
-            break;
-
-        case SNAP_WALL_CENTRELINE:
-            marker_colour = (Colour){220, 120, 255, 255};
-            break;
-
-        case SNAP_INTERSECTION:
-            marker_colour = (Colour){
-                .r = 80,
-                .g = 255,
-                .b = 120,
-                .a = 255
-            };
-            break;
-
-        default:
-            return;
-    }
-
-    Vec2 position =
-        snap_result->position;
-
-    renderer2d_draw_line(
-        app->renderer,
-        (Vec2){
-            .x = position.x - marker_radius,
-            .y = position.y
-        },
-        (Vec2){
-            .x = position.x + marker_radius,
-            .y = position.y
-        },
-        marker_colour
-    );
-
-    renderer2d_draw_line(
-        app->renderer,
-        (Vec2){
-            .x = position.x,
-            .y = position.y - marker_radius
-        },
-        (Vec2){
-            .x = position.x,
-            .y = position.y + marker_radius
-        },
-        marker_colour
     );
 }
 

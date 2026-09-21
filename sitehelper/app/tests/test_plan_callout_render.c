@@ -27,10 +27,10 @@ int main(void)
     renderer2d_set_camera(renderer,(Camera2D){.scale=2.0});
     renderer2d_set_viewport(renderer,(Vec2){0,0},800,600);
 
-    app_render_plan_callouts(renderer,&project,&editor);
+    app_render_plan_callouts(renderer,&project,&editor,NULL);
     assert(drawing.lines==3&&drawing.texts==1&&strcmp(drawing.text,"Check this")==0);
     editor_selection_set_callout(&editor.selection,EDITOR_SELECTION_SCOPE_PLAN,id);
-    drawing=(Drawing){0}; app_render_plan_callouts(renderer,&project,&editor);
+    drawing=(Drawing){0}; app_render_plan_callouts(renderer,&project,&editor,NULL);
     assert(drawing.lines==3&&drawing.texts==1&&drawing.last_text.r==255&&drawing.last_text.g==220);
 
     assert(sitehelper_editor_set_active_tool(&editor,EDITOR_TOOL_CALLOUT));
@@ -44,7 +44,7 @@ int main(void)
     assert(drawing.lines==3);
 
     assert(sitehelper_editor_set_active_view(&editor,EDITOR_VIEW_WALL_ELEVATION));
-    drawing=(Drawing){0}; app_render_plan_callouts(renderer,&project,&editor);
+    drawing=(Drawing){0}; app_render_plan_callouts(renderer,&project,&editor,NULL);
     assert(drawing.lines==0&&drawing.texts==0);
     renderer2d_destroy(renderer); sitehelper_editor_destroy(&editor); sitehelper_project_destroy(&project);
     puts("All plan callout render tests passed.");

@@ -511,6 +511,7 @@ add_library(sitehelper_app_core
     app/appstate.c
     app/app_view.c
     app/app_workspace.c
+    app/presentation_composition.c
 )
 
 target_include_directories(sitehelper_app_core
@@ -960,6 +961,10 @@ add_test(NAME app_workspace_tests COMMAND test_app_workspace)
 add_executable(test_workspace_presentation app/tests/test_workspace_presentation.c)
 target_link_libraries(test_workspace_presentation PRIVATE sitehelper_app_core)
 add_test(NAME workspace_presentation_tests COMMAND test_workspace_presentation)
+
+add_executable(test_presentation_composition app/tests/test_presentation_composition.c)
+target_link_libraries(test_presentation_composition PRIVATE sitehelper_app_core)
+add_test(NAME presentation_composition_tests COMMAND test_presentation_composition)
 
 add_executable(test_viewport_input
     app/tests/test_viewport_input.c
