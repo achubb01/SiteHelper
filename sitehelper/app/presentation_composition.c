@@ -135,36 +135,47 @@ AppPresentationPolicy app_presentation_policy_for_workspace(
     return policy;
 }
 
-static Colour app_presentation_context_colour(Colour colour)
+static AppRenderTone app_presentation_tone(
+    const AppPresentationStyle *style,
+    AppPresentationEmphasis emphasis
+)
 {
-    colour.r = (unsigned char)((unsigned int)colour.r * 45U / 100U);
-    colour.g = (unsigned char)((unsigned int)colour.g * 45U / 100U);
-    colour.b = (unsigned char)((unsigned int)colour.b * 45U / 100U);
-    return colour;
+    AppPresentationStyle fallback;
+    if (style == NULL) {
+        fallback = app_presentation_style_default();
+        style = &fallback;
+    }
+
+    switch (emphasis) {
+        case APP_PRESENTATION_CONTEXT: return style->context;
+        case APP_PRESENTATION_PRIMARY: return style->primary;
+        case APP_PRESENTATION_NORMAL: return style->normal;
+        case APP_PRESENTATION_HIDDEN:
+        default: return (AppRenderTone){0};
+    }
 }
 
 static GridRenderStyle app_presentation_grid_style(
     const GridRenderStyle *style,
-    AppPresentationEmphasis emphasis
+    const AppRenderTone *tone
 )
 {
     GridRenderStyle result = *style;
-    if (emphasis == APP_PRESENTATION_CONTEXT) {
-        result.minor_colour = app_presentation_context_colour(result.minor_colour);
-        result.major_colour = app_presentation_context_colour(result.major_colour);
-        result.axis_colour = app_presentation_context_colour(result.axis_colour);
-    }
+    result.minor_colour = app_render_tone_apply(result.minor_colour, tone);
+    result.major_colour = app_render_tone_apply(result.major_colour, tone);
+    result.axis_colour = app_render_tone_apply(result.axis_colour, tone);
     return result;
 }
 
 static WallRenderStyle app_presentation_wall_style(
     const WallRenderStyle *style,
-    AppPresentationEmphasis emphasis
+    AppPresentationEmphasis emphasis,
+    const AppRenderTone *tone
 )
 {
     WallRenderStyle result = *style;
+    result.timber_colour = app_render_tone_apply(result.timber_colour, tone);
     if (emphasis == APP_PRESENTATION_CONTEXT) {
-        result.timber_colour = app_presentation_context_colour(result.timber_colour);
         /* current_wall_id is navigation state, not a focused-workspace selection.
          * Context walls therefore suppress the remembered-current highlight. */
         result.selected_colour = result.timber_colour;
@@ -174,28 +185,17 @@ static WallRenderStyle app_presentation_wall_style(
 
 static SlabPlanRenderStyle app_presentation_slab_style(
     const SlabPlanRenderStyle *style,
-    AppPresentationEmphasis emphasis
+    const AppRenderTone *tone
 )
 {
     SlabPlanRenderStyle result = *style;
-    if (emphasis == APP_PRESENTATION_CONTEXT) {
-        result.outline_colour = app_presentation_context_colour(result.outline_colour);
-        result.penetration_colour = app_presentation_context_colour(result.penetration_colour);
-        result.region_colour = app_presentation_context_colour(result.region_colour);
-        result.rebate_colour = app_presentation_context_colour(result.rebate_colour);
-        result.selected_colour = app_presentation_context_colour(result.selected_colour);
-        result.selected_parent_colour = app_presentation_context_colour(result.selected_parent_colour);
-    }
+    result.outline_colour = app_render_tone_apply(result.outline_colour, tone);
+    result.penetration_colour = app_render_tone_apply(result.penetration_colour, tone);
+    result.region_colour = app_render_tone_apply(result.region_colour, tone);
+    result.rebate_colour = app_render_tone_apply(result.rebate_colour, tone);
+    /* Selection is interaction feedback, not layer hierarchy. Preserve its
+     * established highlight when this is the active/normal layer. */
     return result;
-}
-
-static AppAnnotationRenderStyle app_presentation_annotation_style(
-    AppPresentationEmphasis emphasis
-)
-{
-    return (AppAnnotationRenderStyle){
-        .colour_scale_percent = emphasis == APP_PRESENTATION_CONTEXT ? 45u : 100u
-    };
 }
 
 static void app_presentation_draw_plan_marker(
@@ -502,20 +502,20 @@ void app_presentation_render_viewport(
 
     if (app_presentation_emphasis_visible(policy->grid) &&
         context->grid_style != NULL) {
+        AppRenderTone tone = app_presentation_tone(
+            context->presentation_style, policy->grid);
         GridRenderStyle style = app_presentation_grid_style(
-            context->grid_style,
-            policy->grid
-        );
+            context->grid_style, &tone);
         grid_render(context->renderer, &style);
     }
 
     if (context->project != NULL &&
         app_presentation_emphasis_visible(policy->slabs) &&
         context->slab_style != NULL) {
+        AppRenderTone tone = app_presentation_tone(
+            context->presentation_style, policy->slabs);
         SlabPlanRenderStyle style = app_presentation_slab_style(
-            context->slab_style,
-            policy->slabs
-        );
+            context->slab_style, &tone);
         app_render_slabs(
             context->renderer,
             context->project,
@@ -527,10 +527,10 @@ void app_presentation_render_viewport(
     if (context->project != NULL &&
         app_presentation_emphasis_visible(policy->walls) &&
         context->wall_style != NULL) {
+        AppRenderTone tone = app_presentation_tone(
+            context->presentation_style, policy->walls);
         WallRenderStyle style = app_presentation_wall_style(
-            context->wall_style,
-            policy->walls
-        );
+            context->wall_style, policy->walls, &tone);
         app_render_walls(
             context->renderer,
             context->project,
@@ -541,10 +541,13 @@ void app_presentation_render_viewport(
 
     if (context->project != NULL &&
         app_presentation_emphasis_visible(policy->roofs)) {
+        AppRenderTone tone = app_presentation_tone(
+            context->presentation_style, policy->roofs);
         app_render_roofs(
             context->renderer,
             context->project,
-            context->editor
+            context->editor,
+            &tone
         );
     }
 
@@ -554,17 +557,19 @@ void app_presentation_render_viewport(
 
     if (context->project != NULL &&
         app_presentation_emphasis_visible(policy->dimensions)) {
+        AppRenderTone tone = app_presentation_tone(
+            context->presentation_style, policy->dimensions);
         app_render_plan_dimensions(
             context->renderer,
             context->project,
-            context->editor
+            context->editor,
+            &tone
         );
     }
     if (context->project != NULL &&
         app_presentation_emphasis_visible(policy->symbols)) {
-        AppAnnotationRenderStyle style = app_presentation_annotation_style(
-            policy->symbols
-        );
+        AppRenderTone style = app_presentation_tone(
+            context->presentation_style, policy->symbols);
         app_render_plan_symbols(
             context->renderer,
             context->project,
@@ -574,9 +579,8 @@ void app_presentation_render_viewport(
     }
     if (context->project != NULL &&
         app_presentation_emphasis_visible(policy->callouts)) {
-        AppAnnotationRenderStyle style = app_presentation_annotation_style(
-            policy->callouts
-        );
+        AppRenderTone style = app_presentation_tone(
+            context->presentation_style, policy->callouts);
         app_render_plan_callouts(
             context->renderer,
             context->project,
@@ -586,9 +590,8 @@ void app_presentation_render_viewport(
     }
     if (context->project != NULL &&
         app_presentation_emphasis_visible(policy->notes)) {
-        AppAnnotationRenderStyle style = app_presentation_annotation_style(
-            policy->notes
-        );
+        AppRenderTone style = app_presentation_tone(
+            context->presentation_style, policy->notes);
         app_render_plan_notes(
             context->renderer,
             context->project,
@@ -598,9 +601,8 @@ void app_presentation_render_viewport(
     }
     if (context->project != NULL &&
         app_presentation_emphasis_visible(policy->revision_clouds)) {
-        AppAnnotationRenderStyle style = app_presentation_annotation_style(
-            policy->revision_clouds
-        );
+        AppRenderTone style = app_presentation_tone(
+            context->presentation_style, policy->revision_clouds);
         app_render_plan_revision_clouds(
             context->renderer,
             context->project,

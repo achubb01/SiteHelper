@@ -75,6 +75,7 @@ typedef struct
     WallRenderStyle wall_style;
     SlabPlanRenderStyle slab_style;
     GridRenderStyle grid_style;
+    AppPresentationStyle presentation_style;
 
     Colour background;
 
@@ -196,6 +197,8 @@ static int sitehelper_app_init(
         .b = 30,
         .a = 255
     };
+
+    app->presentation_style = app_presentation_style_default();
 
     app->grid_style = (GridRenderStyle){
         .minor_colour = {
@@ -382,7 +385,8 @@ static void sitehelper_app_render(
         .editor = &app->editor,
         .grid_style = &app->grid_style,
         .wall_style = &app->wall_style,
-        .slab_style = &app->slab_style
+        .slab_style = &app->slab_style,
+        .presentation_style = &app->presentation_style
     };
 
     app_presentation_render_viewport(

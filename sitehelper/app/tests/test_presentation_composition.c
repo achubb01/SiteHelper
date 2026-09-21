@@ -177,10 +177,68 @@ static void test_composer_owns_context_emphasis(void)
     sitehelper_project_destroy(&project);
 }
 
+static void test_primary_emphasis_is_visually_distinct(void)
+{
+    SiteHelperProject project;
+    SiteHelperEditor editor;
+    sitehelper_project_init(&project);
+    sitehelper_editor_init(&editor);
+
+    DomainId storey_id = sitehelper_project_add_storey(&project, 0);
+    assert(storey_id != DOMAIN_ID_INVALID);
+    assert(sitehelper_editor_set_current_storey(&editor, &project, storey_id));
+    assert(sitehelper_project_add_wall(
+        &project, storey_id, (WallPlanSegment){{0, 0}, {1000, 0}}) != DOMAIN_ID_INVALID);
+
+    Renderer2D *renderer = renderer2d_create();
+    assert(renderer != NULL);
+    Drawing drawing = {0};
+    renderer2d_set_backend(renderer, (RendererBackend){
+        .context = &drawing,
+        .draw_line = record_line,
+        .set_clip_rect = record_clip_begin,
+        .clear_clip_rect = record_clip_end
+    });
+
+    WallRenderStyle wall_style = {
+        .timber_colour = {100, 120, 140, 255},
+        .selected_colour = {255, 220, 40, 255}
+    };
+    AppPresentationStyle presentation_style = app_presentation_style_default();
+    AppPresentationRenderContext context = {
+        .renderer = renderer,
+        .project = &project,
+        .editor = &editor,
+        .wall_style = &wall_style,
+        .presentation_style = &presentation_style
+    };
+    AppPresentationPolicy policy = {0};
+    policy.walls = APP_PRESENTATION_PRIMARY;
+
+    app_presentation_render_viewport(&context, &policy);
+    assert(drawing.lines == 1);
+    assert(drawing.last_colour.r == 118);
+    assert(drawing.last_colour.g == 136);
+    assert(drawing.last_colour.b == 153);
+
+    drawing = (Drawing){0};
+    policy.walls = APP_PRESENTATION_NORMAL;
+    app_presentation_render_viewport(&context, &policy);
+    assert(drawing.lines == 1);
+    assert(drawing.last_colour.r == 100);
+    assert(drawing.last_colour.g == 120);
+    assert(drawing.last_colour.b == 140);
+
+    renderer2d_destroy(renderer);
+    sitehelper_editor_destroy(&editor);
+    sitehelper_project_destroy(&project);
+}
+
 int main(void)
 {
     test_workspace_policies();
     test_composer_owns_context_emphasis();
+    test_primary_emphasis_is_visually_distinct();
     puts("All presentation composition tests passed.");
     return 0;
 }

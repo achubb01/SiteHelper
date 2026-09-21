@@ -68,10 +68,10 @@ NORMAL
 PRIMARY
 ```
 
-`HIDDEN` prevents dispatch. `CONTEXT` currently subdues supported layer styles.
-`NORMAL` and `PRIMARY` are visually equivalent for several adapters today, but
-remain distinct so the active domain can become more prominent later without
-changing the policy contract.
+`HIDDEN` prevents dispatch. `CONTEXT`, `NORMAL` and `PRIMARY` are semantic
+inputs to the presentation-style boundary introduced in Priority 33B. Persistent
+model layers are subdued, unchanged or lifted respectively; transient overlays
+keep their established interaction colours for now.
 
 Current persistent layers:
 
@@ -206,9 +206,9 @@ snap                 NORMAL
 into Renderer2D primitives. It no longer owns workspace decisions.
 
 Walls and slabs already take render styles, so the composer derives contextual
-copies of those styles. Persistent documentation layers now accept a small
-`AppAnnotationRenderStyle` containing only a colour-scale percentage. That keeps
-the adapters workspace-neutral while preserving their domain-specific colours.
+copies of those styles. Persistent roof/dimension/document adapters now accept a small `AppRenderTone`
+containing colour-scale and white-blend percentages. That keeps the adapters
+workspace-neutral while preserving their domain-specific base colours.
 
 A remembered `current_wall_id` is navigation state. When walls are contextual,
 the composer deliberately makes the contextual selected/current colour equal to
@@ -246,8 +246,10 @@ The originally proposed separate "33B workspace-to-presentation mapping" is no
 longer necessary: completed Priority 32 makes that mapping available now, and it
 is part of 33A.
 
-The next Priority 33 step should build on this boundary rather than add another
-context abstraction. Likely follow-ons are explicit presentation/theme styling
-where `PRIMARY` needs to differ from `NORMAL`, and then new domain presentation
-adapters (roof derived geometry/edit handles, framing overlays, etc.) as their
-underlying authoritative/derived geometry contracts become ready.
+Priority 33B now supplies the explicit presentation-style contract that makes
+`PRIMARY` visually distinct from `NORMAL` while preserving the existing 45%
+`CONTEXT` treatment. See `PRESENTATION_STYLE.md`.
+
+The next composition pressure is transient authoring/edit overlays: their
+visibility belongs here, but their tool-specific drawing bodies should not make
+this composer become a replacement monolithic render loop.

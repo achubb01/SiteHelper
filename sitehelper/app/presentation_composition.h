@@ -49,6 +49,7 @@ typedef struct
     const GridRenderStyle *grid_style;
     const WallRenderStyle *wall_style;
     const SlabPlanRenderStyle *slab_style;
+    const AppPresentationStyle *presentation_style;
 } AppPresentationRenderContext;
 
 /* Pure workspace/view -> presentation policy mapping. GENERAL is the legacy

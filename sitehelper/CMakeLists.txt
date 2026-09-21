@@ -511,6 +511,7 @@ add_library(sitehelper_app_core
     app/appstate.c
     app/app_view.c
     app/app_workspace.c
+    app/presentation_style.c
     app/presentation_composition.c
 )
 
@@ -965,6 +966,10 @@ add_test(NAME workspace_presentation_tests COMMAND test_workspace_presentation)
 add_executable(test_presentation_composition app/tests/test_presentation_composition.c)
 target_link_libraries(test_presentation_composition PRIVATE sitehelper_app_core)
 add_test(NAME presentation_composition_tests COMMAND test_presentation_composition)
+
+add_executable(test_presentation_style app/tests/test_presentation_style.c)
+target_link_libraries(test_presentation_style PRIVATE sitehelper_app_core)
+add_test(NAME presentation_style_tests COMMAND test_presentation_style)
 
 add_executable(test_viewport_input
     app/tests/test_viewport_input.c
