@@ -8,8 +8,9 @@ typedef struct SDLBackendState {
     SDL_Renderer *renderer;
 } SDLBackendState;
 
-/* Temporary numeric HUD only: SDL's built-in ASCII debug font. Replace this
- * callback when production typography arrives; input semantics are independent. */
+/* Temporary debug typography: SDL's built-in ASCII font. Numeric input and
+ * framing annotations may use it, but no application semantics depend on this
+ * font. Replace the callback when production typography arrives. */
 static void sdl_draw_screen_text(void *context, Vec2 position, const char *text, Colour colour)
 {
     SDLBackendState *state = context;

@@ -8,6 +8,7 @@
 typedef struct
 {
     Colour selected_colour;
+    Colour hovered_colour;
     Colour selection_owner_colour;
     Colour navigation_colour;
 } AppInteractionStyle;

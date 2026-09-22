@@ -329,13 +329,28 @@ static int sitehelper_app_init(
     );
 
     app->wall_style = (WallRenderStyle){
-        .timber_colour = {
-            .r = 200,
-            .g = 160,
-            .b = 100,
-            .a = 255
-        },
-
+        .timber_colour = {200, 160, 100, 255},
+        .bottom_plate_colour = {155, 115, 75, 255},
+        .top_plate_colour = {170, 125, 80, 255},
+        .common_stud_colour = {200, 160, 100, 255},
+        .king_stud_colour = {105, 150, 205, 255},
+        .trimmer_stud_colour = {85, 175, 140, 255},
+        .cripple_stud_colour = {180, 135, 190, 255},
+        .noggin_colour = {165, 145, 105, 255},
+        .header_colour = {210, 115, 70, 255},
+        .sill_colour = {105, 170, 190, 255},
+        .wall_extent_colour = {95, 105, 115, 255},
+        .opening_colour = {115, 165, 210, 255},
+        .annotation_colour = {215, 220, 225, 255},
+        .dimension_colour = {145, 155, 165, 255},
+        .debug_axis_colour = {95, 200, 180, 255},
+        .show_wall_extent = true,
+        .show_openings = true,
+        .show_wall_identity = true,
+        .show_opening_labels = true,
+        .show_selected_member_label = true,
+        .show_dimensions = true,
+        .show_local_axes = false
     };
 
     app->slab_style = (SlabPlanRenderStyle){
@@ -562,6 +577,17 @@ static void sitehelper_app_process_events(
                     app,
                     screen_position
                 );
+                if (app->editor.wall_opening_edit.active &&
+                    (event.data.mouse_motion.held_buttons &
+                        PLATFORM_MOUSE_BUTTON_STATE_PRIMARY) &&
+                    rect2_contains_point(app->gui_layout.viewport,screen_position)) {
+                    Camera2D camera=renderer2d_get_camera(app->renderer);
+                    Viewport2D viewport=renderer2d_get_viewport(app->renderer);
+                    Vec2 view_position=camera_screen_to_world(
+                        &camera,viewport,screen_position);
+                    sitehelper_editor_update_opening_edit_in_project(
+                        &app->editor,&app->project,view_position);
+                }
                 break;
             }
 
@@ -594,13 +620,23 @@ static void sitehelper_app_process_events(
                     event.data.mouse_button.button
                     == PLATFORM_MOUSE_BUTTON_PRIMARY
                 ) {
+                    Vec2 screen_position={
+                        .x=event.data.mouse_button.x,.y=event.data.mouse_button.y
+                    };
                     (void)gui_toolbar_mouse_press(
                         &app->toolbar,
-                        (Vec2){
-                            .x = event.data.mouse_button.x,
-                            .y = event.data.mouse_button.y
-                        }
+                        screen_position
                     );
+                    if (app->input.focus == APP_KEYBOARD_FOCUS_NONE &&
+                        rect2_contains_point(app->gui_layout.viewport,screen_position)) {
+                        Camera2D camera=renderer2d_get_camera(app->renderer);
+                        Viewport2D viewport=renderer2d_get_viewport(app->renderer);
+                        Vec2 view_position=camera_screen_to_world(
+                            &camera,viewport,screen_position);
+                        double grip_tolerance=camera.scale > 0.0 ? 8.0/camera.scale : 0.0;
+                        (void)sitehelper_editor_begin_opening_edit_in_project(
+                            &app->editor,&app->project,view_position,grip_tolerance);
+                    }
                 }
                 else if (
                     event.data.mouse_button.button
@@ -626,6 +662,29 @@ static void sitehelper_app_process_events(
                         .x = event.data.mouse_button.x,
                         .y = event.data.mouse_button.y
                     };
+
+                    if (app->editor.wall_opening_edit.active) {
+                        if (rect2_contains_point(app->gui_layout.viewport,screen_position)) {
+                            Camera2D camera=renderer2d_get_camera(app->renderer);
+                            Viewport2D viewport=renderer2d_get_viewport(app->renderer);
+                            Vec2 view_position=camera_screen_to_world(
+                                &camera,viewport,screen_position);
+                            sitehelper_editor_update_opening_edit_in_project(
+                                &app->editor,&app->project,view_position);
+                            EditorAction edit_action={0};
+                            if (sitehelper_editor_create_opening_edit_action(
+                                    &app->editor,&edit_action)) {
+                                if (!sitehelper_app_execute_action(app,&edit_action)) {
+                                    sitehelper_editor_cancel_opening_edit(&app->editor);
+                                }
+                            } else {
+                                sitehelper_editor_cancel_opening_edit(&app->editor);
+                            }
+                        } else {
+                            sitehelper_editor_cancel_opening_edit(&app->editor);
+                        }
+                        break;
+                    }
 
                     GuiToolbarResult toolbar_result =
                         gui_toolbar_mouse_release(
@@ -829,6 +888,9 @@ static void sitehelper_app_update_editor_pointer(
         &app->project,
         view_position
     );
+    double grip_tolerance=camera.scale > 0.0 ? 8.0/camera.scale : 0.0;
+    sitehelper_editor_update_opening_edit_hover_in_project(
+        &app->editor,&app->project,view_position,grip_tolerance);
 }
 
 static void sitehelper_app_layout_gui(

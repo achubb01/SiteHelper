@@ -17,6 +17,7 @@ int main(void)
     AppInteractionStyle style = app_interaction_style_default();
 
     assert_colour(style.selected_colour, 255, 220, 40, 255);
+    assert_colour(style.hovered_colour, 120, 210, 255, 255);
     assert_colour(style.selection_owner_colour, 150, 150, 105, 255);
     assert_colour(style.navigation_colour, 225, 170, 80, 255);
 

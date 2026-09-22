@@ -238,8 +238,36 @@ static void test_extreme_stored_values_are_rejected_without_overflow(void)
     assert(wall_validate_opening(&wall, &settings, &proposal).code == WALL_OPENING_INVALID_DIMENSIONS);
 }
 
+
+static void test_replacement_validation_excludes_target_but_not_neighbours(void)
+{
+    BuildSettings settings=test_settings();
+    Opening openings[] = {
+        {.id=41,.type=OPENING_WINDOW,.frame_position=700,.frame_bottom=700,
+            .width=800,.height=1000,.custom_allowance=true},
+        {.id=42,.type=OPENING_WINDOW,.frame_position=2400,.frame_bottom=700,
+            .width=800,.height=1000,.custom_allowance=true}
+    };
+    Wall wall={.definition={.segment={{0,0},{5000,0}},
+        .openings=openings,.opening_count=2}};
+    WallOpeningProposal proposal={.type=OPENING_WINDOW,.frame_position=800,
+        .frame_bottom=700,.width=900,.height=1000,.custom_allowance=true};
+    assert(wall_validate_opening(&wall,&settings,&proposal).code ==
+        WALL_OPENING_OVERLAPS_OPENING);
+    assert(wall_validate_opening_replacement(&wall,&settings,41,&proposal).code ==
+        WALL_OPENING_VALID);
+    proposal.frame_position=1800;
+    WallOpeningValidation validation=wall_validate_opening_replacement(
+        &wall,&settings,41,&proposal);
+    assert(validation.code == WALL_OPENING_OVERLAPS_OPENING);
+    assert(validation.conflicting_opening_id == 42);
+    assert(wall_validate_opening_replacement(&wall,&settings,999,&proposal).code ==
+        WALL_OPENING_INVALID_ARGUMENT);
+}
+
 int main(void)
 {
+    test_replacement_validation_excludes_target_but_not_neighbours();
     test_extreme_stored_values_are_rejected_without_overflow();
     test_accepts_a_valid_opening();
     test_rejects_invalid_arguments_and_proposals();

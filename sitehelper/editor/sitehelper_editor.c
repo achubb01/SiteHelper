@@ -191,6 +191,12 @@ void sitehelper_editor_init(
     editor_selection_init(
         &editor->selection
     );
+    editor->wall_elevation_hover.wall_id = DOMAIN_ID_INVALID;
+    editor->wall_elevation_hover.opening_id = DOMAIN_ID_INVALID;
+    wall_selection_init(&editor->wall_elevation_hover.member);
+    editor->wall_opening_edit.wall_id = DOMAIN_ID_INVALID;
+    editor->wall_opening_edit.opening_id = DOMAIN_ID_INVALID;
+    editor->wall_opening_edit.validation.code = WALL_OPENING_INVALID_ARGUMENT;
 
     editor_snap_state_init(
         &editor->snap
@@ -237,6 +243,194 @@ EditorTool sitehelper_editor_get_active_tool(
     return editor->active_tool;
 }
 
+static void editor_clear_wall_elevation_hover(SiteHelperEditor *editor)
+{
+    if (editor == NULL) { return; }
+    editor->wall_elevation_hover.wall_id = DOMAIN_ID_INVALID;
+    editor->wall_elevation_hover.opening_id = DOMAIN_ID_INVALID;
+    wall_selection_clear(&editor->wall_elevation_hover.member);
+}
+
+static void editor_reset_wall_opening_edit(SiteHelperEditor *editor)
+{
+    if (editor == NULL) { return; }
+    editor->wall_opening_edit = (WallOpeningEdit){
+        .wall_id = DOMAIN_ID_INVALID,
+        .opening_id = DOMAIN_ID_INVALID,
+        .hovered_handle = WALL_OPENING_EDIT_HANDLE_NONE,
+        .active_handle = WALL_OPENING_EDIT_HANDLE_NONE,
+        .validation = {.code = WALL_OPENING_INVALID_ARGUMENT}
+    };
+}
+
+static int editor_wall_opening_edit_context(const SiteHelperEditor *editor)
+{
+    return editor != NULL && editor->active_workspace == EDITOR_WORKSPACE_FRAMING &&
+        editor->active_view == EDITOR_VIEW_WALL_ELEVATION &&
+        editor->active_tool == EDITOR_TOOL_SELECT &&
+        editor->selection.kind == EDITOR_SELECTION_OPENING &&
+        editor->selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION &&
+        editor->selection.wall_id != DOMAIN_ID_INVALID &&
+        editor->selection.opening_id != DOMAIN_ID_INVALID;
+}
+
+static int editor_wall_local_position(Vec2 position, WallLocalPosition *output)
+{
+    if (output == NULL || !isfinite(position.x) || !isfinite(position.y) ||
+        position.x < INT_MIN || position.x > INT_MAX ||
+        position.y < INT_MIN || position.y > INT_MAX) {
+        return 0;
+    }
+    long long u = llround(position.x);
+    long long z = llround(position.y);
+    if (u < INT_MIN || u > INT_MAX || z < INT_MIN || z > INT_MAX) { return 0; }
+    *output = (WallLocalPosition){.u=(int)u,.z=(int)z};
+    return 1;
+}
+
+static WallOpeningProposal editor_opening_proposal(const Opening *opening)
+{
+    return (WallOpeningProposal){
+        .type=opening->type,
+        .frame_position=opening->frame_position,
+        .frame_bottom=opening->frame_bottom,
+        .width=opening->width,
+        .height=opening->height,
+        .width_allowance=opening->width_allowance,
+        .height_allowance=opening->height_allowance,
+        .custom_allowance=opening->custom_allowance
+    };
+}
+
+static int editor_opening_equal(const Opening *a, const Opening *b)
+{
+    return a != NULL && b != NULL && a->id == b->id && a->type == b->type &&
+        a->frame_position == b->frame_position && a->frame_bottom == b->frame_bottom &&
+        a->width == b->width && a->height == b->height &&
+        a->width_allowance == b->width_allowance &&
+        a->height_allowance == b->height_allowance &&
+        a->custom_allowance == b->custom_allowance;
+}
+
+static WallOpeningEditHandle editor_opening_edit_handle_hit(
+    const Opening *opening, const BuildSettings *settings,
+    WallLocalPosition position, double tolerance_mm)
+{
+    if (opening == NULL || settings == NULL || !(tolerance_mm >= 0.0) ||
+        !isfinite(tolerance_mm)) {
+        return WALL_OPENING_EDIT_HANDLE_NONE;
+    }
+    WallOpeningFrameGeometry frame;
+    if (!wall_opening_frame_geometry(opening, settings, &frame)) {
+        return WALL_OPENING_EDIT_HANDLE_NONE;
+    }
+    double left=(double)frame.left_u, right=(double)frame.right_u;
+    double bottom=(double)frame.bottom_z, top=(double)frame.top_z;
+    double centre_u=(left+right)*0.5, centre_z=(bottom+top)*0.5;
+    struct Grip { WallOpeningEditHandle handle; double u,z; } grips[] = {
+        {WALL_OPENING_EDIT_HANDLE_LEFT,left,centre_z},
+        {WALL_OPENING_EDIT_HANDLE_RIGHT,right,centre_z},
+        {WALL_OPENING_EDIT_HANDLE_BOTTOM,centre_u,bottom},
+        {WALL_OPENING_EDIT_HANDLE_TOP,centre_u,top},
+        {WALL_OPENING_EDIT_HANDLE_MOVE,centre_u,centre_z}
+    };
+    double best=tolerance_mm*tolerance_mm;
+    WallOpeningEditHandle hit=WALL_OPENING_EDIT_HANDLE_NONE;
+    for (size_t i=0;i<sizeof grips/sizeof grips[0];i++) {
+        double du=(double)position.u-grips[i].u;
+        double dz=(double)position.z-grips[i].z;
+        double distance=du*du+dz*dz;
+        if (distance <= best) { best=distance; hit=grips[i].handle; }
+    }
+    return hit;
+}
+
+static int editor_opening_edit_candidate(
+    WallOpeningEdit *edit, WallLocalPosition position)
+{
+    if (edit == NULL || !edit->active) { return 0; }
+    int64_t du=(int64_t)position.u-edit->anchor.u;
+    int64_t dz=(int64_t)position.z-edit->anchor.z;
+    Opening candidate=edit->original;
+    int64_t value;
+    switch (edit->active_handle) {
+        case WALL_OPENING_EDIT_HANDLE_MOVE:
+            value=(int64_t)edit->original.frame_position+du;
+            if (value < INT_MIN || value > INT_MAX) return 0;
+            candidate.frame_position=(int)value;
+            value=(int64_t)edit->original.frame_bottom+dz;
+            if (value < INT_MIN || value > INT_MAX) return 0;
+            candidate.frame_bottom=(int)value;
+            break;
+        case WALL_OPENING_EDIT_HANDLE_LEFT:
+            value=(int64_t)edit->original.frame_position+du;
+            if (value < INT_MIN || value > INT_MAX) return 0;
+            candidate.frame_position=(int)value;
+            value=(int64_t)edit->original.width-du;
+            if (value < INT_MIN || value > INT_MAX) return 0;
+            candidate.width=(int)value;
+            break;
+        case WALL_OPENING_EDIT_HANDLE_RIGHT:
+            value=(int64_t)edit->original.width+du;
+            if (value < INT_MIN || value > INT_MAX) return 0;
+            candidate.width=(int)value;
+            break;
+        case WALL_OPENING_EDIT_HANDLE_BOTTOM:
+            value=(int64_t)edit->original.frame_bottom+dz;
+            if (value < INT_MIN || value > INT_MAX) return 0;
+            candidate.frame_bottom=(int)value;
+            value=(int64_t)edit->original.height-dz;
+            if (value < INT_MIN || value > INT_MAX) return 0;
+            candidate.height=(int)value;
+            break;
+        case WALL_OPENING_EDIT_HANDLE_TOP:
+            value=(int64_t)edit->original.height+dz;
+            if (value < INT_MIN || value > INT_MAX) return 0;
+            candidate.height=(int)value;
+            break;
+        case WALL_OPENING_EDIT_HANDLE_NONE:
+        default:
+            return 0;
+    }
+    edit->candidate=candidate;
+    return 1;
+}
+
+static void editor_update_wall_elevation_hover(
+    SiteHelperEditor *editor, const Wall *wall, const BuildSettings *settings,
+    Vec2 view_position)
+{
+    editor_clear_wall_elevation_hover(editor);
+    if (editor == NULL || wall == NULL || wall->id == DOMAIN_ID_INVALID ||
+        editor->active_view != EDITOR_VIEW_WALL_ELEVATION ||
+        editor->active_tool != EDITOR_TOOL_SELECT ||
+        !isfinite(view_position.x) || !isfinite(view_position.y) ||
+        view_position.x < INT_MIN || view_position.x > INT_MAX ||
+        view_position.y < INT_MIN || view_position.y > INT_MAX) {
+        return;
+    }
+
+    WallLocalPosition position = {
+        .u = (int)view_position.x,
+        .z = (int)view_position.y
+    };
+    WallMemberHit member = wall_find_member_at_position(wall, position);
+    if (member.kind != WALL_MEMBER_NONE && member.timber != NULL) {
+        editor->wall_elevation_hover.wall_id = wall->id;
+        wall_selection_set(&editor->wall_elevation_hover.member,
+            member.kind, member.timber);
+        return;
+    }
+
+    if (settings != NULL) {
+        DomainId opening_id = wall_find_opening_at_position(wall, settings, position);
+        if (opening_id != DOMAIN_ID_INVALID) {
+            editor->wall_elevation_hover.wall_id = wall->id;
+            editor->wall_elevation_hover.opening_id = opening_id;
+        }
+    }
+}
+
 void sitehelper_editor_clear_selection(
     SiteHelperEditor *editor
 )
@@ -245,6 +439,7 @@ void sitehelper_editor_clear_selection(
         return;
     }
 
+    editor_reset_wall_opening_edit(editor);
     editor_selection_clear(
         &editor->selection
     );
@@ -586,6 +781,156 @@ sitehelper_editor_get_selection(
     return &editor->selection;
 }
 
+const WallSelection *sitehelper_editor_get_hovered_wall_member(
+    const SiteHelperEditor *editor, DomainId wall_id)
+{
+    if (editor == NULL || wall_id == DOMAIN_ID_INVALID ||
+        editor->wall_elevation_hover.wall_id != wall_id ||
+        wall_selection_is_empty(&editor->wall_elevation_hover.member)) {
+        return NULL;
+    }
+    return &editor->wall_elevation_hover.member;
+}
+
+DomainId sitehelper_editor_get_hovered_opening(
+    const SiteHelperEditor *editor, DomainId wall_id)
+{
+    if (editor == NULL || wall_id == DOMAIN_ID_INVALID ||
+        editor->wall_elevation_hover.wall_id != wall_id ||
+        !wall_selection_is_empty(&editor->wall_elevation_hover.member)) {
+        return DOMAIN_ID_INVALID;
+    }
+    return editor->wall_elevation_hover.opening_id;
+}
+
+void sitehelper_editor_update_opening_edit_hover_in_project(
+    SiteHelperEditor *editor, const SiteHelperProject *project,
+    Vec2 view_position, double grip_tolerance_mm)
+{
+    if (editor == NULL) { return; }
+    if (editor->wall_opening_edit.active) { return; }
+    editor->wall_opening_edit.hovered_handle=WALL_OPENING_EDIT_HANDLE_NONE;
+    editor->wall_opening_edit.wall_id=DOMAIN_ID_INVALID;
+    editor->wall_opening_edit.opening_id=DOMAIN_ID_INVALID;
+    if (project == NULL || !editor_wall_opening_edit_context(editor)) { return; }
+    const Storey *storey=sitehelper_project_find_storey_by_id_const(
+        project,editor->current_storey_id);
+    const Wall *wall=storey != NULL ? build_find_wall_by_id_const(
+        &storey->structure,editor->selection.wall_id) : NULL;
+    const Opening *opening=wall != NULL ? wall_find_opening_by_id_const(
+        wall,editor->selection.opening_id) : NULL;
+    BuildSettings settings;
+    WallLocalPosition position;
+    if (opening == NULL || !sitehelper_project_resolve_storey_build_settings(
+            project,editor->current_storey_id,&settings) ||
+        !editor_wall_local_position(view_position,&position)) { return; }
+    WallOpeningEditHandle handle=editor_opening_edit_handle_hit(
+        opening,&settings,position,grip_tolerance_mm);
+    if (handle == WALL_OPENING_EDIT_HANDLE_NONE) { return; }
+    editor->wall_opening_edit.wall_id=wall->id;
+    editor->wall_opening_edit.opening_id=opening->id;
+    editor->wall_opening_edit.hovered_handle=handle;
+}
+
+int sitehelper_editor_begin_opening_edit_in_project(
+    SiteHelperEditor *editor, const SiteHelperProject *project,
+    Vec2 view_position, double grip_tolerance_mm)
+{
+    if (editor == NULL || project == NULL || !editor_wall_opening_edit_context(editor)) {
+        return 0;
+    }
+    const Storey *storey=sitehelper_project_find_storey_by_id_const(
+        project,editor->current_storey_id);
+    const Wall *wall=storey != NULL ? build_find_wall_by_id_const(
+        &storey->structure,editor->selection.wall_id) : NULL;
+    const Opening *opening=wall != NULL ? wall_find_opening_by_id_const(
+        wall,editor->selection.opening_id) : NULL;
+    BuildSettings settings;
+    WallLocalPosition position;
+    if (opening == NULL || !sitehelper_project_resolve_storey_build_settings(
+            project,editor->current_storey_id,&settings) ||
+        !editor_wall_local_position(view_position,&position)) { return 0; }
+    WallOpeningEditHandle handle=editor_opening_edit_handle_hit(
+        opening,&settings,position,grip_tolerance_mm);
+    if (handle == WALL_OPENING_EDIT_HANDLE_NONE) { return 0; }
+    editor->wall_opening_edit=(WallOpeningEdit){
+        .wall_id=wall->id,.opening_id=opening->id,
+        .hovered_handle=handle,.active_handle=handle,
+        .anchor=position,.original=*opening,.candidate=*opening,
+        .validation={.code=WALL_OPENING_VALID},.active=true
+    };
+    editor_clear_wall_elevation_hover(editor);
+    return 1;
+}
+
+void sitehelper_editor_update_opening_edit_in_project(
+    SiteHelperEditor *editor, const SiteHelperProject *project,
+    Vec2 view_position)
+{
+    if (editor == NULL || project == NULL || !editor->wall_opening_edit.active) { return; }
+    WallLocalPosition position;
+    if (!editor_wall_local_position(view_position,&position) ||
+        !editor_opening_edit_candidate(&editor->wall_opening_edit,position)) {
+        editor->wall_opening_edit.validation=(WallOpeningValidation){
+            .code=WALL_OPENING_INVALID_DIMENSIONS};
+        return;
+    }
+    const Storey *storey=sitehelper_project_find_storey_by_id_const(
+        project,editor->current_storey_id);
+    const Wall *wall=storey != NULL ? build_find_wall_by_id_const(
+        &storey->structure,editor->wall_opening_edit.wall_id) : NULL;
+    BuildSettings settings;
+    if (wall == NULL || !sitehelper_project_resolve_storey_build_settings(
+            project,editor->current_storey_id,&settings)) {
+        editor->wall_opening_edit.validation=(WallOpeningValidation){
+            .code=WALL_OPENING_INVALID_ARGUMENT};
+        return;
+    }
+    WallOpeningProposal proposal=editor_opening_proposal(
+        &editor->wall_opening_edit.candidate);
+    editor->wall_opening_edit.validation=wall_validate_opening_replacement(
+        wall,&settings,editor->wall_opening_edit.opening_id,&proposal);
+}
+
+int sitehelper_editor_create_opening_edit_action(
+    const SiteHelperEditor *editor, EditorAction *action)
+{
+    if (editor == NULL || action == NULL || !editor->wall_opening_edit.active ||
+        editor->wall_opening_edit.validation.code != WALL_OPENING_VALID ||
+        editor_opening_equal(&editor->wall_opening_edit.original,
+            &editor->wall_opening_edit.candidate)) {
+        return 0;
+    }
+    EditOpeningCommand edit;
+    if (!edit_opening_command_create(editor->wall_opening_edit.wall_id,
+            editor->wall_opening_edit.opening_id,
+            &editor->wall_opening_edit.candidate,&edit) ||
+        !sitehelper_command_from_edit_opening(&edit,&action->command)) {
+        return 0;
+    }
+    action->kind=EDITOR_ACTION_COMMAND;
+    return 1;
+}
+
+void sitehelper_editor_cancel_opening_edit(SiteHelperEditor *editor)
+{
+    editor_reset_wall_opening_edit(editor);
+}
+
+int sitehelper_editor_get_opening_edit(
+    const SiteHelperEditor *editor, DomainId wall_id, DomainId opening_id,
+    WallOpeningEdit *edit)
+{
+    if (editor == NULL || edit == NULL || wall_id == DOMAIN_ID_INVALID ||
+        opening_id == DOMAIN_ID_INVALID || editor->wall_opening_edit.wall_id != wall_id ||
+        editor->wall_opening_edit.opening_id != opening_id) {
+        return 0;
+    }
+    *edit=editor->wall_opening_edit;
+    return editor->wall_opening_edit.active ||
+        editor->wall_opening_edit.hovered_handle != WALL_OPENING_EDIT_HANDLE_NONE;
+}
+
 const SnapResult *
 sitehelper_editor_get_snap_result(
     const SiteHelperEditor *editor
@@ -915,6 +1260,13 @@ static void editor_pointer_move_resolved(
 {
     if (editor == NULL) {
         return;
+    }
+
+    if (editor->active_view == EDITOR_VIEW_WALL_ELEVATION &&
+        editor->active_tool == EDITOR_TOOL_SELECT) {
+        editor_update_wall_elevation_hover(editor, wall, settings, view_position);
+    } else {
+        editor_clear_wall_elevation_hover(editor);
     }
 
     if (editor->active_tool == EDITOR_TOOL_MEASURE) {
@@ -1864,6 +2216,13 @@ void sitehelper_editor_complete_action(
 
     switch (action->command.type) {
 
+        case SITEHELPER_COMMAND_EDIT_OPENING:
+            if (result->data.edit_opening.wall_id == editor->wall_opening_edit.wall_id &&
+                result->data.edit_opening.opening_id == editor->wall_opening_edit.opening_id) {
+                editor_reset_wall_opening_edit(editor);
+            }
+            break;
+
         case SITEHELPER_COMMAND_ADD_OPENING:
 
             sitehelper_editor_complete_opening_command(
@@ -2075,6 +2434,8 @@ void sitehelper_editor_invalidate_transient_state(
     sitehelper_editor_clear_snap(
         editor
     );
+    editor_clear_wall_elevation_hover(editor);
+    editor_reset_wall_opening_edit(editor);
 
     editor->opening_placement =
         (OpeningPlacement){0};
@@ -2711,6 +3072,10 @@ int sitehelper_editor_cancel_tool_interaction(SiteHelperEditor *editor)
             slab_geometry_tool_cancel(&editor->slab_geometry_tool);
             editor->slab_geometry_tool.active=1;
             sitehelper_editor_clear_snap(editor); return 1;
+        case EDITOR_TOOL_SELECT:
+            if (!editor->wall_opening_edit.active) { return 0; }
+            editor_reset_wall_opening_edit(editor);
+            return 1;
         default: return 0;
     }
 }

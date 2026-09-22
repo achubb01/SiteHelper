@@ -168,7 +168,11 @@ static AppInteractionStyle app_presentation_interaction_style(
     const AppInteractionStyle *style
 )
 {
-    return style != NULL ? *style : app_interaction_style_default();
+    AppInteractionStyle result = style != NULL ? *style : app_interaction_style_default();
+    if (result.hovered_colour.a == 0) {
+        result.hovered_colour = app_interaction_style_default().hovered_colour;
+    }
+    return result;
 }
 
 static WallRenderStyle app_presentation_wall_style(
@@ -178,6 +182,32 @@ static WallRenderStyle app_presentation_wall_style(
 {
     WallRenderStyle result = *style;
     result.timber_colour = app_render_tone_apply(result.timber_colour, tone);
+    result.bottom_plate_colour = app_render_tone_apply(
+        result.bottom_plate_colour, tone);
+    result.top_plate_colour = app_render_tone_apply(
+        result.top_plate_colour, tone);
+    result.common_stud_colour = app_render_tone_apply(
+        result.common_stud_colour, tone);
+    result.king_stud_colour = app_render_tone_apply(
+        result.king_stud_colour, tone);
+    result.trimmer_stud_colour = app_render_tone_apply(
+        result.trimmer_stud_colour, tone);
+    result.cripple_stud_colour = app_render_tone_apply(
+        result.cripple_stud_colour, tone);
+    result.noggin_colour = app_render_tone_apply(
+        result.noggin_colour, tone);
+    result.header_colour = app_render_tone_apply(
+        result.header_colour, tone);
+    result.sill_colour = app_render_tone_apply(result.sill_colour, tone);
+    result.wall_extent_colour = app_render_tone_apply(
+        result.wall_extent_colour, tone);
+    result.opening_colour = app_render_tone_apply(result.opening_colour, tone);
+    result.annotation_colour = app_render_tone_apply(
+        result.annotation_colour, tone);
+    result.dimension_colour = app_render_tone_apply(
+        result.dimension_colour, tone);
+    result.debug_axis_colour = app_render_tone_apply(
+        result.debug_axis_colour, tone);
     return result;
 }
 
@@ -347,7 +377,8 @@ void app_presentation_render_viewport(
     }
 
     if (app_presentation_emphasis_visible(policy->framing_overlays)) {
-        app_render_framing_overlay(context->renderer, context->editor);
+        app_render_framing_overlay(context->renderer, context->project,
+            context->editor, &interaction);
     }
 
     if (app_presentation_emphasis_visible(policy->measurement_overlay)) {

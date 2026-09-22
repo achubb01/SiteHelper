@@ -186,6 +186,7 @@ add_library(sitehelper_wall
     wall/wall_studs.c
     wall/wall_members.c
     wall/wall_openings.c
+    wall/wall_elevation_presentation.c
     wall/wall_query.c
     wall/wall_selection.c
 )
@@ -599,6 +600,18 @@ target_link_libraries(test_wall_render
 )
 
 add_test(NAME wall_render_tests COMMAND test_wall_render)
+
+add_executable(test_wall_elevation_presentation
+    wall/tests/test_wall_elevation_presentation.c
+)
+
+target_link_libraries(test_wall_elevation_presentation
+    PRIVATE
+        sitehelper_wall
+)
+
+add_test(NAME wall_elevation_presentation_tests
+    COMMAND test_wall_elevation_presentation)
 
 add_executable(test_wall_query
     wall/tests/test_wall_query.c

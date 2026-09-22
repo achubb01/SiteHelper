@@ -75,7 +75,7 @@ static void test_view_rendering_and_local_pointer(void)
     assert(drawing.line_count == 0 && drawing.rect_count > 2);
     Drawing first_elevation = drawing;
     drawing = (Drawing){0};
-    wall_elevation_render(renderer, app_current_wall_const(&project, &editor), NULL, &style);
+    wall_elevation_render(renderer, app_current_wall_const(&project, &editor), NULL, NULL, &style);
     assert_same_rects(&first_elevation, &drawing); /* Exactly the current wall. */
     SiteHelperCommand rotation = {.type = SITEHELPER_COMMAND_MOVE_WALL_ENDPOINT,
         .data.move_wall_endpoint = {first, WALL_ENDPOINT_END, {5000, 7200}}};

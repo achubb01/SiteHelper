@@ -21,6 +21,41 @@
 #include "sitehelper_project.h"
 #include "plan_dimension_geometry.h"
 
+typedef struct
+{
+    /* Transient Wall-elevation hover. Member identity remains by value for the
+     * same regeneration-safety reason as EditorSelection. Opening identity is
+     * stable. Both are cleared whenever pointer/tool/view context is invalidated. */
+    DomainId wall_id;
+    DomainId opening_id;
+    WallSelection member;
+} WallElevationHover;
+
+typedef enum
+{
+    WALL_OPENING_EDIT_HANDLE_NONE = 0,
+    WALL_OPENING_EDIT_HANDLE_MOVE,
+    WALL_OPENING_EDIT_HANDLE_LEFT,
+    WALL_OPENING_EDIT_HANDLE_RIGHT,
+    WALL_OPENING_EDIT_HANDLE_BOTTOM,
+    WALL_OPENING_EDIT_HANDLE_TOP
+} WallOpeningEditHandle;
+
+typedef struct
+{
+    /* Direct manipulation is an editor transaction preview. The Project remains
+     * unchanged until one EDIT_OPENING command is emitted on release. */
+    DomainId wall_id;
+    DomainId opening_id;
+    WallOpeningEditHandle hovered_handle;
+    WallOpeningEditHandle active_handle;
+    WallLocalPosition anchor;
+    Opening original;
+    Opening candidate;
+    WallOpeningValidation validation;
+    bool active;
+} WallOpeningEdit;
+
 /* Owns SlabTool and polygon-feature vertex storage after a sketch begins.
  * Initialize/destroy; never shallow-copy an editor containing owned storage. */
 typedef struct
@@ -37,6 +72,8 @@ typedef struct
 
     /* Non-empty scope must match active_view; changing views clears it. */
     EditorSelection selection;
+    WallElevationHover wall_elevation_hover;
+    WallOpeningEdit wall_opening_edit;
     EditorSnapState snap;
 
     OpeningTool opening_tool;
@@ -133,6 +170,32 @@ const EditorSelection *
 sitehelper_editor_get_selection(
     const SiteHelperEditor *editor
 );
+
+/* Framing hover is presentation-only and exists only for SELECT in Wall
+ * Elevation. Getters require the explicit viewed Wall owner. */
+const WallSelection *sitehelper_editor_get_hovered_wall_member(
+    const SiteHelperEditor *editor, DomainId wall_id);
+DomainId sitehelper_editor_get_hovered_opening(
+    const SiteHelperEditor *editor, DomainId wall_id);
+
+/* Selected-opening direct manipulation exists only in the Framing workspace,
+ * Wall Elevation and SELECT. Grip tolerance is supplied in wall-local mm by the
+ * application so grip hit areas can remain stable in screen pixels. */
+void sitehelper_editor_update_opening_edit_hover_in_project(
+    SiteHelperEditor *editor, const SiteHelperProject *project,
+    Vec2 view_position, double grip_tolerance_mm);
+int sitehelper_editor_begin_opening_edit_in_project(
+    SiteHelperEditor *editor, const SiteHelperProject *project,
+    Vec2 view_position, double grip_tolerance_mm);
+void sitehelper_editor_update_opening_edit_in_project(
+    SiteHelperEditor *editor, const SiteHelperProject *project,
+    Vec2 view_position);
+int sitehelper_editor_create_opening_edit_action(
+    const SiteHelperEditor *editor, EditorAction *action);
+void sitehelper_editor_cancel_opening_edit(SiteHelperEditor *editor);
+int sitehelper_editor_get_opening_edit(
+    const SiteHelperEditor *editor, DomainId wall_id, DomainId opening_id,
+    WallOpeningEdit *edit);
 
 const SnapResult *
 sitehelper_editor_get_snap_result(

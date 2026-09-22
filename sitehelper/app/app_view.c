@@ -11,7 +11,11 @@ static AppInteractionStyle app_interaction_style_or_default(
     const AppInteractionStyle *style
 )
 {
-    return style != NULL ? *style : app_interaction_style_default();
+    AppInteractionStyle result = style != NULL ? *style : app_interaction_style_default();
+    if (result.hovered_colour.a == 0) {
+        result.hovered_colour = app_interaction_style_default().hovered_colour;
+    }
+    return result;
 }
 
 static int app_plan_wall_selected(const EditorSelection *selection, DomainId wall_id)
@@ -109,13 +113,39 @@ void app_render_walls(
     if (editor->active_view == EDITOR_VIEW_WALL_ELEVATION) {
         const Wall *wall = app_current_wall_const(project, editor);
         if (wall != NULL) {
-            const WallSelection *selection = editor_selection_get_wall_member(
+            const WallSelection *member_selection = editor_selection_get_wall_member(
                 &editor->selection, EDITOR_SELECTION_SCOPE_WALL_ELEVATION, wall->id
             );
+            const WallSelection *hovered_member =
+                sitehelper_editor_get_hovered_wall_member(editor, wall->id);
+            WallElevationRenderSelection selection = {
+                .member = wall_selection_resolve(member_selection, wall),
+                .hovered_member = wall_selection_resolve(hovered_member, wall),
+                .opening_id = DOMAIN_ID_INVALID,
+                .hovered_opening_id =
+                    sitehelper_editor_get_hovered_opening(editor, wall->id),
+                .wall_selected = false
+            };
+            if (editor->selection.scope == EDITOR_SELECTION_SCOPE_WALL_ELEVATION &&
+                editor->selection.wall_id == wall->id) {
+                if (editor->selection.kind == EDITOR_SELECTION_OPENING) {
+                    selection.opening_id = editor->selection.opening_id;
+                } else if (editor->selection.kind == EDITOR_SELECTION_WALL) {
+                    selection.wall_selected = true;
+                }
+            }
+
+            BuildSettings settings;
+            const BuildSettings *resolved =
+                sitehelper_project_resolve_storey_build_settings(
+                    project, editor->current_storey_id, &settings)
+                ? &settings : NULL;
+
             WallRenderStyle render_style = *style;
             render_style.selected_colour = interaction.selected_colour;
-            wall_elevation_render(renderer, wall,
-                wall_selection_resolve(selection, wall), &render_style);
+            render_style.hovered_colour = interaction.hovered_colour;
+            wall_elevation_render(
+                renderer, wall, resolved, &selection, &render_style);
         }
         return;
     }

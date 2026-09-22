@@ -27,10 +27,11 @@ static WallOpeningValidation wall_opening_validation(
     };
 }
 
-WallOpeningValidation wall_validate_opening(
+static WallOpeningValidation wall_validate_opening_internal(
     const Wall *wall,
     const BuildSettings *settings,
-    const WallOpeningProposal *proposal
+    const WallOpeningProposal *proposal,
+    DomainId ignored_opening_id
 )
 {
     if (wall == NULL ||
@@ -124,6 +125,9 @@ WallOpeningValidation wall_validate_opening(
 
     for (size_t i = 0; i < wall->definition.opening_count; i++) {
         const Opening *existing = &wall->definition.openings[i];
+        if (existing->id == ignored_opening_id) {
+            continue;
+        }
 
         if (openings_conflict(&opening, existing, settings)) {
             return wall_opening_validation(
@@ -137,6 +141,29 @@ WallOpeningValidation wall_validate_opening(
         WALL_OPENING_VALID,
         DOMAIN_ID_INVALID
     );
+}
+
+WallOpeningValidation wall_validate_opening(
+    const Wall *wall,
+    const BuildSettings *settings,
+    const WallOpeningProposal *proposal
+)
+{
+    return wall_validate_opening_internal(
+        wall, settings, proposal, DOMAIN_ID_INVALID);
+}
+
+WallOpeningValidation wall_validate_opening_replacement(
+    const Wall *wall, const BuildSettings *settings, DomainId opening_id,
+    const WallOpeningProposal *proposal
+)
+{
+    if (wall == NULL || opening_id == DOMAIN_ID_INVALID ||
+        wall_find_opening_by_id_const(wall, opening_id) == NULL) {
+        return wall_opening_validation(
+            WALL_OPENING_INVALID_ARGUMENT, DOMAIN_ID_INVALID);
+    }
+    return wall_validate_opening_internal(wall, settings, proposal, opening_id);
 }
 
 int opening_frame_width(

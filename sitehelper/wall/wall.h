@@ -68,6 +68,12 @@ WallOpeningValidation wall_validate_opening(
     const BuildSettings *settings,
     const WallOpeningProposal *proposal
 );
+/* Validate replacement geometry while excluding the authoritative opening being
+ * replaced from overlap checks. Does not mutate or allocate. */
+WallOpeningValidation wall_validate_opening_replacement(
+    const Wall *wall, const BuildSettings *settings, DomainId opening_id,
+    const WallOpeningProposal *proposal
+);
 
 int build_add_room(BuildStructure *structure, DomainId room_id);
 int build_append_wall(BuildStructure *structure, Wall *wall);

@@ -23,13 +23,18 @@ it is not converted into a brighter form of PRIMARY or a darker form of CONTEXT.
 
 ## Interaction roles
 
-`AppInteractionStyle` currently defines three roles:
+`AppInteractionStyle` currently defines four roles:
 
 ```text
 selected_colour          exact EditorSelection target
+hovered_colour           transient pointer target
 selection_owner_colour   persistent owner of a selected subordinate object
 navigation_colour        current context that is not itself selected
 ```
+
+Priority 34D introduced `hovered_colour` for Wall-elevation framing. Hover is
+still transient editor state rather than selection authority; the shared colour
+only keeps its interaction meaning reusable across future workspaces.
 
 Default colours preserve the existing exact-selection yellow and slab-parent
 highlight. Navigation/current context now has its own warm accent so a remembered
@@ -89,4 +94,6 @@ No interaction colours are persisted into Project data.
 5. Navigation/current context must remain visually distinguishable from
    selection.
 6. Transient authoring overlays remain separate from persistent selection style.
-7. Renderer2D remains unaware of workspace, selection and domain semantics.
+7. Hover may use the shared interaction colour while remaining transient and
+   subordinate to exact selection.
+8. Renderer2D remains unaware of workspace, selection and domain semantics.
