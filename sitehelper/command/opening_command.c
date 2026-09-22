@@ -19,7 +19,8 @@ static int opening_command_copy_wall_definition(
         .id = source->id,
 
         .definition = {
-            .segment = source->definition.segment
+            .segment = source->definition.segment,
+            .plan_specification = source->definition.plan_specification
         },
 
         .framing = {0}

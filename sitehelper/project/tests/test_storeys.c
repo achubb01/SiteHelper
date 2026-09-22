@@ -393,9 +393,9 @@ static void test_persistence(void)
     assert(remove(path) == 0); sitehelper_project_destroy(&p); sitehelper_project_destroy(&loaded);
 }
 
-static void count_line(void *context, Vec2 a, Vec2 b, Colour colour)
+static void count_triangle(void *context, Vec2 a, Vec2 b, Vec2 c, Colour colour)
 {
-    (void)a; (void)b; (void)colour; (*(size_t *)context)++;
+    (void)a; (void)b; (void)c; (void)colour; (*(size_t *)context)++;
 }
 
 static void test_editor_isolation(void)
@@ -448,18 +448,19 @@ static void test_editor_isolation(void)
     sitehelper_editor_reconcile(&editor, &p);
     assert(editor.current_wall_id == 0 && editor.current_room_id == 0);
     Renderer2D *renderer = renderer2d_create(); assert(renderer);
-    size_t lines = 0;
-    renderer2d_set_backend(renderer, (RendererBackend){.context = &lines, .draw_line = count_line});
+    size_t triangles = 0;
+    renderer2d_set_backend(renderer,
+        (RendererBackend){.context = &triangles, .fill_triangle = count_triangle});
     renderer2d_set_camera(renderer, (Camera2D){.scale = 1});
     renderer2d_set_viewport(renderer, (Vec2){0}, 800, 600);
     WallRenderStyle style = {0};
-    app_render_walls(renderer, &p, &editor, &style); assert(lines == 2);
+    app_render_walls(renderer, &p, &editor, &style, NULL); assert(triangles == 4);
     assert(sitehelper_editor_set_current_storey(&editor, &p, a));
-    lines = 0; app_render_walls(renderer, &p, &editor, &style); assert(lines == 1);
+    triangles = 0; app_render_walls(renderer, &p, &editor, &style, NULL); assert(triangles == 2);
     assert(!sitehelper_editor_set_current_storey(&editor, &p, UINT64_MAX));
     assert(editor.current_storey_id == a);
     assert(sitehelper_editor_set_current_storey(&editor, &p, 0));
-    lines = 0; app_render_walls(renderer, &p, &editor, &style); assert(lines == 0);
+    triangles = 0; app_render_walls(renderer, &p, &editor, &style, NULL); assert(triangles == 0);
     /* Wall Tool actions capture the active Storey and survive its reallocation. */
     assert(sitehelper_editor_set_current_storey(&editor, &p, b));
     assert(sitehelper_editor_set_active_tool(&editor, EDITOR_TOOL_WALL));
@@ -475,12 +476,12 @@ static void test_editor_isolation(void)
     assert(app_current_wall_const(&p, &editor)->id == result.data.add_wall.wall_id);
     assert(sitehelper_editor_set_current_storey(&editor, &p, a));
     editor.current_wall_id = result.data.add_wall.wall_id;
-    lines = 0; app_render_walls(renderer, &p, &editor, &style); assert(lines == 0);
+    triangles = 0; app_render_walls(renderer, &p, &editor, &style, NULL); assert(triangles == 0);
     sitehelper_project_destroy(&p); sitehelper_project_init(&p);
     sitehelper_editor_reconcile(&editor, &p);
     assert(editor.current_storey_id == 0 && app_current_wall(&p, &editor) == NULL);
     assert(sitehelper_editor_set_active_view(&editor, EDITOR_VIEW_PLAN));
-    lines = 0; app_render_walls(renderer, &p, &editor, &style); assert(lines == 0);
+    triangles = 0; app_render_walls(renderer, &p, &editor, &style, NULL); assert(triangles == 0);
     assert(!sitehelper_editor_primary_action_in_project(&editor, &p, (Vec2){0, 0}, &action));
     renderer2d_destroy(renderer); sitehelper_project_destroy(&p);
 }

@@ -197,6 +197,13 @@ static void test_execute_adds_opening_to_wall(void)
             &wall_id
         );
 
+    WallPlanSpecification plan_specification = {
+        .thickness_mm = 140,
+        .alignment = WALL_PLAN_ALIGNMENT_RIGHT_FACE
+    };
+    assert(wall_set_plan_specification(wall, plan_specification));
+    assert(wall_generate(wall, &project.settings));
+
     OpeningCommand command;
 
     DomainIdGenerator expected_ids =
@@ -265,6 +272,11 @@ static void test_execute_adds_opening_to_wall(void)
         wall->definition.opening_count
         == opening_count_before + 1
     );
+
+    assert(wall->definition.plan_specification.thickness_mm ==
+        plan_specification.thickness_mm);
+    assert(wall->definition.plan_specification.alignment ==
+        plan_specification.alignment);
 
     assert(
         wall->definition.openings[
